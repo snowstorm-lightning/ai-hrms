@@ -1,0 +1,1694 @@
+openapi: 3.1.0
+info:
+  title: AI-HRMS API
+  version: 0.1.0
+  description: >
+    Contract index for the current AI-HRMS reproduction phase. The API serves
+    one corporate group with multiple legal entities; legal entities are
+    organization scopes, not SaaS tenants.
+servers:
+  - url: http://localhost:8080/api
+    description: Local Go API
+security:
+  - bearerAuth: []
+tags:
+  - name: Health
+  - name: Auth
+  - name: Organization
+  - name: Roles
+  - name: Users
+  - name: Employees
+  - name: Attendance
+  - name: Messages
+  - name: Audit
+  - name: RAG
+  - name: Learning
+  - name: Agent
+  - name: VisualCopilot
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: API is healthy.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthEnvelope"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Login with mobile and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: JWT token and current user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /profile:
+    get:
+      tags: [Auth]
+      operationId: getProfile
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /legal-entities:
+    get:
+      tags: [Organization]
+      operationId: listLegalEntities
+      summary: List visible legal entities
+      description: Returns legal entities visible to the caller's RBAC scope.
+      responses:
+        "200":
+          description: Visible legal entities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalEntityListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Organization]
+      operationId: createLegalEntity
+      summary: Create legal entity
+      description: Requires global role scope.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LegalEntityInput"
+      responses:
+        "201":
+          description: Created legal entity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalEntityEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /legal-entities/{id}:
+    put:
+      tags: [Organization]
+      operationId: updateLegalEntity
+      summary: Update legal entity
+      description: Requires global role scope.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LegalEntityInput"
+      responses:
+        "200":
+          description: Updated legal entity.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalEntityEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /org-units:
+    get:
+      tags: [Organization]
+      operationId: listOrgUnits
+      summary: List visible organization units
+      description: Organization units may have no legal entity.
+      responses:
+        "200":
+          description: Visible organization units.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnitListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Organization]
+      operationId: createOrgUnit
+      summary: Create organization unit
+      description: Requires global role scope.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgUnitInput"
+      responses:
+        "201":
+          description: Created organization unit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnitEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /org-units/{id}:
+    put:
+      tags: [Organization]
+      operationId: updateOrgUnit
+      summary: Update organization unit
+      description: Requires global role scope.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgUnitInput"
+      responses:
+        "200":
+          description: Updated organization unit.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnitEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /roles:
+    get:
+      tags: [Roles]
+      operationId: listRoles
+      summary: List roles
+      description: Requires global role scope.
+      responses:
+        "200":
+          description: Available roles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      summary: List users
+      description: Requires global role scope.
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: Paged users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPageEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Users]
+      operationId: createUser
+      summary: Create user
+      description: Requires global role scope.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: Created user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /users/{id}:
+    put:
+      tags: [Users]
+      operationId: updateUser
+      summary: Update user
+      description: Requires global role scope.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: Updated user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/{id}/role-bindings:
+    get:
+      tags: [Roles]
+      operationId: listUserRoleBindings
+      summary: List user role bindings
+      description: Requires global role scope.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: User role bindings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleBindingListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      tags: [Roles]
+      operationId: replaceUserRoleBindings
+      summary: Replace user role bindings
+      description: Requires global role scope.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceRoleBindingsRequest"
+      responses:
+        "200":
+          description: Updated user role bindings.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleBindingListEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /employees:
+    get:
+      tags: [Employees]
+      operationId: listEmployees
+      summary: List employees with primary assignment
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: Paged employees visible to caller scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeePageEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Employees]
+      operationId: createEmployee
+      summary: Create employee
+      description: Requires global role scope in the current implementation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeInput"
+      responses:
+        "201":
+          description: Created employee.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /employees/export:
+    get:
+      tags: [Employees]
+      operationId: exportEmployees
+      summary: Export visible employees as CSV
+      responses:
+        "200":
+          description: UTF-8 CSV file.
+          content:
+            text/csv:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /employees/{id}:
+    get:
+      tags: [Employees]
+      operationId: getEmployee
+      summary: Get employee by id
+      description: Returns only employees visible to caller scope.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Employee detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Employees]
+      operationId: updateEmployee
+      summary: Update employee
+      description: Requires global role scope in the current implementation.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeInput"
+      responses:
+        "200":
+          description: Updated employee.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /attendance:
+    get:
+      tags: [Attendance]
+      operationId: listAttendance
+      summary: List attendance records
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: Paged attendance visible to caller scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendancePageEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Attendance]
+      operationId: createAttendance
+      summary: Check in an employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAttendanceRequest"
+      responses:
+        "201":
+          description: Created attendance record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /attendance/export:
+    get:
+      tags: [Attendance]
+      operationId: exportAttendance
+      summary: Export visible attendance records as CSV
+      responses:
+        "200":
+          description: UTF-8 CSV file.
+          content:
+            text/csv:
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /attendance/{id}/checkout:
+    put:
+      tags: [Attendance]
+      operationId: checkoutAttendance
+      summary: Check out an attendance record
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Updated attendance record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /messages:
+    get:
+      tags: [Messages]
+      operationId: listMessages
+      summary: List messages
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: Paged messages.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagePageEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Messages]
+      operationId: createMessage
+      summary: Create message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMessageRequest"
+      responses:
+        "201":
+          description: Created message.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /messages/{id}/comments:
+    get:
+      tags: [Messages]
+      operationId: listComments
+      summary: List message comments
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Message comments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Messages]
+      operationId: createComment
+      summary: Create message comment
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentRequest"
+      responses:
+        "201":
+          description: Created comment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /audit/events:
+    get:
+      tags: [Audit]
+      operationId: listAuditEvents
+      summary: List scoped audit events
+      responses:
+        "200":
+          description: Paged audit events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /rag/sources:
+    get:
+      tags: [RAG]
+      operationId: listRagSources
+      summary: List RAG sources
+      responses:
+        "200":
+          description: RAG source list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+    post:
+      tags: [RAG]
+      operationId: createRagSource
+      summary: Create RAG source
+      responses:
+        "201":
+          description: Created RAG source.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /rag/documents:
+    get:
+      tags: [RAG]
+      operationId: listRagDocuments
+      summary: List scoped RAG documents
+      responses:
+        "200":
+          description: Paged RAG documents.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+    post:
+      tags: [RAG]
+      operationId: createRagDocument
+      summary: Create scoped RAG document and deterministic chunks
+      responses:
+        "201":
+          description: Created RAG document.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /rag/ingest-jobs:
+    post:
+      tags: [RAG]
+      operationId: createRagIngestJob
+      summary: Create ingestion job
+      responses:
+        "201":
+          description: Created ingestion job.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /rag/ingest-jobs/{id}:
+    get:
+      tags: [RAG]
+      operationId: getRagIngestJob
+      summary: Get ingestion job
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Ingestion job.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /rag/search:
+    post:
+      tags: [RAG]
+      operationId: searchRag
+      summary: Search scoped RAG knowledge
+      responses:
+        "200":
+          description: Search answer with citations or refusal reason.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /ai/chat:
+    post:
+      tags: [RAG]
+      operationId: aiChat
+      summary: Citation-grounded AI chat
+      responses:
+        "200":
+          description: Chat response with citations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /learning/courses:
+    get:
+      tags: [Learning]
+      operationId: listLearningCourses
+      summary: List scoped learning courses
+      responses:
+        "200":
+          description: Paged learning courses.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+    post:
+      tags: [Learning]
+      operationId: createLearningCourse
+      summary: Create learning course
+      responses:
+        "201":
+          description: Created learning course.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /learning/courses/{id}/lessons:
+    get:
+      tags: [Learning]
+      operationId: listLearningLessons
+      summary: List lessons for a course
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Lesson list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /learning/enrollments:
+    get:
+      tags: [Learning]
+      operationId: listLearningEnrollments
+      summary: List scoped learning enrollments
+      responses:
+        "200":
+          description: Paged enrollments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /learning/recommendations:
+    get:
+      tags: [Learning]
+      operationId: listLearningRecommendations
+      summary: List scoped AI learning recommendations
+      responses:
+        "200":
+          description: Paged recommendations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /agent/runs:
+    get:
+      tags: [Agent]
+      operationId: listAgentRuns
+      summary: List caller agent runs
+      responses:
+        "200":
+          description: Paged agent runs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+    post:
+      tags: [Agent]
+      operationId: createAgentRun
+      summary: Create delegated agent run
+      responses:
+        "201":
+          description: Created agent run.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /agent/tools/preview:
+    post:
+      tags: [Agent]
+      operationId: previewAgentTool
+      summary: Preview Go-gated agent tool call
+      responses:
+        "200":
+          description: Tool preview result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /visual-copilot/context:
+    post:
+      tags: [VisualCopilot]
+      operationId: createVisualContext
+      summary: Save visual context after Go business-ref validation
+      responses:
+        "200":
+          description: Visual copilot event and result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /visual-copilot/suggestions:
+    post:
+      tags: [VisualCopilot]
+      operationId: createVisualSuggestions
+      summary: Generate suggestions for selected screen regions
+      responses:
+        "200":
+          description: Visual copilot suggestions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /visual-copilot/actions/preview:
+    post:
+      tags: [VisualCopilot]
+      operationId: previewVisualAction
+      summary: Preview visual copilot action
+      responses:
+        "200":
+          description: Action preview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /visual-copilot/actions/execute:
+    post:
+      tags: [VisualCopilot]
+      operationId: executeVisualAction
+      summary: Execute confirmed visual copilot action
+      responses:
+        "200":
+          description: Executed action result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /visual-copilot/events:
+    get:
+      tags: [VisualCopilot]
+      operationId: listVisualCopilotEvents
+      summary: List caller visual copilot events
+      responses:
+        "200":
+          description: Paged visual copilot events.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Size:
+      name: size
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Unauthorized:
+      description: Missing, invalid, or expired bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    Forbidden:
+      description: Caller lacks the required RBAC scope.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFound:
+      description: Resource not found or outside caller scope.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+
+  schemas:
+    ApiEnvelope:
+      type: object
+      required: [success, code, message]
+      properties:
+        success:
+          type: boolean
+        code:
+          type: integer
+          example: 2001
+        message:
+          type: string
+        data: {}
+
+    ErrorEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [success, code, message]
+          properties:
+            success:
+              const: false
+            code:
+              type: integer
+              example: 4001
+            message:
+              type: string
+
+    HealthEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/Health"
+
+    LoginEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/LoginResult"
+
+    UserEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/User"
+
+    LegalEntityEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/LegalEntity"
+
+    LegalEntityListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/LegalEntity"
+
+    OrgUnitEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/OrgUnit"
+
+    OrgUnitListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/OrgUnit"
+
+    RoleListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/Role"
+
+    RoleBindingListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/RoleBinding"
+
+    EmployeeEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/Employee"
+
+    AttendanceEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/Attendance"
+
+    MessageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/Message"
+
+    CommentEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/Comment"
+
+    UserPageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/UserPage"
+
+    EmployeePageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/EmployeePage"
+
+    AttendancePageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/AttendancePage"
+
+    MessagePageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/MessagePage"
+
+    CommentListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/Comment"
+
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+
+    LoginRequest:
+      type: object
+      required: [mobile, password]
+      properties:
+        mobile:
+          type: string
+          example: "123"
+        password:
+          type: string
+          format: password
+          example: password
+
+    LoginResult:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+
+    CreateUserRequest:
+      type: object
+      required: [mobile, username]
+      properties:
+        mobile:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+          default: password
+
+    UpdateUserRequest:
+      type: object
+      required: [username, enableState]
+      properties:
+        username:
+          type: string
+        enableState:
+          type: integer
+          enum: [0, 1]
+
+    ReplaceRoleBindingsRequest:
+      type: object
+      required: [bindings]
+      properties:
+        bindings:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleBindingInput"
+
+    RoleBindingInput:
+      type: object
+      required: [roleCode, scopeType, includeDescendants]
+      properties:
+        roleCode:
+          type: string
+        scopeType:
+          type: string
+          enum: [global, legal_entity, org_unit]
+        scopeId:
+          type: [string, "null"]
+          format: uuid
+        includeDescendants:
+          type: boolean
+          default: true
+
+    LegalEntityInput:
+      type: object
+      required: [code, name]
+      properties:
+        parentId:
+          type: [string, "null"]
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        legalName:
+          type: string
+        unifiedSocialCreditCode:
+          type: string
+        legalRepresentative:
+          type: string
+        companyPhone:
+          type: string
+        email:
+          type: string
+          format: email
+        area:
+          type: string
+        address:
+          type: string
+        status:
+          type: string
+          default: active
+
+    OrgUnitInput:
+      type: object
+      required: [code, name]
+      properties:
+        parentId:
+          type: [string, "null"]
+          format: uuid
+        legalEntityId:
+          type: [string, "null"]
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          default: department
+        managerName:
+          type: string
+        status:
+          type: string
+          default: active
+
+    EmployeeInput:
+      type: object
+      description: >
+        Employee profile payload. Primary assignment is returned by reads;
+        assignment write APIs will be split out when multi-assignment UI lands.
+      properties:
+        userId:
+          type: [string, "null"]
+          format: uuid
+        employeeNo:
+          type: string
+        name:
+          type: string
+        mobile:
+          type: string
+        status:
+          type: string
+        sex:
+          type: string
+        dateOfBirth:
+          type: string
+        highestDegreeOfEducation:
+          type: string
+        nationalArea:
+          type: string
+        passportNo:
+          type: string
+        idNumber:
+          type: string
+        nativePlace:
+          type: string
+        nation:
+          type: string
+        englishName:
+          type: string
+        maritalStatus:
+          type: string
+        birthday:
+          type: string
+        zodiac:
+          type: string
+        age:
+          type: string
+        constellation:
+          type: string
+        bloodType:
+          type: string
+        domicile:
+          type: string
+        politicalOutlook:
+          type: string
+        qq:
+          type: string
+        wechat:
+          type: string
+        placeOfResidence:
+          type: string
+        postalAddress:
+          type: string
+        personalMailbox:
+          type: string
+        emergencyContact:
+          type: string
+        emergencyContactNumber:
+          type: string
+        bankCardNumber:
+          type: string
+        openingBank:
+          type: string
+        graduateSchool:
+          type: string
+        major:
+          type: string
+        homeCompany:
+          type: string
+        title:
+          type: string
+        resume:
+          type: string
+        isThereAnyCompetitionRestriction:
+          type: string
+        remarks:
+          type: string
+        primaryAssignment:
+          anyOf:
+            - $ref: "#/components/schemas/AssignmentInput"
+            - type: "null"
+
+    AssignmentInput:
+      type: object
+      properties:
+        legalEntityId:
+          type: [string, "null"]
+          format: uuid
+        orgUnitId:
+          type: [string, "null"]
+          format: uuid
+        positionTitle:
+          type: string
+        startDate:
+          type: string
+          format: date
+        employmentType:
+          type: string
+
+    CreateAttendanceRequest:
+      type: object
+      required: [employeeId]
+      properties:
+        employeeId:
+          type: string
+          format: uuid
+        attendanceStatus:
+          type: integer
+          default: 1
+        remarks:
+          type: string
+
+    CreateMessageRequest:
+      type: object
+      required: [title, content]
+      properties:
+        title:
+          type: string
+        category:
+          type: string
+          default: general
+        content:
+          type: string
+          description: HTML content must be sanitized before rendering.
+
+    CreateCommentRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          description: Comment HTML must be sanitized before rendering.
+
+    User:
+      type: object
+      required: [id, mobile, username, enableState, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        mobile:
+          type: string
+        username:
+          type: string
+        enableState:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        roles:
+          type: array
+          items:
+            type: string
+
+    Role:
+      type: object
+      required: [id, code, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+
+    RoleBinding:
+      allOf:
+        - $ref: "#/components/schemas/RoleBindingInput"
+        - type: object
+          required: [id, userId, roleCode, scopeType, includeDescendants]
+          properties:
+            id:
+              type: string
+              format: uuid
+            userId:
+              type: string
+              format: uuid
+            roleId:
+              type: string
+              format: uuid
+            roleName:
+              type: string
+            scopeName:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+
+    LegalEntity:
+      allOf:
+        - $ref: "#/components/schemas/LegalEntityInput"
+        - type: object
+          required: [id, code, name, status, createdAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            createdAt:
+              type: string
+              format: date-time
+
+    OrgUnit:
+      allOf:
+        - $ref: "#/components/schemas/OrgUnitInput"
+        - type: object
+          required: [id, code, name, type, status, createdAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            createdAt:
+              type: string
+              format: date-time
+
+    Assignment:
+      type: object
+      required:
+        - id
+        - positionTitle
+        - isPrimary
+        - startDate
+        - employmentType
+      properties:
+        id:
+          type: string
+          format: uuid
+        legalEntityId:
+          type: [string, "null"]
+          format: uuid
+        legalEntityName:
+          type: [string, "null"]
+        orgUnitId:
+          type: [string, "null"]
+          format: uuid
+        orgUnitName:
+          type: [string, "null"]
+        positionTitle:
+          type: string
+        isPrimary:
+          type: boolean
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: [string, "null"]
+          format: date-time
+        employmentType:
+          type: string
+
+    Employee:
+      allOf:
+        - $ref: "#/components/schemas/EmployeeInput"
+        - type: object
+          required: [id, employeeNo, name, mobile, status]
+          properties:
+            id:
+              type: string
+              format: uuid
+            primaryAssignment:
+              anyOf:
+                - $ref: "#/components/schemas/Assignment"
+                - type: "null"
+
+    Attendance:
+      type: object
+      required:
+        - id
+        - employeeId
+        - employeeName
+        - mobile
+        - orgUnitName
+        - attendanceStatus
+        - day
+      properties:
+        id:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          format: uuid
+        employeeName:
+          type: string
+        mobile:
+          type: string
+        orgUnitName:
+          type: string
+        attendanceStatus:
+          type: integer
+        attendanceInTime:
+          type: [string, "null"]
+          format: date-time
+        attendanceOutTime:
+          type: [string, "null"]
+          format: date-time
+        attendanceInPlace:
+          type: string
+        day:
+          type: string
+        remarks:
+          type: string
+
+    Message:
+      type: object
+      required: [id, title, category, content, author, orgUnitName, star, view, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        category:
+          type: string
+        content:
+          type: string
+        author:
+          type: string
+        orgUnitName:
+          type: string
+        star:
+          type: integer
+        view:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    Comment:
+      type: object
+      required: [id, messageId, content, username, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        messageId:
+          type: string
+          format: uuid
+        content:
+          type: string
+        username:
+          type: string
+        orgUnitName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    UserPage:
+      allOf:
+        - $ref: "#/components/schemas/Page"
+        - type: object
+          properties:
+            rows:
+              type: array
+              items:
+                $ref: "#/components/schemas/User"
+
+    EmployeePage:
+      allOf:
+        - $ref: "#/components/schemas/Page"
+        - type: object
+          properties:
+            rows:
+              type: array
+              items:
+                $ref: "#/components/schemas/Employee"
+
+    AttendancePage:
+      allOf:
+        - $ref: "#/components/schemas/Page"
+        - type: object
+          properties:
+            rows:
+              type: array
+              items:
+                $ref: "#/components/schemas/Attendance"
+
+    MessagePage:
+      allOf:
+        - $ref: "#/components/schemas/Page"
+        - type: object
+          properties:
+            rows:
+              type: array
+              items:
+                $ref: "#/components/schemas/Message"
+
+    Page:
+      type: object
+      required: [total, rows]
+      properties:
+        total:
+          type: integer
+          format: int64
+        rows:
+          type: array
+          items: {}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.log
+tmp/
+.DS_Store
+__pycache__/
+.pytest_cache/
+.venv/
+.uv-cache/
+vendor/
+bin/

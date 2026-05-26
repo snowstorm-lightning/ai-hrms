@@ -1,0 +1,18 @@
+[project]
+name = "ai-hrms-agent"
+version = "0.1.0"
+description = "AI agent boundary service for AI-HRMS"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.124.0",
+  "httpx>=0.28.0",
+  "pydantic>=2.12.0",
+  "uvicorn[standard]>=0.38.0",
+]
+
+[project.scripts]
+ai-hrms-agent = "ai_hrms_agent.main:main"
+
+[build-system]
+requires = ["uv_build>=0.10.0,<0.11.0"]
+build-backend = "uv_build"

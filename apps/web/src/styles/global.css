@@ -1,0 +1,298 @@
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #f4f6f8;
+}
+
+.centered {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}
+
+.login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: linear-gradient(135deg, #f5f7fb 0%, #e8eef8 100%);
+}
+
+.login-panel {
+  width: min(420px, calc(100vw - 32px));
+  padding: 36px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgb(20 30 55 / 12%);
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-sider {
+  background: #fff !important;
+  border-right: 1px solid #eef0f4;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 64px;
+  padding: 0 20px;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  border-bottom: 1px solid #eef0f4;
+}
+
+.user-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-content {
+  padding: 24px;
+}
+
+.page-title {
+  margin-bottom: 18px;
+}
+
+.page-title h3 {
+  margin-bottom: 4px !important;
+}
+
+.page-state {
+  display: grid;
+  min-height: 280px;
+  place-items: center;
+}
+
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #d6dce6;
+  border-top-color: #1677ff;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.inline-error {
+  margin-bottom: 16px;
+}
+
+.toolbar {
+  margin-bottom: 16px;
+}
+
+.section-card {
+  margin-top: 16px;
+}
+
+.result-panel {
+  margin-top: 16px;
+}
+
+.visual-copilot-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1001;
+  box-shadow: 0 10px 30px rgb(20 30 55 / 18%);
+}
+
+.visual-copilot-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  cursor: crosshair;
+  background: rgb(15 23 42 / 8%);
+}
+
+.visual-copilot-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 76px;
+  width: min(680px, calc(100vw - 40px));
+  padding: 12px;
+  border: 1px solid #d6e4ff;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgb(15 23 42 / 18%);
+  cursor: default;
+}
+
+.visual-copilot-panel .ant-input {
+  width: min(420px, calc(100vw - 220px));
+}
+
+.visual-region {
+  position: fixed;
+  border: 2px solid #1677ff;
+  border-radius: 6px;
+  background: rgb(22 119 255 / 10%);
+  pointer-events: none;
+}
+
+.visual-region.draft {
+  border-style: dashed;
+}
+
+.visual-region span {
+  position: absolute;
+  top: -28px;
+  left: 0;
+  max-width: 220px;
+  padding: 2px 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #1677ff;
+  color: #fff;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.visual-response {
+  margin: 10px 0 0;
+  color: #374151;
+}
+
+.reference-list,
+.progress-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.reference-row,
+.progress-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border: 1px solid #eef0f4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.reference-row {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.progress-row > div {
+  display: grid;
+  gap: 4px;
+}
+
+.split-panel {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) 1fr;
+  gap: 16px;
+}
+
+.tree-panel,
+.detail-panel {
+  min-height: 520px;
+  padding: 16px;
+  border: 1px solid #eef0f4;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.list-row span {
+  display: block;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.binding-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 140px minmax(180px, 1fr) 88px auto;
+  gap: 12px;
+  align-items: end;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+.binding-row .ant-form-item {
+  margin-bottom: 0;
+}
+
+.assignment-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(130px, 1fr) minmax(120px, 1fr) 90px 120px 120px 70px auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid #eef0f4;
+  border-radius: 8px;
+}
+
+.assignment-row .ant-form-item {
+  margin-bottom: 0;
+}
+
+.comment-list {
+  min-height: 120px;
+  margin-bottom: 16px;
+}
+
+.message-title-cell {
+  display: grid;
+  gap: 4px;
+}
+
+.comment-row {
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+@media (max-width: 900px) {
+  .split-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .binding-row {
+    grid-template-columns: 1fr;
+  }
+
+  .assignment-row {
+    grid-template-columns: 1fr;
+  }
+
+  .visual-copilot-panel .ant-input {
+    width: 100%;
+  }
+}

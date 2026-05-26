@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: ai-hrms-postgres
+    environment:
+      POSTGRES_DB: ai_hrms
+      POSTGRES_USER: ai_hrms
+      POSTGRES_PASSWORD: ai_hrms
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_hrms -d ai_hrms"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - ai_hrms_pgdata:/var/lib/postgresql/data
+
+volumes:
+  ai_hrms_pgdata:
