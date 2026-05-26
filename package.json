@@ -5,7 +5,9 @@
     "apps/web"
   ],
   "scripts": {
-    "check": "powershell -ExecutionPolicy Bypass -File harness/check.ps1",
+    "check": "node harness/check.mjs",
+    "check:linux": "bash harness/check.sh",
+    "check:windows": "powershell -ExecutionPolicy Bypass -File harness/check.ps1",
     "web:dev": "npm --workspace apps/web run dev",
     "web:build": "npm --workspace apps/web run build",
     "web:check": "npm --workspace apps/web run check"

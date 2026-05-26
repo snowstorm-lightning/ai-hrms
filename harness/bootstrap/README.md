@@ -4,13 +4,19 @@ Verifies that required local tools are available.
 
 Required tools:
 
-- Node.js and npm or pnpm.
-- Go.
-- Python.
+- Node.js and npm.
+- Go 1.26 or newer.
+- Python 3.12 or newer, available as `python3` or `python`.
 - `uv`.
-- Docker.
+- Docker with Docker Compose v2.
 
-Run:
+Run on Linux/WSL:
+
+```bash
+./harness/bootstrap/check.sh
+```
+
+Run on Windows PowerShell:
 
 ```powershell
 .\harness\bootstrap\check.ps1

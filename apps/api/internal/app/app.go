@@ -82,7 +82,7 @@ func New(cfg config.Config, db *store.Store) http.Handler {
 	mux.Handle("GET /api/visual-copilot/events", server.authenticated(http.HandlerFunc(server.listVisualEvents)))
 
 	return cors.New(cors.Options{
-		AllowedOrigins: []string{"http://localhost:5173", "http://127.0.0.1:5173"},
+		AllowedOrigins: cfg.AllowedOrigins,
 		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
 		AllowedHeaders: []string{"Authorization", "Content-Type"},
 	}).Handler(mux)

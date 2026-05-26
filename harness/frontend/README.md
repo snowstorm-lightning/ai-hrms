@@ -2,7 +2,13 @@
 
 Validates frontend quality gates.
 
-Run from the repo root:
+Run from the repo root on Linux/WSL:
+
+```bash
+./harness/frontend/check.sh
+```
+
+Run from the repo root on Windows PowerShell:
 
 ```powershell
 .\harness\frontend\check.ps1

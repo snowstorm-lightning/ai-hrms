@@ -17,8 +17,12 @@ Harnesses make agent-driven work repeatable and verifiable.
 
 Every major workflow should eventually have a command that verifies it without manual inspection.
 
+Every harness must have a Linux/WSL entrypoint. Prefer a shared cross-platform
+implementation with thin `.sh` and `.ps1` wrappers when the check contains
+substantial logic.
+
 ## Documentation
 
 Each harness directory should include a `README.md` with prerequisites, command,
-current checks, and planned coverage. Update the README when a harness script
-changes behavior.
+Linux/WSL command, Windows command, current checks, and planned coverage. Update
+the README when a harness script changes behavior.

@@ -8,7 +8,19 @@ Prerequisites:
 - API is running at `API_BASE_URL`, or `http://localhost:8080/api` by default.
 - Seed account `123` / `password` exists.
 
-Run:
+Run on Linux/WSL:
+
+```bash
+./harness/api/check.sh
+```
+
+With a custom API URL:
+
+```bash
+API_BASE_URL=http://localhost:8080/api ./harness/api/check.sh
+```
+
+Run on Windows PowerShell:
 
 ```powershell
 .\harness\api\check.ps1
@@ -19,7 +31,7 @@ Current smoke flow:
 ```text
 health -> login -> profile -> legal entities -> org units -> users ->
 roles -> role bindings -> employees -> employee CSV -> attendance ->
-attendance CSV -> messages
+attendance CSV -> messages -> RAG -> AI chat -> agent tools -> Visual Copilot
 ```
 
 Contract reference:

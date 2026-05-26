@@ -2,7 +2,13 @@
 
 Validates AI agent and RAG behavior.
 
-Run from the repo root:
+Run from the repo root on Linux/WSL:
+
+```bash
+./harness/agent/check.sh
+```
+
+Run from the repo root on Windows PowerShell:
 
 ```powershell
 .\harness\agent\check.ps1
@@ -10,13 +16,7 @@ Run from the repo root:
 
 Current check:
 
-- Import the Python app factory through `uv`.
-- Confirm the service title remains `AI-HRMS Agent`.
-
-Future checks:
-
 - Tool authorization checks.
-- Golden prompts for HRMS question answering.
 - Retrieval quality checks.
 - Output schema checks.
 
