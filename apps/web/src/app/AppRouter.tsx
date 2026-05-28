@@ -15,6 +15,7 @@ const MessagesPage = lazy(() => import("../features/employees/MessagesPage").the
 const AiCommandCenterPage = lazy(() => import("../features/ai-command/AiCommandCenterPage").then((module) => ({ default: module.AiCommandCenterPage })));
 const KnowledgePage = lazy(() => import("../features/knowledge/KnowledgePage").then((module) => ({ default: module.KnowledgePage })));
 const LearningPage = lazy(() => import("../features/learning/LearningPage").then((module) => ({ default: module.LearningPage })));
+const CoGrowthPage = lazy(() => import("../features/co-growth/CoGrowthPage").then((module) => ({ default: module.CoGrowthPage })));
 const AgentRunsPage = lazy(() => import("../features/agents/AgentRunsPage").then((module) => ({ default: module.AgentRunsPage })));
 const AuditPage = lazy(() => import("../features/audit/AuditPage").then((module) => ({ default: module.AuditPage })));
 
@@ -37,6 +38,7 @@ export function AppRouter() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<RequireAuth />}>
+              <Route path="/co-growth" element={<CoGrowthPage />} />
               <Route path="/app" element={<AppShell />}>
                 <Route index element={<Navigate to="/app/dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
@@ -49,6 +51,7 @@ export function AppRouter() {
                 <Route path="ai-command" element={<AiCommandCenterPage />} />
                 <Route path="knowledge" element={<KnowledgePage />} />
                 <Route path="learning" element={<LearningPage />} />
+                <Route path="co-growth" element={<Navigate to="/co-growth" replace />} />
                 <Route path="agents" element={<AgentRunsPage />} />
                 <Route path="audit" element={<AuditPage />} />
               </Route>

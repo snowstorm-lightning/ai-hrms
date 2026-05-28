@@ -10,6 +10,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
   if (user) {
     return <Navigate to="/app/dashboard" replace />;
@@ -48,6 +49,26 @@ export function LoginPage() {
           <Button type="primary" htmlType="submit" block loading={submitting}>
             登录
           </Button>
+          {demoMode ? (
+            <Button
+              className="demo-login-button"
+              block
+              onClick={async () => {
+                setError("");
+                setSubmitting(true);
+                try {
+                  await login({ mobile: "123", password: "password" });
+                  navigate("/co-growth");
+                } catch (err) {
+                  setError(getErrorMessage(err, "Demo 登录失败"));
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+            >
+              一键进入 Co-Growth Demo
+            </Button>
+          ) : null}
         </Form>
       </section>
     </main>

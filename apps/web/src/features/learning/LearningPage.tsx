@@ -1,11 +1,13 @@
-import { Card, Col, Progress, Row, Statistic, Table, Tag, Typography } from "antd";
+import { Button, Card, Col, Progress, Row, Space, Statistic, Table, Tag, Typography } from "antd";
 import { useEffect, useState, type HTMLAttributes } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, getErrorMessage } from "../../api/client";
 import type { LearningCourse, LearningEnrollment, LearningRecommendation } from "../../api/types";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
 
 export function LearningPage() {
+  const navigate = useNavigate();
   const [courses, setCourses] = useState<LearningCourse[]>([]);
   const [enrollments, setEnrollments] = useState<LearningEnrollment[]>([]);
   const [recommendations, setRecommendations] = useState<LearningRecommendation[]>([]);
@@ -37,6 +39,26 @@ export function LearningPage() {
     <div data-vc-page="learning">
       <PageTitle title="学习中心" description="入职计划、课程进度、测验和成长建议。" />
       <InlineError message={error} onRetry={reload} />
+      <Card className="section-card learning-cogrowth-entry" data-vc-kind="co-growth-entry-card">
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} md={16}>
+            <Typography.Title level={4}>进入共进学习舱</Typography.Title>
+            <Typography.Paragraph type="secondary">
+              学习不只是课程，而是“AI 原理 + 工作 mission + 复盘 + 证据”。在不牺牲交付的前提下，把本周真实任务转化成可验证的 AI 实战成长路径。
+            </Typography.Paragraph>
+          </Col>
+          <Col xs={24} md={8}>
+            <Space wrap>
+              <Button type="primary" onClick={() => navigate("/co-growth")} data-vc-action="learning.open_co_growth">
+                进入共进学习舱
+              </Button>
+              <Button onClick={() => navigate("/co-growth")} data-vc-action="learning.generate_ai_path">
+                AI 生成学习路径
+              </Button>
+            </Space>
+          </Col>
+        </Row>
+      </Card>
       <Row gutter={[16, 16]}>
         <Col xs={24} md={8}><Card><Statistic title="课程" value={courses.length} /></Card></Col>
         <Col xs={24} md={8}><Card><Statistic title="分配" value={enrollments.length} /></Card></Col>
@@ -72,6 +94,25 @@ export function LearningPage() {
               <Progress percent={item.status === "completed" ? 100 : 35} style={{ width: 180 }} />
             </div>
           )) : <Typography.Text type="secondary">暂无学习分配</Typography.Text>}
+        </div>
+      </Card>
+      <Card className="section-card" title="AI 学习建议">
+        <div className="reference-list">
+          {recommendations.length ? recommendations.map((item) => (
+            <div className="reference-row" key={item.id} data-vc-kind="learning-recommendation" data-vc-object-id={item.id}>
+              <Typography.Text strong>{item.title}</Typography.Text>
+              <Typography.Text type="secondary">{item.reason}</Typography.Text>
+              <Space wrap>
+                <Tag color="blue">{item.recommendationType}</Tag>
+                <Tag>{item.status}</Tag>
+              </Space>
+            </div>
+          )) : (
+            <div className="reference-row">
+              <Typography.Text strong>示例：把本周工作任务转化为 AI 实战 mission</Typography.Text>
+              <Typography.Text type="secondary">进入共进学习舱后可看到包含风险等级、证据来源、置信度和人工确认点的建议。</Typography.Text>
+            </div>
+          )}
         </div>
       </Card>
     </div>

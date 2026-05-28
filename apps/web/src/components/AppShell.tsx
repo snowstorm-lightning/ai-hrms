@@ -6,6 +6,7 @@ import {
   ClockCircleOutlined,
   DashboardOutlined,
   DatabaseOutlined,
+  ExperimentOutlined,
   IdcardOutlined,
   MessageOutlined,
   RobotOutlined,
@@ -32,6 +33,7 @@ const menuItems = [
   { key: "/app/ai-command", icon: <RobotOutlined />, label: "AI 指挥中心" },
   { key: "/app/knowledge", icon: <DatabaseOutlined />, label: "知识库" },
   { key: "/app/learning", icon: <BookOutlined />, label: "学习中心" },
+  { key: "/co-growth", icon: <ExperimentOutlined />, label: "共进学习舱" },
   { key: "/app/agents", icon: <TeamOutlined />, label: "Agent 运行" },
   { key: "/app/audit", icon: <AuditOutlined />, label: "审计中心" },
 ];

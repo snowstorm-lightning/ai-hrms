@@ -103,6 +103,16 @@ npm ci
 npm run web:dev
 ```
 
+Optional Co-Growth pure frontend demo:
+
+```bash
+VITE_DEMO_MODE=true npm run web:dev
+```
+
+Then open `http://127.0.0.1:5173/co-growth`. The demo mode keeps the
+existing Go API path available when `VITE_DEMO_MODE` is unset or `false`, but
+uses deterministic frontend data for the Co-Growth experience.
+
 Optional agent service.
 
 Linux/WSL:

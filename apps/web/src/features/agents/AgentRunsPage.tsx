@@ -1,5 +1,5 @@
 import { Button, Card, Form, Input, Select, Space, Table, Tag } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
 import type { AgentRun } from "../../api/types";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
@@ -50,6 +50,11 @@ export function AgentRunsPage() {
             { value: "knowledge_iteration", label: "知识库迭代 Agent" },
             { value: "data_quality", label: "数据质量 Agent" },
             { value: "visual_copilot", label: "Visual Copilot Agent" },
+            { value: "co_growth_coach", label: "共进学习 Coach" },
+            { value: "ai_literacy_path", label: "AI 素养路径 Agent" },
+            { value: "work_learning_balance", label: "工学平衡 Agent" },
+            { value: "agent_workflow_lab", label: "Agent Workflow Lab" },
+            { value: "reflection_helper", label: "复盘辅助 Agent" },
           ]} /></Form.Item>
           <Form.Item name="riskLevel"><Select style={{ width: 150 }} options={[
             { value: "low", label: "低风险" },
@@ -66,12 +71,19 @@ export function AgentRunsPage() {
         loading={loading}
         dataSource={items}
         locale={{ emptyText: <EmptyBlock description="暂无 Agent 运行" /> }}
+        onRow={(row) => ({
+          "data-vc-kind": "agent-run-row",
+          "data-vc-object-type": "agent_run",
+          "data-vc-object-id": row.id,
+          "data-vc-label": row.runType,
+        } as HTMLAttributes<HTMLElement>)}
         columns={[
           { title: "类型", dataIndex: "runType" },
           { title: "状态", dataIndex: "status", render: (status) => <Tag color="green">{status}</Tag> },
           { title: "风险", dataIndex: "riskLevel", render: (risk) => <Tag color={risk === "high" ? "red" : risk === "medium" ? "orange" : "blue"}>{risk}</Tag> },
           { title: "Provider", render: (_, row) => `${row.provider} / ${row.model}` },
           { title: "摘要", dataIndex: "summary" },
+          { title: "时间", dataIndex: "createdAt" },
         ]}
       />
     </div>
