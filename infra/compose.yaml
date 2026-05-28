@@ -1,13 +1,13 @@
+name: ai-hrms
+
 services:
   postgres:
     image: pgvector/pgvector:pg17
-    container_name: ai-hrms-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ai_hrms
       POSTGRES_USER: ai_hrms
-      POSTGRES_PASSWORD: ai_hrms
-    ports:
-      - "55432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ai_hrms -d ai_hrms"]
       interval: 5s
@@ -15,6 +15,51 @@ services:
       retries: 20
     volumes:
       - ai_hrms_pgdata:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DOCKER_DATABASE_URL:?DOCKER_DATABASE_URL is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      API_PORT: 8080
+      CORS_ALLOWED_ORIGINS: ${DOCKER_CORS_ALLOWED_ORIGINS:?DOCKER_CORS_ALLOWED_ORIGINS is required}
+      AI_HRMS_INGEST_ROOT: ${DOCKER_AI_HRMS_INGEST_ROOT:-}
+    ports:
+      - target: 8080
+        published: "${API_PORT:-8020}"
+        host_ip: "${DOCKER_BIND_IP:-127.0.0.1}"
+        protocol: tcp
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_DEMO_MODE: ${VITE_DEMO_MODE:-false}
+    restart: unless-stopped
+    ports:
+      - target: 80
+        published: "${WEB_PORT:-8021}"
+        host_ip: "${DOCKER_BIND_IP:-127.0.0.1}"
+        protocol: tcp
+    depends_on:
+      api:
+        condition: service_healthy
+
+  agent:
+    build:
+      context: ..
+      dockerfile: apps/agent/Dockerfile
+    restart: unless-stopped
+    environment:
+      AI_HRMS_INGEST_ROOT: ${DOCKER_AI_HRMS_INGEST_ROOT:-}
 
 volumes:
   ai_hrms_pgdata:

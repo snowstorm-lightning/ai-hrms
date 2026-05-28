@@ -1,0 +1,14 @@
+services:
+  postgres:
+    ports:
+      - target: 5432
+        published: "${POSTGRES_PORT:-55432}"
+        host_ip: "${DOCKER_BIND_IP:-127.0.0.1}"
+        protocol: tcp
+
+  agent:
+    ports:
+      - target: 8090
+        published: "${AGENT_PORT:-8090}"
+        host_ip: "${DOCKER_BIND_IP:-127.0.0.1}"
+        protocol: tcp

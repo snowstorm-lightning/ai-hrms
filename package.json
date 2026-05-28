@@ -8,6 +8,9 @@
     "check": "node harness/check.mjs",
     "check:linux": "bash harness/check.sh",
     "check:windows": "powershell -ExecutionPolicy Bypass -File harness/check.ps1",
+    "docker:up": "docker compose --env-file infra/.env -f infra/compose.yaml up -d --build",
+    "docker:down": "docker compose --env-file infra/.env -f infra/compose.yaml down",
+    "docker:logs": "docker compose --env-file infra/.env -f infra/compose.yaml logs -f",
     "web:dev": "npm --workspace apps/web run dev",
     "web:build": "npm --workspace apps/web run build",
     "web:check": "npm --workspace apps/web run check"
