@@ -37,14 +37,14 @@ export function LearningPage() {
 
   return (
     <div data-vc-page="learning">
-      <PageTitle title="学习中心" description="入职计划、课程进度、测验和成长建议。" />
+      <PageTitle title="Learning Layer" description="AI-HRMS 的学习层：入职计划、课程进度、AI 建议和 Co-Growth 成长证据共同服务于人机共生成长。" />
       <InlineError message={error} onRetry={reload} />
       <Card className="section-card learning-cogrowth-entry" data-vc-kind="co-growth-entry-card">
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} md={16}>
-            <Typography.Title level={4}>进入共进学习舱</Typography.Title>
+            <Typography.Title level={4}>进入 Co-Growth OS｜AI-HRMS 成长引擎</Typography.Title>
             <Typography.Paragraph type="secondary">
-              学习不只是课程，而是“AI 原理 + 工作 mission + 复盘 + 证据”。在不牺牲交付的前提下，把本周真实任务转化成可验证的 AI 实战成长路径。
+              学习不只是课程，而是“AI 原理 + 工作 mission + 复盘 + 证据 + 审计”。在不牺牲交付的前提下，把本周真实任务转化成可验证的 AI 实战成长路径。
             </Typography.Paragraph>
           </Col>
           <Col xs={24} md={8}>
@@ -69,6 +69,7 @@ export function LearningPage() {
         rowKey="id"
         loading={loading}
         dataSource={courses}
+        scroll={{ x: "max-content" }}
         locale={{ emptyText: <EmptyBlock description="暂无课程" /> }}
         onRow={(row) => ({
           "data-vc-kind": "table-row",
@@ -77,10 +78,10 @@ export function LearningPage() {
           "data-vc-label": row.title,
         } as HTMLAttributes<HTMLElement>)}
         columns={[
-          { title: "课程", dataIndex: "title" },
-          { title: "说明", dataIndex: "description" },
-          { title: "课时", dataIndex: "lessonCount" },
-          { title: "状态", dataIndex: "status", render: (status) => <Tag color="green">{status}</Tag> },
+          { title: "课程", dataIndex: "title", width: 220 },
+          { title: "说明", dataIndex: "description", width: 420, ellipsis: true },
+          { title: "课时", dataIndex: "lessonCount", width: 100 },
+          { title: "状态", dataIndex: "status", width: 120, render: (status) => <Tag color="green">{status}</Tag> },
         ]}
       />
       <Card className="section-card" title="学习进度">

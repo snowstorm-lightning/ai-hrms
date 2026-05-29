@@ -201,9 +201,28 @@ export interface RAGDocument {
   trustLevel: string;
   sensitivity: string;
   content?: string;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
   publishedAt?: string | null;
+  createdByUserId?: string | null;
   createdAt: string;
   scopes?: RAGDocumentScope[];
+}
+
+export interface RAGIngestJob {
+  id: string;
+  sourceId?: string | null;
+  documentId?: string | null;
+  jobType: string;
+  status: string;
+  provider: string;
+  title?: string;
+  content?: string;
+  summary: string;
+  error: string;
+  createdByUserId?: string | null;
+  createdAt: string;
+  completedAt?: string | null;
 }
 
 export interface RAGCitation {
@@ -211,17 +230,45 @@ export interface RAGCitation {
   chunkId: string;
   title: string;
   snippet: string;
+  trustLevel?: string;
+  sensitivity?: string;
+  score?: number;
+  pageRef?: string;
+  locationRef?: string;
 }
 
 export interface RAGSearchResult {
   answer: string;
   citations: RAGCitation[];
   refusalReason?: string;
+  provider?: string;
+  model?: string;
+  confidence?: number;
+  riskLevel?: string;
+  humanReviewRequired?: boolean;
+  auditStatus?: string;
 }
 
 export interface AIChatResponse {
   message: string;
   citations: RAGCitation[];
+  provider?: string;
+  model?: string;
+  confidence?: number;
+  riskLevel?: string;
+  humanReviewRequired?: boolean;
+  auditStatus?: string;
+}
+
+export interface AIProviderStatus {
+  agentBoundaryConfigured: boolean;
+  chatProvider: string;
+  chatModel: string;
+  deepseekKeyConfigured: boolean;
+  embeddingProvider: string;
+  embeddingModel?: string;
+  embeddingDimensions: number | string;
+  embeddingKeyConfigured: boolean;
 }
 
 export interface LearningCourse {
@@ -282,6 +329,15 @@ export interface AgentToolPreviewResponse {
   message: string;
   requiredRisk: string;
   resultPreview: Record<string, unknown>;
+}
+
+export interface AgentWorkflowDemoResult {
+  goal: string;
+  context: string[];
+  risk_level: string;
+  human_review_required: boolean;
+  audit_status: string;
+  steps: Array<{ name: string; status: string }>;
 }
 
 export interface BusinessRef {

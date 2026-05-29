@@ -5,6 +5,48 @@ subsidiaries and organization units. The first phase reproduces useful
 `../saas_hrms` workflows with a Go API, PostgreSQL, React, Ant Design, and a
 separate Python agent boundary managed by `uv`.
 
+## Assignment Demo: AI-HRMS
+
+Submission positioning:
+
+AI-HRMS｜人机共生的人力资源智能操作系统
+
+The assignment demo presents the full AI-HRMS product, not a standalone
+Co-Growth demo. Co-Growth OS is one highlighted module inside AI-HRMS: the
+growth engine for AI literacy, work missions, reflection, and evidence.
+
+Run the deterministic frontend demo:
+
+```bash
+VITE_DEMO_MODE=true npm run web:dev
+```
+
+Open `http://127.0.0.1:5173/login` and click **一键进入 AI-HRMS Demo**.
+The core demo path does not require Go, PostgreSQL, Python, external LLMs, or
+external network calls.
+
+Recommended 3-minute path:
+
+1. `/app/dashboard` - AI-HRMS Command Dashboard and Demo Tour.
+2. `/app/ai-command` - structured HR recommendation with trust metadata.
+3. `/app/knowledge` - governed RAG documents, trust level, sensitivity, scope,
+   and citation preview.
+4. `/co-growth` - Co-Growth OS as the AI-HRMS growth engine.
+5. `/app/agents` - human-agent run cards, tool preview, and confirmation.
+6. `/app/audit` - trust, audit, and evidence chain.
+
+Build the public demo:
+
+```bash
+VITE_DEMO_MODE=true npm run web:build
+```
+
+See:
+
+- `docs/assignment-five-solution.md`
+- `docs/demo-script.md`
+- `docs/ai-hrms-demo.md`
+
 ## Local Ports
 
 | Service | URL | Notes |
@@ -13,6 +55,7 @@ separate Python agent boundary managed by `uv`.
 | Docker API | `http://127.0.0.1:8020/api` | Go service, runs migrations on start |
 | Native Web | `http://127.0.0.1:5173` | Vite dev server |
 | Native API | `http://localhost:8080/api` | Go dev process |
+| Native Agent | `http://127.0.0.1:8090` | Python AI/RAG provider boundary |
 | PostgreSQL | Docker network only by default | Use `infra/compose.dev.yaml` to publish `127.0.0.1:55432` |
 
 ## Prerequisites
@@ -70,6 +113,11 @@ JWT_SECRET=<hex-32>
 VITE_API_BASE_URL=/api
 DOCKER_CORS_ALLOWED_ORIGINS=http://hrms.snowstormlightning.top,https://hrms.snowstormlightning.top
 ```
+
+For real AI mode, put `DEEPSEEK_API_KEY` and embedding provider keys in
+`infra/.env`. Compose passes provider keys only to the Python agent service;
+the Go API talks to the agent over `AGENT_BASE_URL` and keeps RBAC, scope, and
+audit control.
 
 Start the stack:
 
@@ -150,6 +198,7 @@ export DATABASE_URL='postgres://ai_hrms:ai_hrms@localhost:55432/ai_hrms?sslmode=
 export JWT_SECRET='dev-secret-change-me'
 export API_PORT=8080
 export CORS_ALLOWED_ORIGINS='http://localhost:5173,http://127.0.0.1:5173'
+export AGENT_BASE_URL='http://127.0.0.1:8090'
 go run ./cmd/server
 ```
 
@@ -161,8 +210,45 @@ $env:DATABASE_URL = "postgres://ai_hrms:ai_hrms@localhost:55432/ai_hrms?sslmode=
 $env:JWT_SECRET = "dev-secret-change-me"
 $env:API_PORT = "8080"
 $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+$env:AGENT_BASE_URL = "http://127.0.0.1:8090"
 go run ./cmd/server
 ```
+
+For local smoke tests without external calls, start the Python agent boundary in
+fake mode:
+
+```bash
+cd apps/agent
+AI_CHAT_PROVIDER=fake AI_EMBEDDING_PROVIDER=fake uv run ai-hrms-agent
+```
+
+For real AI/RAG mode, set the provider env vars on the Python agent process
+before starting it. Keep keys in local env files or deployment secrets only and
+do not commit them:
+
+```bash
+export AI_CHAT_PROVIDER=deepseek
+export DEEPSEEK_API_KEY='<your-deepseek-api-key>'
+export DEEPSEEK_BASE_URL='https://api.deepseek.com'
+export DEEPSEEK_CHAT_MODEL='deepseek-v4-flash'
+export DEEPSEEK_REASONING_EFFORT='high'
+export DEEPSEEK_TIMEOUT_SECONDS=30
+export AI_EMBEDDING_PROVIDER=openai-compatible
+export OPENAI_COMPATIBLE_EMBEDDING_API_KEY='<your-embedding-api-key>'
+export OPENAI_COMPATIBLE_EMBEDDING_BASE_URL='<embedding-base-url>'
+export OPENAI_COMPATIBLE_EMBEDDING_MODEL='<embedding-model>'
+export RAG_EMBEDDING_DIMENSIONS='<embedding-dimensions>'
+```
+
+DeepSeek chat uses an OpenAI-compatible Chat Completions API. RAG retrieval is
+vector-first through PostgreSQL/pgvector; embeddings are configured separately
+with `AI_EMBEDDING_PROVIDER` and `OPENAI_COMPATIBLE_EMBEDDING_*`. The Go API
+keeps authorization, scope filtering, and audit; the agent only receives scoped
+chunks/citations and provider calls.
+
+The P2 workflow demo is available through Go at
+`POST /api/agent/workflows/langgraph/demo`, which proxies the Python LangGraph
+boundary after normal authentication/capability checks.
 
 Install web dependencies once, then start the frontend from the repo root.
 
@@ -181,15 +267,16 @@ npm ci
 npm run web:dev
 ```
 
-Optional Co-Growth pure frontend demo:
+Optional AI-HRMS pure frontend demo:
 
 ```bash
 VITE_DEMO_MODE=true npm run web:dev
 ```
 
-Then open `http://127.0.0.1:5173/co-growth`. The demo mode keeps the
-existing Go API path available when `VITE_DEMO_MODE` is unset or `false`, but
-uses deterministic frontend data for the Co-Growth experience.
+Then open `http://127.0.0.1:5173/login` and enter the AI-HRMS demo from the
+login page. The demo mode keeps the existing Go API path available when
+`VITE_DEMO_MODE` is unset or `false`, but uses deterministic frontend data for
+the full AI-HRMS review path.
 
 Optional agent service.
 

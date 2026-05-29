@@ -31,7 +31,7 @@ Current checks:
 
 - Core tables exist.
 - Seed data contains at least one current primary assignment.
-- RAG embedding column uses `vector(8)`.
+- RAG embedding column uses configurable `vector` plus provider/model/dimension metadata.
 
 The API service runs embedded migrations on startup. If this harness fails on a
 fresh database, start the API once or add an explicit migration runner.

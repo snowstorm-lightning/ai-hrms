@@ -78,10 +78,13 @@ type RAGIngestJob struct {
 }
 
 type RAGCitation struct {
-	DocumentID string `json:"documentId"`
-	ChunkID    string `json:"chunkId"`
-	Title      string `json:"title"`
-	Snippet    string `json:"snippet"`
+	DocumentID  string  `json:"documentId"`
+	ChunkID     string  `json:"chunkId"`
+	Title       string  `json:"title"`
+	Snippet     string  `json:"snippet"`
+	TrustLevel  string  `json:"trustLevel,omitempty"`
+	Sensitivity string  `json:"sensitivity,omitempty"`
+	Score       float64 `json:"score,omitempty"`
 }
 
 type RAGSearchRequest struct {
@@ -89,10 +92,24 @@ type RAGSearchRequest struct {
 	Limit int    `json:"limit"`
 }
 
+type RAGEmbeddingInput struct {
+	Content    string
+	Provider   string
+	Model      string
+	Dimensions int
+	Vector     []float64
+}
+
 type RAGSearchResult struct {
-	Answer        string        `json:"answer"`
-	Citations     []RAGCitation `json:"citations"`
-	RefusalReason string        `json:"refusalReason,omitempty"`
+	Answer              string        `json:"answer"`
+	Citations           []RAGCitation `json:"citations"`
+	RefusalReason       string        `json:"refusalReason,omitempty"`
+	Provider            string        `json:"provider,omitempty"`
+	Model               string        `json:"model,omitempty"`
+	Confidence          float64       `json:"confidence,omitempty"`
+	RiskLevel           string        `json:"riskLevel,omitempty"`
+	HumanReviewRequired bool          `json:"humanReviewRequired,omitempty"`
+	AuditStatus         string        `json:"auditStatus,omitempty"`
 }
 
 type AIChatRequest struct {
@@ -100,8 +117,14 @@ type AIChatRequest struct {
 }
 
 type AIChatResponse struct {
-	Message   string        `json:"message"`
-	Citations []RAGCitation `json:"citations"`
+	Message             string        `json:"message"`
+	Citations           []RAGCitation `json:"citations"`
+	Provider            string        `json:"provider,omitempty"`
+	Model               string        `json:"model,omitempty"`
+	Confidence          float64       `json:"confidence,omitempty"`
+	RiskLevel           string        `json:"riskLevel,omitempty"`
+	HumanReviewRequired bool          `json:"humanReviewRequired,omitempty"`
+	AuditStatus         string        `json:"auditStatus,omitempty"`
 }
 
 type LearningCourse struct {

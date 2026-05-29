@@ -32,7 +32,7 @@ import {
   SafetyCertificateOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/AuthContext";
 import {
@@ -76,6 +76,21 @@ const reliabilityChecklist = [
   "是否需要人工确认",
   "是否保留证据",
 ];
+
+const missionStatusStorageKey = "ai_hrms_cogrowth_mission_statuses";
+
+function loadMissionStatuses(): Record<string, MissionStatus> {
+  try {
+    const raw = localStorage.getItem(missionStatusStorageKey);
+    const parsed = raw ? JSON.parse(raw) as unknown : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    return parsed as Record<string, MissionStatus>;
+  } catch {
+    return {};
+  }
+}
 
 const missionStatusLabels: Record<MissionStatus, string> = {
   recommended: "推荐",
@@ -134,7 +149,15 @@ export function CoGrowthPage() {
   const [instruction, setInstruction] = useState("帮我把本周工作任务转化成一个不超过 30 分钟的 AI 学习实战任务");
   const [coachResult, setCoachResult] = useState<CoachSuggestion>(demo.coachSuggestions[0]);
   const [selectedMissionId, setSelectedMissionId] = useState(demo.missions[0].id);
-  const [missionStatuses, setMissionStatuses] = useState<Record<string, MissionStatus>>({});
+  const [missionStatuses, setMissionStatuses] = useState<Record<string, MissionStatus>>(loadMissionStatuses);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(missionStatusStorageKey, JSON.stringify(missionStatuses));
+    } catch {
+      // Demo persistence is best-effort; the page remains usable without storage.
+    }
+  }, [missionStatuses]);
 
   const recommendedMissions = useMemo(
     () => getRecommendedMissions(selectedMode, demo.currentEmployee.currentWorkload).map((mission) => missionWithStatus(mission, missionStatuses[mission.id])),
@@ -174,11 +197,11 @@ export function CoGrowthPage() {
       <header className="co-growth-topbar">
         <button className="co-growth-brand" onClick={() => navigate("/co-growth")} type="button">
           <ExperimentOutlined />
-          <span>Co-Growth OS</span>
+          <span>AI-HRMS / Co-Growth OS</span>
         </button>
         <div className="co-growth-top-actions">
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/app/dashboard")}>
-            HRMS 管理台
+            AI-HRMS Command Dashboard
           </Button>
           <Button
             icon={<LogoutOutlined />}
@@ -194,10 +217,10 @@ export function CoGrowthPage() {
 
       <section className="co-growth-console" data-vc-kind="co-growth-command-center">
         <div className="co-growth-command-panel">
-          <Badge color="#16a34a" text={isCoGrowthDemoMode ? "Demo mode：纯前端 deterministic AI" : "API mode：保持原有后端边界"} />
-          <Typography.Title level={1}>共进学习舱</Typography.Title>
+          <Badge color="#16a34a" text={isCoGrowthDemoMode ? "受控演示环境" : "API mode：保持原有后端边界"} />
+          <Typography.Title level={1}>Co-Growth OS｜AI-HRMS 人机共生成长引擎</Typography.Title>
           <Typography.Paragraph>
-            连接 AI 原理、真实工作 mission、复盘证据和治理边界，让员工在交付节奏内持续提升 AI Native 能力。
+            Co-Growth OS 是 AI-HRMS 的成长引擎，帮助员工学习 AI 原理、把 AI 嵌入真实工作、复盘人机协作过程，并沉淀为可审计的成长证据。
           </Typography.Paragraph>
           <Input.Search
             data-vc-field="co_growth.ai_instruction"

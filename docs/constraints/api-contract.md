@@ -25,6 +25,7 @@ Use `packages/openapi/openapi.yaml` as the API contract source for frontend-back
 - Attendance.
 - Employee and attendance CSV export.
 - Messages and comments.
+- RAG sources, documents, ingest jobs, vector search, AI chat, and sanitized provider status.
 
 ## Response Shape
 

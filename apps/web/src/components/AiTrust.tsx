@@ -1,0 +1,181 @@
+import {
+  AuditOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
+  FileSearchOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
+import { Alert, Progress, Space, Tag, Timeline, Typography } from "antd";
+import type { RAGCitation } from "../api/types";
+
+export type TrustRiskLevel = "low" | "medium" | "high" | string;
+
+const riskLabels: Record<string, string> = {
+  low: "低风险",
+  medium: "中风险",
+  high: "高风险",
+};
+
+const riskColors: Record<string, string> = {
+  low: "blue",
+  medium: "orange",
+  high: "red",
+};
+
+export function riskLabel(risk: TrustRiskLevel) {
+  return riskLabels[risk] ?? risk;
+}
+
+export function riskColor(risk: TrustRiskLevel) {
+  return riskColors[risk] ?? "default";
+}
+
+export function RiskTag({ risk }: { risk: TrustRiskLevel }) {
+  return <Tag color={riskColor(risk)}>riskLevel={riskLabel(risk)}</Tag>;
+}
+
+export function TrustMetaBar({
+  riskLevel,
+  confidence,
+  evidenceCount,
+  humanReviewRequired,
+  auditStatus,
+  toolPreview,
+}: {
+  riskLevel: TrustRiskLevel;
+  confidence?: number;
+  evidenceCount?: number;
+  humanReviewRequired?: boolean;
+  auditStatus?: string;
+  toolPreview?: boolean;
+}) {
+  return (
+    <Space wrap className="trust-meta-bar">
+      <RiskTag risk={riskLevel} />
+      {typeof confidence === "number" ? <Tag>confidence={confidence}%</Tag> : null}
+      {typeof evidenceCount === "number" ? <Tag icon={<FileSearchOutlined />}>evidence={evidenceCount}</Tag> : null}
+      {typeof toolPreview === "boolean" ? <Tag color={toolPreview ? "purple" : "default"}>toolPreview={String(toolPreview)}</Tag> : null}
+      <Tag color={humanReviewRequired ? "red" : "green"}>
+        humanReviewRequired={String(Boolean(humanReviewRequired))}
+      </Tag>
+      {auditStatus ? <Tag icon={<AuditOutlined />}>auditStatus={auditStatus}</Tag> : null}
+    </Space>
+  );
+}
+
+export function HumanReviewBanner({
+  riskLevel,
+  humanReviewRequired,
+  text,
+}: {
+  riskLevel: TrustRiskLevel;
+  humanReviewRequired: boolean;
+  text?: string;
+}) {
+  if (!humanReviewRequired) {
+    return (
+      <Alert
+        showIcon
+        type="success"
+        title="允许生成建议和预览"
+        description={text ?? "该建议仍保留证据、引用和审计记录；执行前由人判断是否采纳。"}
+      />
+    );
+  }
+
+  return (
+    <Alert
+      showIcon
+      type={riskLevel === "high" ? "warning" : "info"}
+      title="需要人工确认"
+      description={text ?? "涉及人、隐私、公平性或业务影响的场景只允许生成预览。系统不会自动执行人事裁决。"}
+    />
+  );
+}
+
+export function CitationList({ citations }: { citations: RAGCitation[] }) {
+  if (!citations.length) {
+    return <Typography.Text type="secondary">没有可展示引用；该回答不应进入正式建议。</Typography.Text>;
+  }
+  return (
+    <div className="citation-list">
+      {citations.map((citation) => (
+        <article className="citation-card" key={citation.chunkId} data-vc-kind="citation" data-vc-object-type="rag_document" data-vc-object-id={citation.documentId} data-vc-label={citation.title}>
+          <Space align="start">
+            <FileSearchOutlined className="citation-icon" />
+            <div>
+              <Typography.Text strong>{citation.title}</Typography.Text>
+              <Typography.Paragraph type="secondary">{citation.snippet}</Typography.Paragraph>
+              <Tag>{citation.documentId}</Tag>
+            </div>
+          </Space>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+export function CollaborationWorkflow() {
+  const steps = [
+    "Goal",
+    "Context",
+    "Agent Plan",
+    "Tool Preview",
+    "Human Review",
+    "Audit",
+  ];
+
+  return (
+    <div className="workflow-strip" data-vc-kind="human-agent-workflow">
+      {steps.map((step, index) => (
+        <div className="workflow-strip-step" key={step}>
+          <span>{index + 1}</span>
+          <Typography.Text strong>{step}</Typography.Text>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function CollaborationRubric({ compact = false }: { compact?: boolean }) {
+  const items = [
+    { label: "目标明确", score: 88 },
+    { label: "上下文充分", score: 82 },
+    { label: "要求证据", score: 91 },
+    { label: "识别风险", score: 86 },
+    { label: "人工验证", score: 94 },
+    { label: "进入审计", score: 89 },
+  ];
+
+  return (
+    <div className={compact ? "rubric-grid compact" : "rubric-grid"} data-vc-kind="collaboration-rubric">
+      {items.map((item) => (
+        <div className="rubric-item" key={item.label}>
+          <Typography.Text>{item.label}</Typography.Text>
+          <Progress percent={item.score} size={compact ? "small" : "default"} aria-label={`${item.label}协作健康度`} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function EvidenceTimeline({ items }: { items: Array<{ title: string; description: string; riskLevel: TrustRiskLevel; time?: string }> }) {
+  return (
+    <Timeline
+      items={items.map((item) => ({
+        color: riskColor(item.riskLevel),
+        icon: item.riskLevel === "high" ? <ExclamationCircleOutlined /> : item.riskLevel === "medium" ? <SafetyCertificateOutlined /> : <CheckCircleOutlined />,
+        content: (
+          <div>
+            <Typography.Text strong>{item.title}</Typography.Text>
+            <p>{item.description}</p>
+            <Space wrap>
+              <RiskTag risk={item.riskLevel} />
+              {item.time ? <Tag>{item.time}</Tag> : null}
+            </Space>
+          </div>
+        ),
+      }))}
+    />
+  );
+}

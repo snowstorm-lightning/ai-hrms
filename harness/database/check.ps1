@@ -22,8 +22,8 @@ if ($primaryCount -lt 1) {
 
 $vectorDim = docker compose -f infra/compose.yaml exec -T postgres psql -U ai_hrms -d ai_hrms -t -c "select format_type(atttypid, atttypmod) from pg_attribute where attrelid = 'rag_embeddings'::regclass and attname = 'embedding';"
 $dimValue = (($vectorDim | Where-Object { $_.Trim() -ne "" } | Select-Object -First 1).Trim())
-if ($dimValue -ne "vector(8)") {
-  throw "Expected rag_embeddings.embedding vector dimension metadata to be 8."
+if ($dimValue -ne "vector") {
+  throw "Expected rag_embeddings.embedding to support configurable pgvector dimensions."
 }
 
 Write-Host "Database check passed."

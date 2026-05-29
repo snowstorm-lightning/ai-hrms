@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 
 	"ai-hrms/apps/api/internal/domain"
 	"ai-hrms/apps/api/internal/httpx"
+	"ai-hrms/apps/api/internal/rbac"
 	"ai-hrms/apps/api/internal/store"
 )
 
@@ -99,7 +101,12 @@ func (s *Server) createRAGDocument(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
-	saved, err := s.store.CreateRAGDocument(r.Context(), item, principal(r).UserID)
+	embeddings, err := s.embeddingsForDocument(r.Context(), item)
+	if err != nil {
+		s.respondErr(w, err)
+		return
+	}
+	saved, err := s.store.CreateRAGDocumentWithEmbeddings(r.Context(), item, principal(r).UserID, embeddings)
 	if err != nil {
 		s.respondErr(w, err)
 		return
@@ -132,7 +139,15 @@ func (s *Server) createRAGIngestJob(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if doc != nil {
-			savedDoc, err := s.store.CreateRAGDocument(r.Context(), *doc, principal(r).UserID)
+			embeddings, err := s.embeddingsForDocument(r.Context(), *doc)
+			if err != nil {
+				s.respondErr(w, err)
+				return
+			}
+			if len(embeddings) > 0 {
+				item.Provider = embeddings[0].Provider
+			}
+			savedDoc, err := s.store.CreateRAGDocumentWithEmbeddings(r.Context(), *doc, principal(r).UserID, embeddings)
 			if err != nil {
 				s.respondErr(w, err)
 				return
@@ -236,7 +251,7 @@ func (s *Server) searchRAG(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
-	result, err := s.store.SearchRAG(r.Context(), scope, principal(r), req)
+	result, err := s.searchRAGResult(r.Context(), scope, principal(r), req)
 	if err != nil {
 		s.respondErr(w, err)
 		return
@@ -258,16 +273,233 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
-	result, err := s.store.SearchRAG(r.Context(), scope, principal(r), domain.RAGSearchRequest{Query: req.Message, Limit: 5})
+	result, err := s.searchRAGResult(r.Context(), scope, principal(r), domain.RAGSearchRequest{Query: req.Message, Limit: 5})
 	if err != nil {
 		s.respondErr(w, err)
 		return
 	}
 	if result.RefusalReason != "" {
-		httpx.OK(w, domain.AIChatResponse{Message: "没有可引用的资料，因此不能直接回答该问题。"})
+		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+			ActorUserID: principal(r).UserID,
+			EventType:   "ai.chat.refused",
+			ObjectType:  "ai_chat",
+			ObjectID:    requestID(r),
+			RequestID:   requestID(r),
+			RiskLevel:   "medium",
+			NewValueSummary: map[string]any{
+				"prompt":              req.Message,
+				"refusalReason":       result.RefusalReason,
+				"humanReviewRequired": true,
+			},
+		})
+		httpx.OK(w, domain.AIChatResponse{
+			Message:             "没有可引用的资料，因此不能直接回答该问题。",
+			RiskLevel:           "medium",
+			HumanReviewRequired: true,
+			AuditStatus:         "refused_no_citation",
+		})
 		return
 	}
-	httpx.OK(w, domain.AIChatResponse{Message: result.Answer, Citations: result.Citations})
+	riskLevel, blockedReason := classifyAIRisk(req.Message)
+	if blockedReason != "" {
+		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+			ActorUserID: principal(r).UserID,
+			EventType:   "ai.chat.blocked",
+			ObjectType:  "ai_chat",
+			ObjectID:    requestID(r),
+			RequestID:   requestID(r),
+			RiskLevel:   riskLevel,
+			NewValueSummary: map[string]any{
+				"prompt":              req.Message,
+				"blockedReason":       blockedReason,
+				"citations":           citationIDs(result.Citations),
+				"humanReviewRequired": true,
+				"actionExecuted":      false,
+			},
+		})
+		httpx.OK(w, domain.AIChatResponse{
+			Message:             "该请求触及高风险人事裁决边界。AI-HRMS 已阻断自动结论，只允许查看证据、生成问题清单，并提交人工复核。",
+			Citations:           result.Citations,
+			Provider:            result.Provider,
+			Model:               result.Model,
+			Confidence:          result.Confidence,
+			RiskLevel:           riskLevel,
+			HumanReviewRequired: true,
+			AuditStatus:         "blocked_and_logged",
+		})
+		return
+	}
+	if s.agent != nil && s.agent.Enabled() {
+		response, err := s.agent.Chat(r.Context(), req.Message, result.Citations)
+		if err != nil {
+			s.respondErr(w, err)
+			return
+		}
+		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+			ActorUserID: principal(r).UserID,
+			EventType:   "ai.chat.preview",
+			ObjectType:  "ai_chat",
+			ObjectID:    requestID(r),
+			RequestID:   requestID(r),
+			RiskLevel:   riskLevel,
+			NewValueSummary: map[string]any{
+				"prompt":              req.Message,
+				"provider":            response.Provider,
+				"model":               response.Model,
+				"citations":           citationIDs(result.Citations),
+				"humanReviewRequired": true,
+				"actionExecuted":      false,
+			},
+		})
+		httpx.OK(w, domain.AIChatResponse{
+			Message:             response.Message,
+			Citations:           result.Citations,
+			Provider:            response.Provider,
+			Model:               response.Model,
+			Confidence:          result.Confidence,
+			RiskLevel:           riskLevel,
+			HumanReviewRequired: true,
+			AuditStatus:         "agent_preview_logged",
+		})
+		return
+	}
+	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+		ActorUserID: principal(r).UserID,
+		EventType:   "ai.chat.preview",
+		ObjectType:  "ai_chat",
+		ObjectID:    requestID(r),
+		RequestID:   requestID(r),
+		RiskLevel:   riskLevel,
+		NewValueSummary: map[string]any{
+			"prompt":              req.Message,
+			"provider":            result.Provider,
+			"model":               result.Model,
+			"citations":           citationIDs(result.Citations),
+			"humanReviewRequired": true,
+			"actionExecuted":      false,
+		},
+	})
+	httpx.OK(w, domain.AIChatResponse{
+		Message:             result.Answer,
+		Citations:           result.Citations,
+		Provider:            result.Provider,
+		Model:               result.Model,
+		Confidence:          result.Confidence,
+		RiskLevel:           riskLevel,
+		HumanReviewRequired: true,
+		AuditStatus:         "deterministic_preview_logged",
+	})
+}
+
+func (s *Server) aiProviderStatus(w http.ResponseWriter, r *http.Request) {
+	if !requireCapability(w, r, "rag.search") {
+		return
+	}
+	status := map[string]any{
+		"agentBoundaryConfigured": s.agent != nil && s.agent.Enabled(),
+		"agentBoundaryStatus":     "not_configured",
+		"chatProvider":            s.cfg.AI.ChatProvider,
+		"chatModel":               s.cfg.AI.DeepSeekChatModel,
+		"deepseekKeyConfigured":   false,
+		"embeddingProvider":       s.cfg.AI.EmbeddingProvider,
+		"embeddingModel":          s.cfg.AI.OpenAICompatibleEmbeddingModel,
+		"embeddingDimensions":     s.cfg.AI.RAGEmbeddingDimensions,
+		"embeddingKeyConfigured":  false,
+	}
+	if s.agent != nil && s.agent.Enabled() {
+		if agentStatus, err := s.agent.Config(r.Context()); err == nil {
+			status["agentBoundaryStatus"] = "ok"
+			status["chatProvider"] = agentStatus.ChatProvider
+			status["chatModel"] = agentStatus.DeepSeekChatModel
+			status["deepseekKeyConfigured"] = agentStatus.DeepSeekAPIKeyConfigured
+			status["embeddingProvider"] = agentStatus.EmbeddingProvider
+			status["embeddingModel"] = agentStatus.EmbeddingModel
+			status["embeddingDimensions"] = agentStatus.EmbeddingDimensions
+			status["embeddingKeyConfigured"] = agentStatus.EmbeddingAPIKeyConfigured
+		} else {
+			status["agentBoundaryStatus"] = "degraded"
+			status["agentBoundaryError"] = "agent_config_unavailable"
+		}
+	}
+	httpx.OK(w, status)
+}
+
+func (s *Server) embeddingsForDocument(ctx context.Context, doc domain.RAGDocument) ([]domain.RAGEmbeddingInput, error) {
+	if s.agent == nil || !s.agent.Enabled() {
+		return nil, nil
+	}
+	chunks := store.PrepareRAGChunks(doc.Content, doc.Title)
+	if len(chunks) == 0 {
+		return nil, nil
+	}
+	response, err := s.agent.Embed(ctx, chunks)
+	if err != nil {
+		return nil, err
+	}
+	inputs := make([]domain.RAGEmbeddingInput, 0, len(response.Embeddings))
+	for i, vector := range response.Embeddings {
+		content := ""
+		if i < len(chunks) {
+			content = chunks[i]
+		}
+		inputs = append(inputs, domain.RAGEmbeddingInput{
+			Content:    content,
+			Provider:   response.Provider,
+			Model:      response.Model,
+			Dimensions: response.Dimensions,
+			Vector:     vector,
+		})
+	}
+	return inputs, nil
+}
+
+func (s *Server) searchRAGResult(ctx context.Context, scope store.Scope, actor rbac.Principal, req domain.RAGSearchRequest) (*domain.RAGSearchResult, error) {
+	if s.agent == nil || !s.agent.Enabled() {
+		return s.store.SearchRAG(ctx, scope, actor, req)
+	}
+	response, err := s.agent.Embed(ctx, []string{req.Query})
+	if err != nil {
+		return nil, err
+	}
+	if len(response.Embeddings) == 0 {
+		return s.store.SearchRAG(ctx, scope, actor, req)
+	}
+	result, err := s.store.SearchRAGVector(ctx, scope, actor, req, response.Embeddings[0], response.Provider, response.Model, response.Dimensions)
+	if err != nil {
+		return nil, err
+	}
+	if result.RefusalReason == "no_citation" {
+		return s.store.SearchRAG(ctx, scope, actor, req)
+	}
+	return result, nil
+}
+
+func classifyAIRisk(message string) (string, string) {
+	lower := strings.ToLower(message)
+	highRiskPatterns := []string{
+		"录用", "拒绝候选人", "辞退", "解雇", "淘汰", "降薪", "调薪", "晋升", "绩效评级",
+		"hire", "reject candidate", "fire", "terminate", "layoff", "salary", "compensation", "promotion", "performance rating",
+	}
+	for _, pattern := range highRiskPatterns {
+		if strings.Contains(lower, strings.ToLower(pattern)) {
+			return "high", "high_impact_hr_decision"
+		}
+	}
+	mediumRiskPatterns := []string{"面试", "绩效", "候选人", "薪酬", "公平", "敏感", "隐私", "interview", "candidate", "pay", "privacy", "fairness"}
+	for _, pattern := range mediumRiskPatterns {
+		if strings.Contains(lower, strings.ToLower(pattern)) {
+			return "medium", ""
+		}
+	}
+	return "low", ""
+}
+
+func citationIDs(citations []domain.RAGCitation) []string {
+	ids := make([]string, 0, len(citations))
+	for _, citation := range citations {
+		ids = append(ids, citation.DocumentID+":"+citation.ChunkID)
+	}
+	return ids
 }
 
 func (s *Server) listLearningCourses(w http.ResponseWriter, r *http.Request) {
@@ -419,6 +651,43 @@ func (s *Server) createAgentRun(w http.ResponseWriter, r *http.Request) {
 		NewValueSummary: map[string]any{"runType": run.RunType},
 	})
 	httpx.Created(w, run)
+}
+
+func (s *Server) langgraphWorkflowDemo(w http.ResponseWriter, r *http.Request) {
+	if !requireCapability(w, r, "agent.execute_read") {
+		return
+	}
+	var req struct {
+		Goal    string   `json:"goal"`
+		Context []string `json:"context"`
+	}
+	if err := httpx.Decode(r, &req); err != nil || strings.TrimSpace(req.Goal) == "" {
+		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
+		return
+	}
+	if s.agent == nil || !s.agent.Enabled() {
+		httpx.Error(w, http.StatusServiceUnavailable, 5001, "Agent boundary is not configured")
+		return
+	}
+	result, err := s.agent.WorkflowDemo(r.Context(), req.Goal, req.Context)
+	if err != nil {
+		s.respondErr(w, err)
+		return
+	}
+	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+		ActorUserID: principal(r).UserID,
+		EventType:   "agent.workflow.preview",
+		ObjectType:  "agent_workflow",
+		ObjectID:    requestID(r),
+		RequestID:   requestID(r),
+		RiskLevel:   fmt.Sprint(result["risk_level"]),
+		NewValueSummary: map[string]any{
+			"goal":        req.Goal,
+			"auditStatus": result["audit_status"],
+			"steps":       result["steps"],
+		},
+	})
+	httpx.OK(w, result)
 }
 
 func (s *Server) previewAgentTool(w http.ResponseWriter, r *http.Request) {

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"ai-hrms/apps/api/internal/agentbridge"
 	"ai-hrms/apps/api/internal/auth"
 	"ai-hrms/apps/api/internal/config"
 	"ai-hrms/apps/api/internal/domain"
@@ -18,6 +19,7 @@ import (
 type Server struct {
 	cfg   config.Config
 	store *store.Store
+	agent *agentbridge.Client
 }
 
 type contextKey string
@@ -25,7 +27,7 @@ type contextKey string
 const principalKey contextKey = "principal"
 
 func New(cfg config.Config, db *store.Store) http.Handler {
-	server := &Server{cfg: cfg, store: db}
+	server := &Server{cfg: cfg, store: db, agent: agentbridge.New(cfg.AI)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", server.health)
 	mux.HandleFunc("POST /api/auth/login", server.login)
@@ -67,6 +69,7 @@ func New(cfg config.Config, db *store.Store) http.Handler {
 	mux.Handle("GET /api/rag/ingest-jobs/{id}", server.authenticated(http.HandlerFunc(server.getRAGIngestJob)))
 	mux.Handle("POST /api/rag/search", server.authenticated(http.HandlerFunc(server.searchRAG)))
 	mux.Handle("POST /api/ai/chat", server.authenticated(http.HandlerFunc(server.aiChat)))
+	mux.Handle("GET /api/ai/provider-status", server.authenticated(http.HandlerFunc(server.aiProviderStatus)))
 	mux.Handle("GET /api/learning/courses", server.authenticated(http.HandlerFunc(server.listLearningCourses)))
 	mux.Handle("POST /api/learning/courses", server.authenticated(http.HandlerFunc(server.createLearningCourse)))
 	mux.Handle("GET /api/learning/courses/{id}/lessons", server.authenticated(http.HandlerFunc(server.listLearningLessons)))
@@ -74,6 +77,7 @@ func New(cfg config.Config, db *store.Store) http.Handler {
 	mux.Handle("GET /api/learning/recommendations", server.authenticated(http.HandlerFunc(server.listLearningRecommendations)))
 	mux.Handle("GET /api/agent/runs", server.authenticated(http.HandlerFunc(server.listAgentRuns)))
 	mux.Handle("POST /api/agent/runs", server.authenticated(http.HandlerFunc(server.createAgentRun)))
+	mux.Handle("POST /api/agent/workflows/langgraph/demo", server.authenticated(http.HandlerFunc(server.langgraphWorkflowDemo)))
 	mux.Handle("POST /api/agent/tools/preview", server.authenticated(http.HandlerFunc(server.previewAgentTool)))
 	mux.Handle("POST /api/visual-copilot/context", server.authenticated(http.HandlerFunc(server.visualContext)))
 	mux.Handle("POST /api/visual-copilot/suggestions", server.authenticated(http.HandlerFunc(server.visualSuggestions)))

@@ -10,6 +10,22 @@ type Config struct {
 	JWTSecret      string
 	Port           string
 	AllowedOrigins []string
+	AI             AIConfig
+}
+
+type AIConfig struct {
+	AgentBaseURL                     string
+	AgentServiceToken                string
+	AgentTimeoutSeconds              string
+	ChatProvider                     string
+	DeepSeekBaseURL                  string
+	DeepSeekChatModel                string
+	DeepSeekReasoningEffort          string
+	DeepSeekTimeoutSeconds           string
+	EmbeddingProvider                string
+	OpenAICompatibleEmbeddingBaseURL string
+	OpenAICompatibleEmbeddingModel   string
+	RAGEmbeddingDimensions           string
 }
 
 func Load() Config {
@@ -21,6 +37,20 @@ func Load() Config {
 			"http://localhost:5173",
 			"http://127.0.0.1:5173",
 		}),
+		AI: AIConfig{
+			AgentBaseURL:                     env("AGENT_BASE_URL", ""),
+			AgentServiceToken:                os.Getenv("AI_HRMS_AGENT_SERVICE_TOKEN"),
+			AgentTimeoutSeconds:              env("AGENT_TIMEOUT_SECONDS", "30"),
+			ChatProvider:                     env("AI_CHAT_PROVIDER", "fake"),
+			DeepSeekBaseURL:                  env("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+			DeepSeekChatModel:                env("DEEPSEEK_CHAT_MODEL", "deepseek-v4-flash"),
+			DeepSeekReasoningEffort:          env("DEEPSEEK_REASONING_EFFORT", "high"),
+			DeepSeekTimeoutSeconds:           env("DEEPSEEK_TIMEOUT_SECONDS", "30"),
+			EmbeddingProvider:                env("AI_EMBEDDING_PROVIDER", "fake"),
+			OpenAICompatibleEmbeddingBaseURL: env("OPENAI_COMPATIBLE_EMBEDDING_BASE_URL", ""),
+			OpenAICompatibleEmbeddingModel:   env("OPENAI_COMPATIBLE_EMBEDDING_MODEL", ""),
+			RAGEmbeddingDimensions:           env("RAG_EMBEDDING_DIMENSIONS", "8"),
+		},
 	}
 }
 

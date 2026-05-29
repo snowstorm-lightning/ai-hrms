@@ -101,6 +101,10 @@ func (s *Store) ListRAGDocuments(ctx context.Context, scope Scope, principal rba
 }
 
 func (s *Store) CreateRAGDocument(ctx context.Context, doc domain.RAGDocument, userID string) (*domain.RAGDocument, error) {
+	return s.CreateRAGDocumentWithEmbeddings(ctx, doc, userID, nil)
+}
+
+func (s *Store) CreateRAGDocumentWithEmbeddings(ctx context.Context, doc domain.RAGDocument, userID string, embeddings []domain.RAGEmbeddingInput) (*domain.RAGDocument, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -166,10 +170,27 @@ func (s *Store) CreateRAGDocument(ctx context.Context, doc domain.RAGDocument, u
 		if err != nil {
 			return nil, err
 		}
+		provider := "fake"
+		model := "deterministic-v1"
+		dimensions := 8
+		vector := fakeVector(content)
+		if i < len(embeddings) && len(embeddings[i].Vector) > 0 {
+			if embeddings[i].Provider != "" {
+				provider = embeddings[i].Provider
+			}
+			if embeddings[i].Model != "" {
+				model = embeddings[i].Model
+			}
+			dimensions = embeddings[i].Dimensions
+			if dimensions <= 0 || dimensions != len(embeddings[i].Vector) {
+				dimensions = len(embeddings[i].Vector)
+			}
+			vector = vectorString(embeddings[i].Vector)
+		}
 		_, err = tx.Exec(ctx, `
 			INSERT INTO rag_embeddings (chunk_id, provider, model, dimensions, embedding)
-			VALUES ($1, 'fake', 'deterministic-v1', 8, $2)
-		`, chunkID, fakeVector(content))
+			VALUES ($1, $2, $3, $4, $5)
+		`, chunkID, provider, model, dimensions, vector)
 		if err != nil {
 			return nil, err
 		}
@@ -232,12 +253,13 @@ func (s *Store) CreateRAGIngestJob(ctx context.Context, job domain.RAGIngestJob,
 	if job.Provider == "" {
 		job.Provider = "fake"
 	}
+	summary := fmt.Sprintf("%s provider completed RAG ingestion.", job.Provider)
 	var saved domain.RAGIngestJob
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO rag_ingest_jobs (source_id, document_id, job_type, status, provider, summary, created_by_user_id, completed_at)
 		VALUES ($1,$2,$3,'completed',$4,$5,$6,now())
 		RETURNING id::text, source_id::text, document_id::text, job_type, status, provider, summary, error, created_by_user_id::text, created_at, completed_at
-	`, job.SourceID, job.DocumentID, job.JobType, job.Provider, "Fake provider completed deterministic ingestion.", userID).Scan(
+	`, job.SourceID, job.DocumentID, job.JobType, job.Provider, summary, userID).Scan(
 		&saved.ID, &saved.SourceID, &saved.DocumentID, &saved.JobType, &saved.Status, &saved.Provider,
 		&saved.Summary, &saved.Error, &saved.CreatedByUserID, &saved.CreatedAt, &saved.CompletedAt)
 	return &saved, err
@@ -265,13 +287,14 @@ func (s *Store) SearchRAG(ctx context.Context, scope Scope, principal rbac.Princ
 	where, args := ragVisibleWhere(scope, principal, 2)
 	searchPatterns := ragSearchPatterns(query)
 	sql := `
-		SELECT c.id::text, d.id::text, d.title, c.content
+		SELECT c.id::text, d.id::text, d.title, c.content, d.trust_level, d.sensitivity
 		FROM rag_chunks c
 		JOIN rag_documents d ON d.id = c.document_id
 		WHERE d.status = 'published'
 		  AND (d.effective_from IS NULL OR d.effective_from <= now())
 		  AND (d.effective_to IS NULL OR d.effective_to >= now())
-		  AND (c.sensitivity <> 'pii')
+		  AND c.sensitivity IN ('normal', 'internal')
+		  AND d.sensitivity IN ('normal', 'internal')
 		  AND (c.content ILIKE ANY($1::text[]) OR d.title ILIKE ANY($1::text[]))
 		  AND ` + where + `
 		ORDER BY d.trust_level DESC, c.chunk_index
@@ -288,10 +311,11 @@ func (s *Store) SearchRAG(ctx context.Context, scope Scope, principal rbac.Princ
 	var chunkIDs []string
 	for rows.Next() {
 		var citation domain.RAGCitation
-		if err := rows.Scan(&citation.ChunkID, &citation.DocumentID, &citation.Title, &citation.Snippet); err != nil {
+		if err := rows.Scan(&citation.ChunkID, &citation.DocumentID, &citation.Title, &citation.Snippet, &citation.TrustLevel, &citation.Sensitivity); err != nil {
 			return nil, err
 		}
 		citation.Snippet = trimRunes(citation.Snippet, 160)
+		citation.Score = 0.72
 		chunkIDs = append(chunkIDs, citation.ChunkID)
 		citations = append(citations, citation)
 	}
@@ -303,8 +327,93 @@ func (s *Store) SearchRAG(ctx context.Context, scope Scope, principal rbac.Princ
 		return &domain.RAGSearchResult{RefusalReason: "no_citation"}, nil
 	}
 	result := &domain.RAGSearchResult{
-		Answer:    "根据已发布且当前可见的知识库资料，可参考以下来源处理该问题。",
-		Citations: citations,
+		Answer:              "根据已发布且当前可见的知识库资料，可参考以下来源处理该问题。",
+		Citations:           citations,
+		Provider:            "lexical-fallback",
+		Model:               "ILIKE",
+		Confidence:          0.72,
+		RiskLevel:           "medium",
+		HumanReviewRequired: true,
+		AuditStatus:         "retrieval_logged",
+	}
+	_ = s.recordRAGRetrieval(ctx, principal.UserID, query, scope, chunkIDs, citations, "")
+	return result, nil
+}
+
+func (s *Store) SearchRAGVector(ctx context.Context, scope Scope, principal rbac.Principal, req domain.RAGSearchRequest, queryVector []float64, provider, model string, dimensions int) (*domain.RAGSearchResult, error) {
+	limit := req.Limit
+	if limit < 1 || limit > 10 {
+		limit = 5
+	}
+	query := strings.TrimSpace(req.Query)
+	if query == "" {
+		return &domain.RAGSearchResult{RefusalReason: "empty_query"}, nil
+	}
+	if len(queryVector) == 0 || dimensions <= 0 {
+		return s.SearchRAG(ctx, scope, principal, req)
+	}
+	if provider == "" {
+		provider = "fake"
+	}
+	if model == "" {
+		model = "deterministic-v1"
+	}
+	where, args := ragVisibleWhere(scope, principal, 5)
+	sql := `
+		SELECT c.id::text, d.id::text, d.title, c.content, d.trust_level, d.sensitivity,
+			(e.embedding <=> $1::vector) AS distance
+		FROM rag_embeddings e
+		JOIN rag_chunks c ON c.id = e.chunk_id
+		JOIN rag_documents d ON d.id = c.document_id
+		WHERE d.status = 'published'
+		  AND (d.effective_from IS NULL OR d.effective_from <= now())
+		  AND (d.effective_to IS NULL OR d.effective_to >= now())
+		  AND c.sensitivity IN ('normal', 'internal')
+		  AND d.sensitivity IN ('normal', 'internal')
+		  AND e.dimensions = $2
+		  AND e.provider = $3
+		  AND e.model = $4
+		  AND ` + where + `
+		ORDER BY distance ASC, d.trust_level DESC, c.chunk_index
+		LIMIT $` + itoa(len(args)+5)
+	queryArgs := []any{vectorString(queryVector), dimensions, provider, model}
+	queryArgs = append(queryArgs, args...)
+	queryArgs = append(queryArgs, limit)
+	rows, err := s.pool.Query(ctx, sql, queryArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var citations []domain.RAGCitation
+	var chunkIDs []string
+	for rows.Next() {
+		var citation domain.RAGCitation
+		var distance float64
+		if err := rows.Scan(&citation.ChunkID, &citation.DocumentID, &citation.Title, &citation.Snippet, &citation.TrustLevel, &citation.Sensitivity, &distance); err != nil {
+			return nil, err
+		}
+		citation.Snippet = trimRunes(citation.Snippet, 160)
+		citation.Score = 1 / (1 + distance)
+		chunkIDs = append(chunkIDs, citation.ChunkID)
+		citations = append(citations, citation)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(citations) == 0 {
+		_ = s.recordRAGRetrieval(ctx, principal.UserID, query, scope, nil, nil, "no_citation")
+		return &domain.RAGSearchResult{RefusalReason: "no_citation", Provider: provider, Model: model}, nil
+	}
+	result := &domain.RAGSearchResult{
+		Answer:              "根据已发布且当前可见的知识库资料，可参考以下来源处理该问题。",
+		Citations:           citations,
+		Provider:            provider,
+		Model:               model,
+		Confidence:          citations[0].Score,
+		RiskLevel:           "medium",
+		HumanReviewRequired: true,
+		AuditStatus:         "retrieval_logged",
 	}
 	_ = s.recordRAGRetrieval(ctx, principal.UserID, query, scope, chunkIDs, citations, "")
 	return result, nil
@@ -425,6 +534,14 @@ func chunkText(content string, size int) []string {
 	return chunks
 }
 
+func PrepareRAGChunks(content, fallback string) []string {
+	chunks := chunkText(content, 420)
+	if len(chunks) == 0 && strings.TrimSpace(fallback) != "" {
+		chunks = []string{strings.TrimSpace(fallback)}
+	}
+	return chunks
+}
+
 func sanitizePromptInjection(content string) string {
 	replacers := []string{
 		"ignore previous instructions", "[removed]",
@@ -450,6 +567,14 @@ func fakeVector(content string) string {
 		if value == 0 {
 			value = float64(i+1) / 100
 		}
+		parts[i] = strconvFormat(value)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+func vectorString(values []float64) string {
+	parts := make([]string, len(values))
+	for i, value := range values {
 		parts[i] = strconvFormat(value)
 	}
 	return "[" + strings.Join(parts, ",") + "]"

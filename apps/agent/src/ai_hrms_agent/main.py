@@ -1,12 +1,23 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+import os
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from .connectors import ConnectorPreview, preview_connector
 from .gateway import preview_tool
 from .ingestion import IngestPreview, preview_ingestion
-from .providers import ChatRequest, FakeChatProvider
+from .providers import (
+    ChatRequest,
+    ProviderCallError,
+    ProviderConfigurationError,
+    build_chat_provider,
+    build_embedding_provider,
+    load_ai_provider_settings,
+)
+from .workflows import run_hr_workflow
 
 
 class ToolPreviewRequest(BaseModel):
@@ -31,7 +42,16 @@ class IngestPreviewRequest(BaseModel):
 
 class ChatPreviewRequest(BaseModel):
     message: str = Field(min_length=1)
-    citations: list[dict[str, str]] = Field(default_factory=list)
+    citations: list[dict[str, object]] = Field(default_factory=list)
+
+
+class EmbeddingRequest(BaseModel):
+    texts: list[str] = Field(min_length=1, max_length=64)
+
+
+class WorkflowDemoRequest(BaseModel):
+    goal: str = Field(min_length=1)
+    context: list[str] = Field(default_factory=list)
 
 
 class ConnectorPreviewRequest(BaseModel):
@@ -43,9 +63,33 @@ class ConnectorPreviewRequest(BaseModel):
 def create_app() -> FastAPI:
     app = FastAPI(title="AI-HRMS Agent", version="0.1.0")
 
+    @app.middleware("http")
+    async def service_token_guard(request: Request, call_next):
+        token = os.getenv("AI_HRMS_AGENT_SERVICE_TOKEN", "").strip()
+        if token and request.url.path != "/health":
+            if request.headers.get("X-AI-HRMS-Agent-Token") != token:
+                return JSONResponse(status_code=401, content={"detail": "Agent service token is required."})
+        return await call_next(request)
+
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/config/ai")
+    def ai_config() -> dict[str, object]:
+        settings = load_ai_provider_settings()
+        return {
+            "chatProvider": settings.chat_provider,
+            "deepseekBaseURL": settings.deepseek_base_url,
+            "deepseekChatModel": settings.deepseek_chat_model,
+            "deepseekReasoningEffort": settings.deepseek_reasoning_effort,
+            "deepseekAPIKeyConfigured": bool(settings.deepseek_api_key),
+            "embeddingProvider": settings.embedding_provider,
+            "embeddingAPIKeyConfigured": bool(settings.embedding_api_key),
+            "embeddingBaseURLConfigured": bool(settings.embedding_base_url),
+            "embeddingModel": settings.embedding_model,
+            "embeddingDimensions": settings.embedding_dimensions,
+        }
 
     @app.post("/tools/preview")
     def tool_preview(request: ToolPreviewRequest) -> ToolPreviewResponse:
@@ -67,13 +111,42 @@ def create_app() -> FastAPI:
 
     @app.post("/chat/preview")
     def chat_preview(request: ChatPreviewRequest) -> dict[str, object]:
-        response = FakeChatProvider().chat(ChatRequest(message=request.message, citations=request.citations))
+        try:
+            provider = build_chat_provider()
+            response = provider.chat(ChatRequest(message=request.message, citations=request.citations))
+        except ProviderConfigurationError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ProviderCallError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
         return {
             "message": response.message,
             "provider": response.provider,
             "model": response.model,
             "citations": response.citations,
         }
+
+    @app.post("/embeddings")
+    def embeddings(request: EmbeddingRequest) -> dict[str, object]:
+        texts = [text.strip() for text in request.texts if text.strip()]
+        if not texts:
+            raise HTTPException(status_code=400, detail="At least one non-empty text is required.")
+        try:
+            provider = build_embedding_provider()
+            vectors = provider.embed(texts)
+        except ProviderConfigurationError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except ProviderCallError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {
+            "provider": provider.provider,
+            "model": provider.model,
+            "dimensions": provider.dimensions,
+            "embeddings": vectors,
+        }
+
+    @app.post("/workflows/langgraph/demo")
+    def langgraph_demo(request: WorkflowDemoRequest) -> dict[str, object]:
+        return run_hr_workflow(request.goal, request.context)
 
     return app
 

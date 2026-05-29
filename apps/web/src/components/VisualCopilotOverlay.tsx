@@ -1,5 +1,5 @@
 import { AimOutlined, CloseOutlined, DeleteOutlined, SendOutlined } from "@ant-design/icons";
-import { Button, Input, Space, Tooltip, Typography, message } from "antd";
+import { Button, Input, Space, Tag, Tooltip, Typography, message } from "antd";
 import type { MouseEvent } from "react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
@@ -105,9 +105,21 @@ export function VisualCopilotOverlay() {
               <Button icon={<CloseOutlined />} onClick={() => setActive(false)} />
             </Space>
             {response ? (
-              <Typography.Paragraph className="visual-response">
-                {response.result.preview}
-              </Typography.Paragraph>
+              <div className="visual-response">
+                <Typography.Paragraph>
+                  {response.result.preview}
+                </Typography.Paragraph>
+                <Space wrap>
+                  {response.result.actions.map((action, index) => (
+                    <Tag
+                      key={`${String(action.type ?? "action")}-${index}`}
+                      color={action.blocked ? "red" : action.riskLevel === "high" ? "orange" : "blue"}
+                    >
+                      {String(action.label ?? action.type)} · risk={String(action.riskLevel ?? "low")}{action.blocked ? " · blocked" : ""}
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
             ) : null}
           </div>
         </div>,

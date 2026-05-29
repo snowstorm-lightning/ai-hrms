@@ -29,8 +29,8 @@ if ((primary_assignments < 1)); then
 fi
 
 vector_dim="$(psql_scalar "select format_type(atttypid, atttypmod) from pg_attribute where attrelid = 'rag_embeddings'::regclass and attname = 'embedding';")"
-if [[ "$vector_dim" != "vector(8)" ]]; then
-  echo "Expected rag_embeddings.embedding vector dimension metadata to be 8, found $vector_dim."
+if [[ "$vector_dim" != "vector" ]]; then
+  echo "Expected rag_embeddings.embedding to support configurable pgvector dimensions, found $vector_dim."
   exit 1
 fi
 

@@ -1,37 +1,43 @@
-# Co-Growth OS 3 分钟演示脚本
+# AI-HRMS 3 分钟演示脚本
 
-## 0:00-0:20 开场痛点
+## 准备
 
-很多培训系统只告诉员工“怎么点按钮”，但 AI 时代真正困难的是理解原理、把 AI 放进真实工作、验证输出、控制风险，并且不影响交付。
+```bash
+VITE_DEMO_MODE=true npm run web:dev
+```
 
-## 0:20-0:40 产品定位
+打开 `http://127.0.0.1:5173/login`，点击“一键进入 AI-HRMS Demo”。
 
-Co-Growth OS｜共进学习舱不是普通 LMS，也不是 AI 聊天框。它是人与 AI 共同进步的学习成长系统，连接 AI 原理、工作 mission、复盘和成长证据。
+真实模式可额外启动 Python agent boundary，并配置 DeepSeek chat 与 pgvector embedding provider；演示脚本仍建议先用 deterministic demo 录屏，保证评审路径稳定。
 
-## 0:40-1:05 首页展示
+## 0:00-0:20 定位
 
-进入 `/co-growth`。首屏看到独立学习舱顶栏、AI 指令栏、快捷 prompt、本周学习预算、已安排学习时间和当前学习画像。输入“把本周工作任务转化成 30 分钟 AI 学习任务”，AI Coach 会给出可执行建议。
+AI-HRMS 是人机共生的人力资源智能操作系统，不是传统 HRMS 加聊天框。AI 负责检索、解释、建议、生成计划和预览动作；人负责判断、确认、复盘和纠偏；系统负责权限、证据、审计和边界。
 
-## 1:05-1:30 AI Literacy Map
+## 0:20-0:50 Dashboard
 
-展示五层能力：AI 原理、Prompt 与上下文、输出验证、工作流协作、责任与治理。这里使用“成长阶段、学习信号、证据充分度”，不做人事评价。
+在 Command Dashboard 展示统一入口：组织数据、AI 指挥、知识治理、学习成长、Agent 运行和审计证据。讲清 Human-Agent workflow：Goal → Context → Agent Plan → Tool Preview → Human Review → Audit。
 
-## 1:30-1:55 Work-Learning Balance
+## 0:50-1:20 AI Command Center
 
-展示学习预算、工作负荷和建议节奏。工作负荷高时推荐 5-10 分钟微学习；负荷低时推荐 Agent Workflow Lab 和小项目。
+选择“生成新人 30 天成长计划”或“检查高风险建议”，点击生成。展示结构化输出：Answer、Evidence/Citation、riskLevel、confidence、Suggested Actions、Tool Preview、humanReviewRequired 和 Audit Preview。强调高风险场景没有“自动执行”。
 
-## 1:55-2:15 Mission 与个性化
+## 1:20-1:45 Knowledge Hub
 
-切换学习偏好，例如从“动手实验”切到“案例推演”，mission 和原理卡推荐会变化。任务卡显示耗时、工作影响、风险等级、置信度、证据来源和人工确认点。
+进入 Knowledge Hub，搜索新人计划。展示资料来源、trustLevel、sensitivity、status、scope 和 citation preview。说明敏感或草稿资料不能直接用于正式 AI 回答。
 
-## 2:15-2:35 Agent Workflow Lab
+## 1:45-2:15 Co-Growth OS
 
-展示个性化学习任务推荐 Agent：读取偏好、读取工作负荷、检索原理卡、生成 mission、检查影响、高风险人工确认、写入证据和审计。右侧显示 state、input、output、tool 和 risk。
+进入 Co-Growth OS。说明它是 AI-HRMS 的成长引擎：员工学习 AI 原理，接受真实工作 mission，记录 AI Work Journal，复盘人工修改和验证方式，沉淀 Growth Evidence Portfolio。
 
-## 2:35-2:50 Portfolio 与 AI Coach
+## 2:15-2:35 Agent Run Center
 
-成长证据时间线记录原理卡、mission、复盘、prompt 版本和工作产出。右侧 AI Coach 展示建议、证据、riskLevel、confidence 和 humanReviewRequired。
+展示 Agent run cards：runType、status、riskLevel、provider/model、delegated context、tool preview、human confirmation status 和 audit status。点击“预览工具调用”，说明高风险 run 等待人工确认。
 
-## 2:50-3:00 审计与价值总结
+## 2:35-2:55 Audit Center
 
-团队热力图只展示聚合趋势，不排名羞辱个人。系统帮助员工持续学习、帮助导师辅导、帮助 HR 看组织能力趋势，同时保留 AI 治理边界。
+展示 Trust, Audit & Evidence Layer：AI 建议事件、Agent 工具预览、Knowledge citation、Co-Growth evidence、human review、高风险 blocked event 和可补偿标记。
+
+## 2:55-3:00 总结
+
+AI-HRMS 不是替代 HR，而是让人和智能体在可治理边界内共同工作和成长。

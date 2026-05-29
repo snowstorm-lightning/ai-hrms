@@ -1,66 +1,33 @@
-# Co-Growth OS Demo 运行与部署
+# Co-Growth OS Module Appendix
 
-## 本地运行
+Co-Growth OS is not the whole assignment submission. It is the AI-HRMS growth
+engine: a module for AI literacy, work-embedded learning missions, reflection,
+AI Work Journal, and growth evidence.
 
-安装依赖：
+For the full submission demo, use `docs/ai-hrms-demo.md` and start from
+`/login` → `/app/dashboard`.
 
-```bash
-npm ci
-```
+## Direct Module Link
 
-启动纯前端 Demo：
-
-```bash
-VITE_DEMO_MODE=true npm run web:dev
-```
-
-登录：
-
-- Demo mode 下登录页有“一键进入 Co-Growth Demo”。
-- 也可使用 `123` / `password`。
-
-访问：
+After demo login, open:
 
 ```text
 http://127.0.0.1:5173/co-growth
 ```
 
-## 构建
+## Demo Mode
 
 ```bash
-VITE_DEMO_MODE=true npm run web:build
+VITE_DEMO_MODE=true npm run web:dev
 ```
 
-构建产物位于：
+Co-Growth uses deterministic local data in demo mode. It does not call external
+LLMs and does not use learning signals for promotion, pay, performance, hiring,
+or termination decisions.
 
-```text
-apps/web/dist
-```
+## Module Boundary
 
-## 公网部署
-
-推荐使用 Vercel 或 Netlify 部署纯前端 Demo：
-
-- Root directory：仓库根目录。
-- Build command：`VITE_DEMO_MODE=true npm run web:build`
-- Output directory：`apps/web/dist`
-- 环境变量：`VITE_DEMO_MODE=true`
-
-SPA fallback：
-
-- Vercel 需要将所有路径 rewrite 到 `/index.html`。
-- Netlify 需要 `_redirects` 或平台配置：`/* /index.html 200`。
-
-GitHub Pages 注意：
-
-- 如部署到子路径，需要配置 Vite `base`。
-- BrowserRouter 在 GitHub Pages 刷新子路由可能 404，需额外 fallback；若无法配置 fallback，优先用 Vercel/Netlify。
-
-## Demo 边界
-
-`VITE_DEMO_MODE=true` 时：
-
-- `/co-growth` 不依赖 Go、PostgreSQL 或外部 LLM。
-- AI Coach 和 Agent Workflow Lab 使用 deterministic mock。
-- 不调用外部模型，不发送个人敏感数据。
-- 原有 API 模式保留；`VITE_DEMO_MODE=false` 时仍走 Go API。
+- AI Coach generates learning suggestions and mission previews.
+- High-risk scenarios show `humanReviewRequired=true`.
+- Mission status is persisted in localStorage for demo continuity.
+- Team heatmap is an aggregate learning signal, not an individual ranking.

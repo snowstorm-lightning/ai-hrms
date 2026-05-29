@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { PageLoading } from "../components/PageLoading";
 
@@ -21,11 +21,12 @@ const AuditPage = lazy(() => import("../features/audit/AuditPage").then((module)
 
 function RequireAuth() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) {
     return <PageLoading fullPage />;
   }
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
   return <Outlet />;
 }

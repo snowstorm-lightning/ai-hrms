@@ -670,7 +670,7 @@ paths:
     post:
       tags: [RAG]
       operationId: createRagDocument
-      summary: Create scoped RAG document and deterministic chunks
+      summary: Create scoped RAG document and embedding chunks
       responses:
         "201":
           description: Created RAG document.
@@ -711,7 +711,7 @@ paths:
     post:
       tags: [RAG]
       operationId: searchRag
-      summary: Search scoped RAG knowledge
+      summary: Search scoped RAG knowledge with pgvector-first retrieval
       responses:
         "200":
           description: Search answer with citations or refusal reason.
@@ -728,6 +728,32 @@ paths:
       responses:
         "200":
           description: Chat response with citations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /ai/provider-status:
+    get:
+      tags: [RAG]
+      operationId: aiProviderStatus
+      summary: Get sanitized AI provider and embedding status
+      responses:
+        "200":
+          description: Provider status without API keys.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
+  /agent/workflows/langgraph/demo:
+    post:
+      tags: [Agent]
+      operationId: langgraphWorkflowDemo
+      summary: Run Python LangGraph human-agent workflow demo
+      responses:
+        "200":
+          description: Workflow state with risk, tool preview, human gate, and audit status.
           content:
             application/json:
               schema:

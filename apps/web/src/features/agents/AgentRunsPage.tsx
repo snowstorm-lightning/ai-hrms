@@ -1,14 +1,46 @@
-import { Button, Card, Form, Input, Select, Space, Table, Tag } from "antd";
-import { useEffect, useState, type HTMLAttributes } from "react";
+import { ApiOutlined, AuditOutlined, CheckCircleOutlined, ClockCircleOutlined, RobotOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Timeline, Typography, message } from "antd";
+import { useEffect, useMemo, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
-import type { AgentRun } from "../../api/types";
+import type { AgentRun, AgentToolPreviewResponse, AgentWorkflowDemoResult } from "../../api/types";
+import { HumanReviewBanner, TrustMetaBar } from "../../components/AiTrust";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
+
+const runTypes = [
+  "onboarding_companion",
+  "knowledge_iteration",
+  "data_quality",
+  "visual_copilot",
+  "co_growth_coach",
+  "ai_literacy_path",
+  "work_learning_balance",
+  "agent_workflow_lab",
+  "knowledge_governance",
+  "onboarding_planner",
+  "audit_risk_scanner",
+];
+
+function statusColor(status: string) {
+  if (status.includes("waiting")) return "orange";
+  if (status.includes("completed")) return "green";
+  if (status.includes("blocked")) return "red";
+  return "blue";
+}
+
+function confirmationStatus(run: AgentRun) {
+  if (run.riskLevel === "high") return "等待人工确认";
+  if (run.riskLevel === "medium") return "需要人工复核后执行";
+  return "可保留为低风险预览";
+}
 
 export function AgentRunsPage() {
   const [items, setItems] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [preview, setPreview] = useState<AgentToolPreviewResponse | null>(null);
+  const [workflowPreview, setWorkflowPreview] = useState<AgentWorkflowDemoResult | null>(null);
   const [form] = Form.useForm();
 
   const reload = async () => {
@@ -26,50 +58,160 @@ export function AgentRunsPage() {
 
   useEffect(() => { void reload(); }, []);
 
+  const stats = useMemo(() => ({
+    high: items.filter((item) => item.riskLevel === "high").length,
+    waiting: items.filter((item) => item.status.includes("waiting")).length,
+    previewed: items.filter((item) => item.status.includes("preview")).length,
+  }), [items]);
+
   return (
-    <div data-vc-page="agents">
-      <PageTitle title="Agent 运行中心" description="查看自治运行、风险等级、provider 和审计状态。" />
+    <div className="agent-runs-page" data-vc-page="agents">
+      <PageTitle
+        title="Human-Agent Run Center"
+        description="人和智能体协作的运行控制台：每次 run 都有 delegated context、tool preview、human confirmation 和 audit status。"
+      />
       <InlineError message={error} onRetry={reload} />
-      <Card>
-        <Form
-          form={form}
-          layout="inline"
-          initialValues={{ runType: "onboarding_companion", riskLevel: "low" }}
-          onFinish={async (values) => {
-            try {
-              await api.createAgentRun(values);
-              form.resetFields(["prompt"]);
-              await reload();
-            } catch (err) {
-              setError(getErrorMessage(err, "创建 Agent 运行失败"));
-            }
-          }}
-        >
-          <Form.Item name="runType"><Select style={{ width: 210 }} options={[
-            { value: "onboarding_companion", label: "入职陪跑 Agent" },
-            { value: "knowledge_iteration", label: "知识库迭代 Agent" },
-            { value: "data_quality", label: "数据质量 Agent" },
-            { value: "visual_copilot", label: "Visual Copilot Agent" },
-            { value: "co_growth_coach", label: "共进学习 Coach" },
-            { value: "ai_literacy_path", label: "AI 素养路径 Agent" },
-            { value: "work_learning_balance", label: "工学平衡 Agent" },
-            { value: "agent_workflow_lab", label: "Agent Workflow Lab" },
-            { value: "reflection_helper", label: "复盘辅助 Agent" },
-          ]} /></Form.Item>
-          <Form.Item name="riskLevel"><Select style={{ width: 150 }} options={[
-            { value: "low", label: "低风险" },
-            { value: "medium", label: "中风险" },
-            { value: "high", label: "高风险" },
-          ]} /></Form.Item>
-          <Form.Item name="prompt" style={{ flex: 1 }}><Input placeholder="说明本次 Agent 任务" /></Form.Item>
-          <Form.Item><Button data-vc-action="agent.run.create" type="primary" htmlType="submit">创建运行</Button></Form.Item>
-        </Form>
-      </Card>
+
+      <section className="agent-hero">
+        <Card className="agent-create-card">
+          <Alert
+            showIcon
+            type="info"
+            title="Agent run 默认先进入预览"
+            description="读操作可预览；写操作和高风险人事影响必须请求人工确认，真实执行由 Go 重新校验权限和 scope。"
+          />
+          <Form
+            form={form}
+            layout="vertical"
+            initialValues={{ runType: "onboarding_planner", riskLevel: "medium", prompt: "为新员工生成 30 天成长计划，并引用入职指南。" }}
+            onFinish={async (values) => {
+              setCreating(true);
+              setError("");
+              try {
+                await api.createAgentRun(values);
+                form.resetFields(["prompt"]);
+                await reload();
+                message.success("已创建 Demo Agent run 预览。");
+              } catch (err) {
+                setError(getErrorMessage(err, "创建 Agent 运行失败"));
+              } finally {
+                setCreating(false);
+              }
+            }}
+          >
+            <div className="agent-form-grid">
+              <Form.Item name="runType" label="Agent 类型">
+                <Select options={runTypes.map((value) => ({ value, label: value }))} />
+              </Form.Item>
+              <Form.Item name="riskLevel" label="风险等级">
+                <Select options={[
+                  { value: "low", label: "low：只读解释" },
+                  { value: "medium", label: "medium：行动计划预览" },
+                  { value: "high", label: "high：人工确认" },
+                ]} />
+              </Form.Item>
+              <Form.Item name="prompt" label="Prompt summary">
+                <Input placeholder="说明本次 Agent 任务" />
+              </Form.Item>
+              <Form.Item className="agent-submit-item">
+                <Button data-vc-action="agent.run.create" type="primary" htmlType="submit" loading={creating} icon={<RobotOutlined />}>
+                  创建运行预览
+                </Button>
+              </Form.Item>
+            </div>
+          </Form>
+        </Card>
+        <div className="agent-stat-grid">
+          <Card><Typography.Text type="secondary">高风险 run</Typography.Text><Typography.Title level={3}>{stats.high}</Typography.Title></Card>
+          <Card><Typography.Text type="secondary">等待确认</Typography.Text><Typography.Title level={3}>{stats.waiting}</Typography.Title></Card>
+          <Card><Typography.Text type="secondary">工具预览</Typography.Text><Typography.Title level={3}>{stats.previewed}</Typography.Title></Card>
+        </div>
+      </section>
+
+      {preview ? (
+        <Alert
+          className="section-card"
+          showIcon
+          type={preview.accepted ? "success" : "warning"}
+          title={preview.message}
+          description={`requiredRisk=${preview.requiredRisk} · resultPreview=${JSON.stringify(preview.resultPreview)}`}
+        />
+      ) : null}
+
+      {workflowPreview ? (
+        <Alert
+          className="section-card"
+          showIcon
+          type={workflowPreview.risk_level === "high" ? "warning" : "success"}
+          title={`LangGraph workflow: ${workflowPreview.audit_status}`}
+          description={workflowPreview.steps.map((step) => `${step.name}=${step.status}`).join(" · ")}
+        />
+      ) : null}
+
+      <section className="agent-run-grid" data-vc-kind="agent-run-cards">
+        {items.map((run) => (
+          <article className={run.riskLevel === "high" ? "agent-run-card high" : "agent-run-card"} key={run.id} data-vc-kind="agent-run-card" data-vc-object-type="agent_run" data-vc-object-id={run.id} data-vc-label={run.runType}>
+            <div className="agent-run-top">
+              <Space>
+                <RobotOutlined />
+                <Typography.Text strong>{run.runType}</Typography.Text>
+              </Space>
+              <Tag color={statusColor(run.status)}>{run.status}</Tag>
+            </div>
+            <Typography.Paragraph type="secondary">{run.summary}</Typography.Paragraph>
+            <TrustMetaBar
+              riskLevel={run.riskLevel}
+              confidence={run.riskLevel === "high" ? 74 : run.riskLevel === "medium" ? 84 : 91}
+              evidenceCount={run.riskLevel === "high" ? 3 : 2}
+              humanReviewRequired={run.riskLevel === "high"}
+              toolPreview
+              auditStatus={run.riskLevel === "high" ? "waiting_human_review" : "previewed"}
+            />
+            <div className="agent-context-box">
+              <Typography.Text strong>Delegated context</Typography.Text>
+              <span>roles=group_hr, scope=global, allowedTools=rag_search / learning_recommend / audit_read</span>
+            </div>
+            <Timeline
+              items={[
+                { icon: <ClockCircleOutlined />, content: "Goal captured" },
+                { icon: <ApiOutlined />, content: "Tool preview generated" },
+                { icon: <SafetyCertificateOutlined />, content: confirmationStatus(run) },
+                { icon: <AuditOutlined />, content: "Audit event prepared" },
+              ]}
+            />
+            <HumanReviewBanner
+              riskLevel={run.riskLevel}
+              humanReviewRequired={run.riskLevel === "high"}
+              text={run.riskLevel === "high" ? "该 run 涉及公平性或人员影响，只能等待 HR 人工确认。" : "该 run 可以作为预览继续演示；执行前仍需权限和审计校验。"}
+            />
+            <Space wrap>
+              <Button
+                size="small"
+                onClick={async () => setPreview(await api.previewAgentTool({ runId: run.id, toolName: run.riskLevel === "high" ? "people_decision_execute" : "learning_recommend", arguments: { runType: run.runType } }))}
+              >
+                预览工具调用
+              </Button>
+              <Button size="small" icon={<CheckCircleOutlined />} onClick={() => message.info("Demo：已生成请求人工确认反馈。")}>
+                请求人工确认
+              </Button>
+              <Button
+                size="small"
+                icon={<ApiOutlined />}
+                onClick={async () => setWorkflowPreview(await api.langGraphWorkflowDemo({ goal: run.summary, context: [`runType=${run.runType}`, `riskLevel=${run.riskLevel}`] }))}
+              >
+                LangGraph 演示
+              </Button>
+            </Space>
+          </article>
+        ))}
+      </section>
+
       <Table
         className="section-card"
         rowKey="id"
         loading={loading}
         dataSource={items}
+        scroll={{ x: "max-content" }}
         locale={{ emptyText: <EmptyBlock description="暂无 Agent 运行" /> }}
         onRow={(row) => ({
           "data-vc-kind": "agent-run-row",
@@ -78,12 +220,12 @@ export function AgentRunsPage() {
           "data-vc-label": row.runType,
         } as HTMLAttributes<HTMLElement>)}
         columns={[
-          { title: "类型", dataIndex: "runType" },
-          { title: "状态", dataIndex: "status", render: (status) => <Tag color="green">{status}</Tag> },
-          { title: "风险", dataIndex: "riskLevel", render: (risk) => <Tag color={risk === "high" ? "red" : risk === "medium" ? "orange" : "blue"}>{risk}</Tag> },
-          { title: "Provider", render: (_, row) => `${row.provider} / ${row.model}` },
-          { title: "摘要", dataIndex: "summary" },
-          { title: "时间", dataIndex: "createdAt" },
+          { title: "类型", dataIndex: "runType", width: 210 },
+          { title: "状态", dataIndex: "status", width: 180, render: (status) => <Tag color={statusColor(status)}>{status}</Tag> },
+          { title: "风险", dataIndex: "riskLevel", width: 100, render: (risk) => <Tag color={risk === "high" ? "red" : risk === "medium" ? "orange" : "blue"}>{risk}</Tag> },
+          { title: "Provider", width: 220, render: (_, row) => row.provider === "fake" ? "Demo deterministic adapter" : `${row.provider} / ${row.model}` },
+          { title: "人工确认", width: 220, render: (_, row) => confirmationStatus(row) },
+          { title: "时间", dataIndex: "createdAt", width: 220 },
         ]}
       />
     </div>

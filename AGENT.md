@@ -7,8 +7,8 @@ This file is an index for agents working on `ai-hrms`. Keep detailed constraints
 - Product baseline: reproduce the useful business flows from `../saas_hrms`, then improve the implementation for a single-company HRMS with multiple subsidiaries.
 - Frontend: TypeScript, React, Ant Design, modern versions.
 - Backend: Go service, PostgreSQL database.
-- AI: Python service managed by `uv`, used for AI agent and RAG-related work.
-- Database: PostgreSQL first; plan for `pgvector`-backed RAG.
+- AI: Python service managed by `uv`, used for DeepSeek-compatible chat, embeddings, agent, and RAG boundary work.
+- Database: PostgreSQL first, with `pgvector`-backed RAG.
 - Cache/queue: Redis is optional and should be introduced only when a concrete need appears.
 - Organization model: legal entities, organization units, and employee assignments; first phase implements primary assignment while keeping schema support for multiple assignments.
 

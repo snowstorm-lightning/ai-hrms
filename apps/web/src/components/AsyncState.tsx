@@ -19,7 +19,7 @@ export function InlineError({ message, onRetry }: { message?: string; onRetry?: 
       className="inline-error"
       type="error"
       showIcon
-      message={message}
+      title={message}
       action={
         onRetry ? (
           <Button size="small" danger onClick={onRetry}>
