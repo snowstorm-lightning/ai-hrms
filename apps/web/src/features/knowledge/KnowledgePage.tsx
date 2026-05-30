@@ -1,5 +1,5 @@
-import { DatabaseOutlined, FileSearchOutlined, SafetyCertificateOutlined, WarningOutlined } from "@ant-design/icons";
-import { Alert, Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from "antd";
+import { DatabaseOutlined, FileSearchOutlined, SafetyCertificateOutlined, SyncOutlined, WarningOutlined } from "@ant-design/icons";
+import { Alert, Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from "antd";
 import { useEffect, useMemo, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
 import type { RAGDocument, RAGIngestJob, RAGSearchResult, RAGSource } from "../../api/types";
@@ -39,6 +39,8 @@ export function KnowledgePage() {
   const [ingesting, setIngesting] = useState(false);
   const [ingestOpen, setIngestOpen] = useState(false);
   const [ingestJob, setIngestJob] = useState<RAGIngestJob | null>(null);
+  const [rebuildJob, setRebuildJob] = useState<RAGIngestJob | null>(null);
+  const [rebuildingId, setRebuildingId] = useState("");
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
@@ -64,14 +66,34 @@ export function KnowledgePage() {
   useEffect(() => { void reload(); }, []);
 
   const search = async () => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      message.warning("请输入需要检索的问题。");
+      return;
+    }
     setSearching(true);
     setError("");
     try {
-      setResult(await api.ragSearch(query));
+      setResult(await api.ragSearch(trimmed));
     } catch (err) {
       setError(getErrorMessage(err, "知识检索失败"));
     } finally {
       setSearching(false);
+    }
+  };
+
+  const rebuildDocument = async (document: RAGDocument) => {
+    setRebuildingId(document.id);
+    setError("");
+    try {
+      const job = await api.rebuildRAGDocument(document.id);
+      setRebuildJob(job);
+      message.success(job.summary || "已重建 chunk 与 embedding。");
+      await reload();
+    } catch (err) {
+      setError(getErrorMessage(err, "重建向量失败"));
+    } finally {
+      setRebuildingId("");
     }
   };
 
@@ -95,21 +117,34 @@ export function KnowledgePage() {
             <Alert
               showIcon
               type="info"
-              title="RAG 回答必须暴露资料治理状态"
-              description="AI 回答前需要检查 status、trustLevel、sensitivity、scope 和 citation。敏感或草稿资料不能直接进入正式建议。"
+              title="RAG 回答必须暴露资料治理状态和检索路径"
+              description="检索先按 status、trustLevel、sensitivity、scope 过滤，再用 PostgreSQL lexical + pgvector candidates 做 RRF 融合。reranker 暂不启用，保留为后续受控阶段。"
             />
             <Space.Compact style={{ width: "100%" }}>
-              <Input data-vc-field="rag.query" aria-label="RAG search query" value={query} onChange={(event) => setQuery(event.target.value)} />
+              <Input data-vc-field="rag.query" aria-label="RAG search query" value={query} onChange={(event) => setQuery(event.target.value)} onPressEnter={search} />
               <Button data-vc-action="rag.search" type="primary" loading={searching} onClick={search}>RAG Search</Button>
               <Button data-vc-action="rag.document.create" onClick={() => setEditing(true)}>新增资料</Button>
               <Button data-vc-action="rag.ingest" onClick={() => setIngestOpen(true)}>Ingest</Button>
             </Space.Compact>
             {result ? (
               <div className="result-panel">
-                <TrustMetaBar riskLevel={result.riskLevel ?? "medium"} confidence={Math.round((result.confidence ?? 0.86) * 100)} evidenceCount={result.citations.length} humanReviewRequired={result.humanReviewRequired ?? false} auditStatus={result.auditStatus ?? "retrieval_logged"} />
+                <TrustMetaBar riskLevel={result.riskLevel ?? "unknown"} confidence={result.confidence === undefined ? 0 : Math.round(result.confidence * 100)} evidenceCount={result.citations.length} humanReviewRequired={result.humanReviewRequired ?? true} auditStatus={result.auditStatus ?? "metadata_missing"} />
+                <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }} className="knowledge-retrieval-meta">
+                  <Descriptions.Item label="retrieval">{result.provider ?? "not returned"}</Descriptions.Item>
+                  <Descriptions.Item label="model">{result.model ?? "not returned"}</Descriptions.Item>
+                  <Descriptions.Item label="top score">{result.citations[0]?.score ? result.citations[0].score.toFixed(2) : "not returned"}</Descriptions.Item>
+                </Descriptions>
                 <Typography.Paragraph>{result.refusalReason ? "没有可引用资料，已拒绝回答。" : result.answer}</Typography.Paragraph>
                 <CitationList citations={result.citations} />
               </div>
+            ) : null}
+            {rebuildJob ? (
+              <Alert
+                showIcon
+                type={rebuildJob.provider === "fake" ? "warning" : "success"}
+                title={`Rebuild ${rebuildJob.status} / ${rebuildJob.provider}`}
+                description={rebuildJob.summary}
+              />
             ) : null}
           </Space>
         </Card>
@@ -118,6 +153,19 @@ export function KnowledgePage() {
           <Card><Typography.Text type="secondary">AI usable</Typography.Text><Typography.Title level={3}>{governanceStats.usable}</Typography.Title></Card>
           <Card><Typography.Text type="secondary">Restricted</Typography.Text><Typography.Title level={3}>{governanceStats.restricted}</Typography.Title></Card>
         </div>
+      </section>
+
+      <section className="section-card knowledge-pipeline" data-vc-kind="rag-pipeline">
+        <Space wrap size="middle">
+          <Tag color="blue">chunkStrategy=heading_sentence_context_v2_qwen3_2048</Tag>
+          <Tag color="cyan">body=760 runes</Tag>
+          <Tag color="geekblue">overlap=120 runes</Tag>
+          <Tag color="purple">retrieval=hybrid RRF</Tag>
+          <Tag color="default">reranker=planned only</Tag>
+        </Space>
+        <Typography.Paragraph type="secondary">
+          Chunk 会保存正文、章节路径、上下文前缀和策略版本；模型或策略变化时使用“重建向量”刷新 chunks/embeddings。受限资料只做治理展示，不进入正式回答引用。
+        </Typography.Paragraph>
       </section>
 
       <section className="knowledge-document-grid" data-vc-kind="governed-document-cards">
@@ -152,16 +200,52 @@ export function KnowledgePage() {
                 size="small"
                 icon={<FileSearchOutlined />}
                 onClick={() => {
+                  if (!canUseForAI(document)) {
+                    setResult({
+                      answer: `${document.title} 当前只能做治理预览，不能作为正式 AI 回答引用。请先处理 status/sensitivity/scope 并由人工复核。`,
+                      citations: [],
+                      refusalReason: "governance_preview_only",
+                      provider: "local-preview",
+                      model: "metadata-only",
+                      confidence: 0,
+                      riskLevel: "high",
+                      humanReviewRequired: true,
+                      auditStatus: "preview_not_citation",
+                    });
+                    return;
+                  }
                   setResult({
-                    answer: `引用预览：${document.title} 可作为回答证据，但结论仍需人工检查是否被片段支持。`,
-                    citations: [{ documentId: document.id, chunkId: `${document.id}-preview`, title: document.title, snippet: document.content ?? "Demo citation preview" }],
+                    answer: `治理预览：${document.title} 可以作为候选引用。正式回答仍必须通过 /rag/search，按 scope、sensitivity 和检索分数确认。`,
+                    citations: [{ documentId: document.id, chunkId: `${document.id}-preview`, title: document.title, snippet: document.content ?? "Demo citation preview", trustLevel: document.trustLevel, sensitivity: document.sensitivity, score: 0.72 }],
+                    provider: "local-preview",
+                    model: "metadata-only",
+                    confidence: 0.72,
+                    riskLevel: "medium",
+                    humanReviewRequired: true,
+                    auditStatus: "preview_not_search",
                   });
                 }}
               >
-                引用预览
+                治理预览
               </Button>
               <Button size="small" icon={<SafetyCertificateOutlined />} onClick={() => message.info(demoMode ? "Demo：已生成资料治理提示，真实发布需 Go 授权和审计。" : "已生成资料治理提示；发布动作需 Go 授权和审计。")}>
                 治理提示
+              </Button>
+              <Button
+                size="small"
+                icon={<SyncOutlined />}
+                loading={rebuildingId === document.id}
+                onClick={() => {
+                  Modal.confirm({
+                    title: "重建该资料的 chunk 与 embedding？",
+                    content: "该操作会替换旧 chunk/embedding，并写入 ingest job 与审计事件。不会修改原文、scope 或发布时间。",
+                    okText: "重建",
+                    cancelText: "取消",
+                    onOk: () => rebuildDocument(document),
+                  });
+                }}
+              >
+                重建向量
               </Button>
             </Space>
           </article>

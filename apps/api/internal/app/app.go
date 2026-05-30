@@ -65,6 +65,7 @@ func New(cfg config.Config, db *store.Store) http.Handler {
 	mux.Handle("GET /api/rag/sources", server.authenticated(http.HandlerFunc(server.listRAGSources)))
 	mux.Handle("POST /api/rag/documents", server.authenticated(http.HandlerFunc(server.createRAGDocument)))
 	mux.Handle("GET /api/rag/documents", server.authenticated(http.HandlerFunc(server.listRAGDocuments)))
+	mux.Handle("POST /api/rag/documents/{id}/rebuild", server.authenticated(http.HandlerFunc(server.rebuildRAGDocument)))
 	mux.Handle("POST /api/rag/ingest-jobs", server.authenticated(http.HandlerFunc(server.createRAGIngestJob)))
 	mux.Handle("GET /api/rag/ingest-jobs/{id}", server.authenticated(http.HandlerFunc(server.getRAGIngestJob)))
 	mux.Handle("POST /api/rag/search", server.authenticated(http.HandlerFunc(server.searchRAG)))

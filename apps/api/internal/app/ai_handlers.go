@@ -179,6 +179,75 @@ func (s *Server) createRAGIngestJob(w http.ResponseWriter, r *http.Request) {
 	httpx.Created(w, saved)
 }
 
+func (s *Server) rebuildRAGDocument(w http.ResponseWriter, r *http.Request) {
+	if !requireCapability(w, r, "rag.publish") {
+		return
+	}
+	scope, ok := s.scope(r)
+	if !ok {
+		httpx.Error(w, http.StatusInternalServerError, 5000, "解析权限失败")
+		return
+	}
+	doc, err := s.store.GetRAGDocument(r.Context(), scope, principal(r), r.PathValue("id"))
+	if err != nil {
+		s.respondErr(w, err)
+		return
+	}
+	embeddings, err := s.embeddingsForDocument(r.Context(), *doc)
+	if err != nil {
+		s.respondErr(w, err)
+		return
+	}
+	expectedChunks := len(store.PrepareRAGChunks(doc.Content, doc.Title))
+	if expectedChunks > 0 && len(embeddings) == 0 {
+		httpx.Error(w, http.StatusBadGateway, 5001, "Embedding provider 未返回向量，已保留旧 chunk/embedding；请先修复 provider 或改用本地 embedding 后再重建")
+		return
+	}
+	if len(embeddings) > 0 && len(embeddings) != expectedChunks {
+		httpx.Error(w, http.StatusBadGateway, 5001, "Embedding provider 返回的向量数量与 chunk 数量不一致，已拒绝重建以避免混合索引")
+		return
+	}
+	chunkCount, err := s.store.RebuildRAGDocumentChunksWithEmbeddings(r.Context(), *doc, embeddings)
+	if err != nil {
+		s.respondErr(w, err)
+		return
+	}
+	provider := embeddings[0].Provider
+	model := embeddings[0].Model
+	dimensions := embeddings[0].Dimensions
+	summary := fmt.Sprintf("Rebuilt %d chunks with %s/%s embeddings (%d dimensions).", chunkCount, provider, model, dimensions)
+	savedJob, err := s.store.CreateRAGIngestJob(r.Context(), domain.RAGIngestJob{
+		SourceID:   doc.SourceID,
+		DocumentID: &doc.ID,
+		JobType:    "rebuild_embeddings",
+		Provider:   provider,
+		Summary:    summary,
+	}, principal(r).UserID)
+	if err != nil {
+		s.respondErr(w, err)
+		return
+	}
+	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+		ActorUserID: principal(r).UserID,
+		EventType:   "rag.document.rebuild",
+		ObjectType:  "rag_document",
+		ObjectID:    doc.ID,
+		RequestID:   requestID(r),
+		RiskLevel:   "high",
+		NewValueSummary: map[string]any{
+			"title":          doc.Title,
+			"chunkCount":     chunkCount,
+			"provider":       provider,
+			"model":          model,
+			"dimensions":     dimensions,
+			"degraded":       false,
+			"chunkStrategy":  "heading_sentence_context_v2_qwen3_2048",
+			"actionExecuted": true,
+		},
+	})
+	httpx.Created(w, savedJob)
+}
+
 func (s *Server) materializeRAGDocument(ctx context.Context, job domain.RAGIngestJob) (*domain.RAGDocument, error) {
 	content := strings.TrimSpace(job.Content)
 	title := strings.TrimSpace(job.Title)
@@ -597,11 +666,14 @@ func (s *Server) searchRAGResult(ctx context.Context, scope store.Scope, actor r
 	if len(response.Embeddings) == 0 {
 		return s.store.SearchRAG(ctx, scope, actor, req)
 	}
-	result, err := s.store.SearchRAGVector(ctx, scope, actor, req, response.Embeddings[0], response.Provider, response.Model, response.Dimensions)
+	result, err := s.store.SearchRAGHybrid(ctx, scope, actor, req, response.Embeddings[0], response.Provider, response.Model, response.Dimensions)
 	if err != nil {
 		return nil, err
 	}
 	if result.RefusalReason == "no_citation" {
+		if result.Provider == "hybrid-rrf" {
+			return result, nil
+		}
 		return s.store.SearchRAG(ctx, scope, actor, req)
 	}
 	return result, nil

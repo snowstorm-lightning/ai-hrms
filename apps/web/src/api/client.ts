@@ -821,7 +821,7 @@ export const api = {
   createRAGIngestJob: (values: {
     sourceId?: string | null;
     documentId?: string | null;
-    jobType?: string;
+    jobType?: "ingest" | "rebuild_embeddings" | string;
     title?: string;
     content?: string;
   }) => {
@@ -861,6 +861,39 @@ export const api = {
     }
     return request<RAGIngestJob>("/rag/ingest-jobs", { method: "POST", body: JSON.stringify(values) });
   },
+  rebuildRAGDocument: (id: string) => {
+    if (demoMode) {
+      const now = new Date().toISOString();
+      const document = demoRAGDocuments.find((item) => item.id === id);
+      const job: RAGIngestJob = {
+        id: `rebuild-${Date.now()}`,
+        sourceId: document?.sourceId ?? null,
+        documentId: id,
+        jobType: "rebuild_embeddings",
+        status: "completed",
+        provider: "demo-hybrid",
+        summary: `Demo 已按 heading_sentence_context_v2_qwen3_2048 重建 ${document?.title ?? "选中资料"} 的 chunk 与本地向量索引。`,
+        error: "",
+        createdAt: now,
+        completedAt: now,
+      };
+      appendDemoAudit({
+        eventType: "rag.document.rebuild",
+        objectType: "rag_document",
+        objectId: id,
+        riskLevel: "high",
+        newValueSummary: {
+          provider: "demo-hybrid",
+          chunkStrategy: "heading_sentence_context_v2_qwen3_2048",
+          documentTitle: document?.title,
+          actionExecuted: true,
+        },
+        source: "rag",
+      });
+      return Promise.resolve(job);
+    }
+    return request<RAGIngestJob>(`/rag/documents/${id}/rebuild`, { method: "POST" });
+  },
   getRAGIngestJob: (id: string) => demoMode ? Promise.resolve({
     id,
     jobType: "ingest",
@@ -874,14 +907,24 @@ export const api = {
   ragSearch: (query: string, limit = 5) =>
     demoMode ? Promise.resolve((() => {
       const highRiskQuery = isHighImpactHRText(query);
-      const citations = highRiskQuery
-        ? [
-            { documentId: "rag-doc-004", chunkId: `demo-${limit}-safety`, title: "AI 使用安全规范", snippet: "不要把个人敏感信息、受保护特征或未授权数据放入 AI prompt。" },
-          ]
-        : [
-            { documentId: "rag-doc-002", chunkId: `demo-${limit}-onboarding`, title: "新员工入职指南", snippet: "新员工 7 天内完成制度、信息安全和组织协作课程，30 天内由导师复盘。" },
-            { documentId: "rag-doc-004", chunkId: `demo-${limit}-safety`, title: "AI 使用安全规范", snippet: "不要把个人敏感信息、受保护特征或未授权数据放入 AI prompt。" },
-          ];
+      const queryText = query.trim();
+      const matchedDocuments = demoRAGDocuments
+        .filter((document) => document.status === "published" && document.sensitivity !== "restricted")
+        .filter((document) => !queryText || document.title.includes(queryText) || (document.content ?? "").includes(queryText) || queryText.split(/\s+/).some((token) => token && (document.title.includes(token) || (document.content ?? "").includes(token))))
+        .slice(0, limit);
+      const fallbackDocuments = highRiskQuery
+        ? demoRAGDocuments.filter((document) => document.id === "rag-doc-004")
+        : demoRAGDocuments.filter((document) => ["rag-doc-002", "rag-doc-004"].includes(document.id));
+      const sourceDocuments = (matchedDocuments.length ? matchedDocuments : fallbackDocuments).slice(0, limit);
+      const citations = sourceDocuments.map((document, index) => ({
+        documentId: document.id,
+        chunkId: `demo-${limit}-${document.id}-${index}`,
+        title: document.title,
+        snippet: document.content ?? "Demo citation preview",
+        trustLevel: document.trustLevel,
+        sensitivity: document.sensitivity,
+        score: highRiskQuery ? 0.76 : 0.86 - index * 0.04,
+      }));
       appendDemoAudit({
         eventType: "rag.citation.used",
         objectType: "rag_search",
@@ -895,6 +938,12 @@ export const api = {
           ? `命中高风险 HR 场景。AI-HRMS 只使用安全规范生成风险提示；受限的公平性资料不直接进入回答，需 HR 人工复核后查看。`
           : `基于 AI-HRMS 受控知识层，"${query}" 可以回答，但必须同时展示引用、资料可信等级、敏感级别和人工确认边界。`,
         citations,
+        provider: "demo-hybrid",
+        model: "deterministic-lexical+mock-vector",
+        confidence: citations[0]?.score ?? 0.72,
+        riskLevel: highRiskQuery ? "high" : "medium",
+        humanReviewRequired: highRiskQuery,
+        auditStatus: "demo_retrieval_logged",
       };
     })()) : request<RAGSearchResult>("/rag/search", { method: "POST", body: JSON.stringify({ query, limit }) }),
   aiChat: (message: string) => demoMode ? Promise.resolve((() => {

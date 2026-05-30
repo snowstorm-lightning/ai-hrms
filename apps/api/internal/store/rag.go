@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"ai-hrms/apps/api/internal/domain"
 	"ai-hrms/apps/api/internal/rbac"
+	"github.com/jackc/pgx/v5"
 )
 
 func (s *Store) ListRAGSources(ctx context.Context) ([]domain.RAGSource, error) {
@@ -156,46 +158,41 @@ func (s *Store) CreateRAGDocumentWithEmbeddings(ctx context.Context, doc domain.
 			return nil, err
 		}
 	}
-	chunks := prepareRAGChunkRecords(doc.Content, doc.Title)
-	for i, chunk := range chunks {
-		var chunkID string
-		err = tx.QueryRow(ctx, `
-			INSERT INTO rag_chunks (document_id, chunk_index, title, content, location_ref, content_hash, sensitivity)
-			VALUES ($1,$2,$3,$4,$5,$6,$7)
-			RETURNING id::text
-		`, id, i, chunk.Title, chunk.Content, chunk.LocationRef, hashText(chunk.Content), doc.Sensitivity).Scan(&chunkID)
-		if err != nil {
-			return nil, err
-		}
-		provider := "fake"
-		model := "deterministic-v1"
-		dimensions := 8
-		vector := fakeVector(chunk.Content)
-		if i < len(embeddings) && len(embeddings[i].Vector) > 0 {
-			if embeddings[i].Provider != "" {
-				provider = embeddings[i].Provider
-			}
-			if embeddings[i].Model != "" {
-				model = embeddings[i].Model
-			}
-			dimensions = embeddings[i].Dimensions
-			if dimensions <= 0 || dimensions != len(embeddings[i].Vector) {
-				dimensions = len(embeddings[i].Vector)
-			}
-			vector = vectorString(embeddings[i].Vector)
-		}
-		_, err = tx.Exec(ctx, `
-			INSERT INTO rag_embeddings (chunk_id, provider, model, dimensions, embedding)
-			VALUES ($1, $2, $3, $4, $5)
-		`, chunkID, provider, model, dimensions, vector)
-		if err != nil {
-			return nil, err
-		}
+	if _, err := insertRAGChunkRecords(ctx, tx, id, doc.Content, doc.Title, doc.Sensitivity, embeddings); err != nil {
+		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return s.GetRAGDocument(ctx, Scope{Global: true}, rbac.Principal{}, id)
+}
+
+func (s *Store) RebuildRAGDocumentChunksWithEmbeddings(ctx context.Context, doc domain.RAGDocument, embeddings []domain.RAGEmbeddingInput) (int, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	var lockedID string
+	if err := tx.QueryRow(ctx, `SELECT id::text FROM rag_documents WHERE id = $1 FOR UPDATE`, doc.ID).Scan(&lockedID); err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM rag_chunks WHERE document_id = $1`, doc.ID); err != nil {
+		return 0, err
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE rag_documents
+		SET content_hash = $2, updated_at = now()
+		WHERE id = $1
+	`, doc.ID, hashText(doc.Title+"\n"+doc.Content)); err != nil {
+		return 0, err
+	}
+	count, err := insertRAGChunkRecords(ctx, tx, doc.ID, doc.Content, doc.Title, doc.Sensitivity, embeddings)
+	if err != nil {
+		return 0, err
+	}
+	return count, tx.Commit(ctx)
 }
 
 func (s *Store) GetRAGDocument(ctx context.Context, scope Scope, principal rbac.Principal, id string) (*domain.RAGDocument, error) {
@@ -251,6 +248,9 @@ func (s *Store) CreateRAGIngestJob(ctx context.Context, job domain.RAGIngestJob,
 		job.Provider = "fake"
 	}
 	summary := fmt.Sprintf("%s provider completed RAG ingestion.", job.Provider)
+	if strings.TrimSpace(job.Summary) != "" {
+		summary = strings.TrimSpace(job.Summary)
+	}
 	var saved domain.RAGIngestJob
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO rag_ingest_jobs (source_id, document_id, job_type, status, provider, summary, created_by_user_id, completed_at)
@@ -281,60 +281,11 @@ func (s *Store) SearchRAG(ctx context.Context, scope Scope, principal rbac.Princ
 	if query == "" {
 		return &domain.RAGSearchResult{RefusalReason: "empty_query"}, nil
 	}
-	where, args := ragVisibleWhere(scope, principal, 2)
-	searchPatterns := ragSearchPatterns(query)
-	sql := `
-		SELECT c.id::text, d.id::text, d.title, c.content, d.trust_level, d.sensitivity
-		FROM rag_chunks c
-		JOIN rag_documents d ON d.id = c.document_id
-		WHERE d.status = 'published'
-		  AND (d.effective_from IS NULL OR d.effective_from <= now())
-		  AND (d.effective_to IS NULL OR d.effective_to >= now())
-		  AND c.sensitivity IN ('normal', 'internal')
-		  AND d.sensitivity IN ('normal', 'internal')
-		  AND (c.content ILIKE ANY($1::text[]) OR d.title ILIKE ANY($1::text[]))
-		  AND ` + where + `
-		ORDER BY d.trust_level DESC, c.chunk_index
-		LIMIT $` + itoa(len(args)+2)
-	queryArgs := append([]any{searchPatterns}, args...)
-	queryArgs = append(queryArgs, limit)
-	rows, err := s.pool.Query(ctx, sql, queryArgs...)
+	candidates, err := s.searchRAGLexicalCandidates(ctx, scope, principal, req, limit)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var citations []domain.RAGCitation
-	var chunkIDs []string
-	for rows.Next() {
-		var citation domain.RAGCitation
-		if err := rows.Scan(&citation.ChunkID, &citation.DocumentID, &citation.Title, &citation.Snippet, &citation.TrustLevel, &citation.Sensitivity); err != nil {
-			return nil, err
-		}
-		citation.Snippet = trimRunes(citation.Snippet, 160)
-		citation.Score = 0.72
-		chunkIDs = append(chunkIDs, citation.ChunkID)
-		citations = append(citations, citation)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	if len(citations) == 0 {
-		_ = s.recordRAGRetrieval(ctx, principal.UserID, query, scope, nil, nil, "no_citation")
-		return &domain.RAGSearchResult{RefusalReason: "no_citation"}, nil
-	}
-	result := &domain.RAGSearchResult{
-		Answer:              "根据已发布且当前可见的知识库资料，可参考以下来源处理该问题。",
-		Citations:           citations,
-		Provider:            "lexical-fallback",
-		Model:               "ILIKE",
-		Confidence:          0.72,
-		RiskLevel:           "medium",
-		HumanReviewRequired: true,
-		AuditStatus:         "retrieval_logged",
-	}
-	_ = s.recordRAGRetrieval(ctx, principal.UserID, query, scope, chunkIDs, citations, "")
-	return result, nil
+	return s.ragSearchResultFromCitations(ctx, principal.UserID, query, scope, citationsFromCandidates(candidates), "lexical-fallback", "websearch+ILIKE", 0.72)
 }
 
 func (s *Store) SearchRAGVector(ctx context.Context, scope Scope, principal rbac.Principal, req domain.RAGSearchRequest, queryVector []float64, provider, model string, dimensions int) (*domain.RAGSearchResult, error) {
@@ -355,9 +306,144 @@ func (s *Store) SearchRAGVector(ctx context.Context, scope Scope, principal rbac
 	if model == "" {
 		model = "deterministic-v1"
 	}
+	candidates, err := s.searchRAGVectorCandidates(ctx, scope, principal, req, queryVector, provider, model, dimensions, limit)
+	if err != nil {
+		return nil, err
+	}
+	confidence := 0.72
+	if len(candidates) > 0 {
+		confidence = candidates[0].Citation.Score
+	}
+	return s.ragSearchResultFromCitations(ctx, principal.UserID, query, scope, citationsFromCandidates(candidates), provider, model, confidence)
+}
+
+func (s *Store) SearchRAGHybrid(ctx context.Context, scope Scope, principal rbac.Principal, req domain.RAGSearchRequest, queryVector []float64, provider, model string, dimensions int) (*domain.RAGSearchResult, error) {
+	limit := req.Limit
+	if limit < 1 || limit > 10 {
+		limit = 5
+	}
+	query := strings.TrimSpace(req.Query)
+	if query == "" {
+		return &domain.RAGSearchResult{RefusalReason: "empty_query"}, nil
+	}
+	if len(queryVector) == 0 || dimensions <= 0 {
+		return s.SearchRAG(ctx, scope, principal, req)
+	}
+	if provider == "" {
+		provider = "fake"
+	}
+	if model == "" {
+		model = "deterministic-v1"
+	}
+	candidateLimit := limit * 4
+	if candidateLimit < 20 {
+		candidateLimit = 20
+	}
+	vectorCandidates, err := s.searchRAGVectorCandidates(ctx, scope, principal, req, queryVector, provider, model, dimensions, candidateLimit)
+	if err != nil {
+		return nil, err
+	}
+	lexicalCandidates, err := s.searchRAGLexicalCandidates(ctx, scope, principal, req, candidateLimit)
+	if err != nil {
+		return nil, err
+	}
+	if len(vectorCandidates) == 0 {
+		return s.ragSearchResultFromCitations(ctx, principal.UserID, query, scope, citationsFromCandidates(lexicalCandidates), "lexical-fallback", "websearch+ILIKE;vector_hit_count=0", 0.72)
+	}
+	fused := fuseRAGCandidates(vectorCandidates, lexicalCandidates, limit)
+	if len(fused) == 0 {
+		_ = s.recordRAGRetrieval(ctx, principal.UserID, query, scope, nil, nil, "no_citation")
+		return &domain.RAGSearchResult{RefusalReason: "no_citation", Provider: "hybrid-rrf", Model: provider + ":" + model + "+lexical"}, nil
+	}
+	confidence := fused[0].Score
+	if confidence <= 0 {
+		confidence = 0.72
+	}
+	return s.ragSearchResultFromCitations(ctx, principal.UserID, query, scope, fused, "hybrid-rrf", provider+":"+model+"+websearch+ILIKE", confidence)
+}
+
+type ragCandidate struct {
+	Citation domain.RAGCitation
+}
+
+func (s *Store) searchRAGLexicalCandidates(ctx context.Context, scope Scope, principal rbac.Principal, req domain.RAGSearchRequest, limit int) ([]ragCandidate, error) {
+	if limit < 1 {
+		limit = 5
+	}
+	query := strings.TrimSpace(req.Query)
+	if query == "" {
+		return nil, nil
+	}
+	where, args := ragVisibleWhere(scope, principal, 3)
+	searchPatterns := ragSearchPatterns(query)
+	sql := `
+		SELECT c.id::text, d.id::text, d.title, COALESCE(NULLIF(c.body_content, ''), c.content), d.trust_level, d.sensitivity,
+			GREATEST(
+				ts_rank_cd(to_tsvector('simple', d.title || ' ' || c.content), websearch_to_tsquery('simple', $2)),
+				CASE
+					WHEN d.title ILIKE ANY($1::text[]) THEN 0.88
+					WHEN c.content ILIKE ANY($1::text[]) THEN 0.72
+					ELSE 0.55
+				END
+			) AS lexical_score
+		FROM rag_chunks c
+		JOIN rag_documents d ON d.id = c.document_id
+		WHERE d.status = 'published'
+		  AND (d.effective_from IS NULL OR d.effective_from <= now())
+		  AND (d.effective_to IS NULL OR d.effective_to >= now())
+		  AND c.sensitivity IN ('normal', 'internal')
+		  AND d.sensitivity IN ('normal', 'internal')
+		  AND (
+			c.content ILIKE ANY($1::text[])
+			OR d.title ILIKE ANY($1::text[])
+			OR to_tsvector('simple', d.title || ' ' || c.content) @@ websearch_to_tsquery('simple', $2)
+		  )
+		  AND ` + where + `
+		ORDER BY lexical_score DESC, d.trust_level DESC, c.chunk_index
+		LIMIT $` + itoa(len(args)+3)
+	queryArgs := append([]any{searchPatterns, query}, args...)
+	queryArgs = append(queryArgs, limit)
+	rows, err := s.pool.Query(ctx, sql, queryArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var candidates []ragCandidate
+	for rows.Next() {
+		var citation domain.RAGCitation
+		if err := rows.Scan(&citation.ChunkID, &citation.DocumentID, &citation.Title, &citation.Snippet, &citation.TrustLevel, &citation.Sensitivity, &citation.Score); err != nil {
+			return nil, err
+		}
+		citation.Snippet = trimRunes(citation.Snippet, 160)
+		candidates = append(candidates, ragCandidate{Citation: citation})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return candidates, nil
+}
+
+func (s *Store) searchRAGVectorCandidates(ctx context.Context, scope Scope, principal rbac.Principal, req domain.RAGSearchRequest, queryVector []float64, provider, model string, dimensions, limit int) ([]ragCandidate, error) {
+	if limit < 1 {
+		limit = 5
+	}
+	query := strings.TrimSpace(req.Query)
+	if query == "" {
+		return nil, nil
+	}
+	if len(queryVector) == 0 || dimensions <= 0 {
+		return nil, nil
+	}
+	if provider == "" {
+		provider = "fake"
+	}
+	if model == "" {
+		model = "deterministic-v1"
+	}
 	where, args := ragVisibleWhere(scope, principal, 5)
 	sql := `
-		SELECT c.id::text, d.id::text, d.title, c.content, d.trust_level, d.sensitivity,
+		SELECT c.id::text, d.id::text, d.title, COALESCE(NULLIF(c.body_content, ''), c.content), d.trust_level, d.sensitivity,
 			(e.embedding <=> $1::vector) AS distance
 		FROM rag_embeddings e
 		JOIN rag_chunks c ON c.id = e.chunk_id
@@ -382,8 +468,7 @@ func (s *Store) SearchRAGVector(ctx context.Context, scope Scope, principal rbac
 	}
 	defer rows.Close()
 
-	var citations []domain.RAGCitation
-	var chunkIDs []string
+	var candidates []ragCandidate
 	for rows.Next() {
 		var citation domain.RAGCitation
 		var distance float64
@@ -392,28 +477,150 @@ func (s *Store) SearchRAGVector(ctx context.Context, scope Scope, principal rbac
 		}
 		citation.Snippet = trimRunes(citation.Snippet, 160)
 		citation.Score = 1 / (1 + distance)
-		chunkIDs = append(chunkIDs, citation.ChunkID)
-		citations = append(citations, citation)
+		candidates = append(candidates, ragCandidate{Citation: citation})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	return candidates, nil
+}
+
+func (s *Store) ragSearchResultFromCitations(ctx context.Context, userID, query string, scope Scope, citations []domain.RAGCitation, provider, model string, confidence float64) (*domain.RAGSearchResult, error) {
 	if len(citations) == 0 {
-		_ = s.recordRAGRetrieval(ctx, principal.UserID, query, scope, nil, nil, "no_citation")
+		_ = s.recordRAGRetrieval(ctx, userID, query, scope, nil, nil, "no_citation")
 		return &domain.RAGSearchResult{RefusalReason: "no_citation", Provider: provider, Model: model}, nil
+	}
+	chunkIDs := make([]string, 0, len(citations))
+	for _, citation := range citations {
+		chunkIDs = append(chunkIDs, citation.ChunkID)
+	}
+	if confidence <= 0 {
+		confidence = 0.72
+	}
+	if confidence > 0.98 {
+		confidence = 0.98
 	}
 	result := &domain.RAGSearchResult{
 		Answer:              "根据已发布且当前可见的知识库资料，可参考以下来源处理该问题。",
 		Citations:           citations,
 		Provider:            provider,
 		Model:               model,
-		Confidence:          citations[0].Score,
+		Confidence:          confidence,
 		RiskLevel:           "medium",
 		HumanReviewRequired: true,
 		AuditStatus:         "retrieval_logged",
 	}
-	_ = s.recordRAGRetrieval(ctx, principal.UserID, query, scope, chunkIDs, citations, "")
+	_ = s.recordRAGRetrieval(ctx, userID, query, scope, chunkIDs, citations, "")
 	return result, nil
+}
+
+func citationsFromCandidates(candidates []ragCandidate) []domain.RAGCitation {
+	citations := make([]domain.RAGCitation, 0, len(candidates))
+	for _, candidate := range candidates {
+		citations = append(citations, candidate.Citation)
+	}
+	return citations
+}
+
+func fuseRAGCandidates(vectorCandidates, lexicalCandidates []ragCandidate, limit int) []domain.RAGCitation {
+	if limit < 1 {
+		limit = 5
+	}
+	type fusedCandidate struct {
+		citation domain.RAGCitation
+		score    float64
+	}
+	byChunk := map[string]*fusedCandidate{}
+	add := func(candidates []ragCandidate, weight float64) {
+		for index, candidate := range candidates {
+			key := candidate.Citation.ChunkID
+			if key == "" {
+				continue
+			}
+			item := byChunk[key]
+			if item == nil {
+				item = &fusedCandidate{citation: candidate.Citation}
+				byChunk[key] = item
+			}
+			item.score += weight / float64(60+index+1)
+			if candidate.Citation.Score > item.citation.Score {
+				item.citation.Score = candidate.Citation.Score
+			}
+		}
+	}
+	add(vectorCandidates, 1.0)
+	add(lexicalCandidates, 0.8)
+
+	items := make([]fusedCandidate, 0, len(byChunk))
+	for _, item := range byChunk {
+		if item.citation.Score < 0.55 {
+			item.citation.Score = 0.55 + item.score*8
+		}
+		if item.citation.Score > 0.98 {
+			item.citation.Score = 0.98
+		}
+		items = append(items, *item)
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].score == items[j].score {
+			return items[i].citation.Score > items[j].citation.Score
+		}
+		return items[i].score > items[j].score
+	})
+	if len(items) > limit {
+		items = items[:limit]
+	}
+	citations := make([]domain.RAGCitation, 0, len(items))
+	for _, item := range items {
+		citations = append(citations, item.citation)
+	}
+	return citations
+}
+
+func insertRAGChunkRecords(ctx context.Context, tx pgx.Tx, documentID, content, title, sensitivity string, embeddings []domain.RAGEmbeddingInput) (int, error) {
+	chunks := prepareRAGChunkRecords(content, title)
+	for i, chunk := range chunks {
+		var chunkID string
+		err := tx.QueryRow(ctx, `
+			INSERT INTO rag_chunks (
+				document_id, chunk_index, title, content, body_content, location_ref, section_path,
+				chunk_strategy, token_budget, overlap_runes, body_runes, context_prefix,
+				content_hash, sensitivity
+			)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+			RETURNING id::text
+		`, documentID, i, chunk.Title, chunk.Content, chunk.BodyContent, chunk.LocationRef, chunk.SectionPath,
+			chunk.ChunkStrategy, chunk.TokenBudget, chunk.OverlapRunes, chunk.BodyRunes, chunk.ContextPrefix,
+			hashText(chunk.Content), sensitivity).Scan(&chunkID)
+		if err != nil {
+			return 0, err
+		}
+		provider := "fake"
+		model := "deterministic-v1"
+		dimensions := 8
+		vector := fakeVector(chunk.Content)
+		if i < len(embeddings) && len(embeddings[i].Vector) > 0 {
+			if embeddings[i].Provider != "" {
+				provider = embeddings[i].Provider
+			}
+			if embeddings[i].Model != "" {
+				model = embeddings[i].Model
+			}
+			dimensions = embeddings[i].Dimensions
+			if dimensions <= 0 || dimensions != len(embeddings[i].Vector) {
+				dimensions = len(embeddings[i].Vector)
+			}
+			vector = vectorString(embeddings[i].Vector)
+		}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO rag_embeddings (chunk_id, provider, model, dimensions, embedding)
+			VALUES ($1, $2, $3, $4, $5)
+		`, chunkID, provider, model, dimensions, vector)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return len(chunks), nil
 }
 
 func ragSearchPatterns(query string) []string {
@@ -523,13 +730,22 @@ func scopeSummary(scope Scope) map[string]any {
 const (
 	ragChunkBodyRunes    = 760
 	ragChunkOverlapRunes = 120
+	ragChunkTokenBudget  = 2048
+	ragChunkStrategy     = "heading_sentence_context_v2_qwen3_2048"
 	ragQueryInstruction  = "Instruct: Retrieve the most relevant AI-HRMS passages about HR policy, onboarding, learning, agent runs, audit evidence, governance scope, risk control, and human review. Return passages that directly answer the query.\nQuery: "
 )
 
 type ragChunkRecord struct {
-	Title       string
-	Content     string
-	LocationRef string
+	Title         string
+	Content       string
+	BodyContent   string
+	LocationRef   string
+	SectionPath   string
+	ChunkStrategy string
+	TokenBudget   int
+	OverlapRunes  int
+	BodyRunes     int
+	ContextPrefix string
 }
 
 func chunkText(content string, size int) []string {
@@ -553,8 +769,14 @@ func prepareRAGChunkRecordsWithOptions(content, fallback string, size, overlap i
 			return nil
 		}
 		return []ragChunkRecord{{
-			Title:   fallback,
-			Content: contextualizeChunk(fallback, nil, "", fallback),
+			Title:         fallback,
+			Content:       contextualizeChunk(fallback, nil, "", fallback),
+			BodyContent:   fallback,
+			ChunkStrategy: ragChunkStrategy,
+			TokenBudget:   ragChunkTokenBudget,
+			OverlapRunes:  overlap,
+			BodyRunes:     utf8.RuneCountInString(fallback),
+			ContextPrefix: "document",
 		}}
 	}
 	if size <= 0 {
@@ -575,10 +797,18 @@ func prepareRAGChunkRecordsWithOptions(content, fallback string, size, overlap i
 		}
 		sectionPath := append([]string(nil), headings...)
 		for _, bodyChunk := range chunkSectionText(body, size, overlap) {
+			contextPrefix := chunkContextPrefix(documentTitle, sectionPath, bodyChunk.Overlap)
 			records = append(records, ragChunkRecord{
-				Title:       chunkRecordTitle(documentTitle, sectionPath),
-				Content:     contextualizeChunk(documentTitle, sectionPath, bodyChunk.Overlap, bodyChunk.Content),
-				LocationRef: strings.Join(sectionPath, " > "),
+				Title:         chunkRecordTitle(documentTitle, sectionPath),
+				Content:       contextualizeChunk(documentTitle, sectionPath, bodyChunk.Overlap, bodyChunk.Content),
+				BodyContent:   bodyChunk.Content,
+				LocationRef:   strings.Join(cleanSectionPath(sectionPath), " > "),
+				SectionPath:   strings.Join(cleanSectionPath(sectionPath), " > "),
+				ChunkStrategy: ragChunkStrategy,
+				TokenBudget:   ragChunkTokenBudget,
+				OverlapRunes:  utf8.RuneCountInString(bodyChunk.Overlap),
+				BodyRunes:     utf8.RuneCountInString(bodyChunk.Content),
+				ContextPrefix: contextPrefix,
 			})
 		}
 	}
@@ -611,8 +841,16 @@ func prepareRAGChunkRecordsWithOptions(content, fallback string, size, overlap i
 	flushSection()
 	if len(records) == 0 && documentTitle != "" {
 		records = append(records, ragChunkRecord{
-			Title:   documentTitle,
-			Content: contextualizeChunk(documentTitle, headings, "", documentTitle),
+			Title:         documentTitle,
+			Content:       contextualizeChunk(documentTitle, headings, "", documentTitle),
+			BodyContent:   documentTitle,
+			LocationRef:   strings.Join(cleanSectionPath(headings), " > "),
+			SectionPath:   strings.Join(cleanSectionPath(headings), " > "),
+			ChunkStrategy: ragChunkStrategy,
+			TokenBudget:   ragChunkTokenBudget,
+			OverlapRunes:  0,
+			BodyRunes:     utf8.RuneCountInString(documentTitle),
+			ContextPrefix: chunkContextPrefix(documentTitle, headings, ""),
 		})
 	}
 	return records
@@ -726,6 +964,23 @@ func contextualizeChunk(documentTitle string, sectionPath []string, overlap, bod
 	}
 	parts = append(parts, "正文："+body)
 	return strings.Join(parts, "\n")
+}
+
+func chunkContextPrefix(documentTitle string, sectionPath []string, overlap string) string {
+	var parts []string
+	if strings.TrimSpace(documentTitle) != "" {
+		parts = append(parts, "document")
+	}
+	if len(cleanSectionPath(sectionPath)) > 0 {
+		parts = append(parts, "section")
+	}
+	if strings.TrimSpace(overlap) != "" {
+		parts = append(parts, "overlap")
+	}
+	if len(parts) == 0 {
+		return "body"
+	}
+	return strings.Join(parts, "+")
 }
 
 func cleanSectionPath(sectionPath []string) []string {

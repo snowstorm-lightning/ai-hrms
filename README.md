@@ -324,11 +324,13 @@ Environment matrix:
 | `OPENAI_COMPATIBLE_EMBEDDING_MODEL` | metadata only | required model name | must be a model name, not an API key |
 | `RAG_EMBEDDING_DIMENSIONS` | required | required | must match provider output exactly |
 
-DeepSeek chat uses an OpenAI-compatible Chat Completions API. RAG retrieval is
-vector-first through PostgreSQL/pgvector; embeddings are configured separately
-with `AI_EMBEDDING_PROVIDER` and `OPENAI_COMPATIBLE_EMBEDDING_*`. The Go API
-keeps authorization, scope filtering, and audit; the agent only receives scoped
-chunks/citations and provider calls.
+DeepSeek chat uses an OpenAI-compatible Chat Completions API. RAG retrieval uses
+PostgreSQL full-text/lexical candidates plus pgvector candidates with RRF
+fusion; embeddings are configured separately with `AI_EMBEDDING_PROVIDER` and
+`OPENAI_COMPATIBLE_EMBEDDING_*`. The Go API keeps authorization, scope
+filtering, and audit; the agent only receives scoped chunks/citations and
+provider calls. Reranking is not enabled in the current build; it is documented
+as a future bounded retrieval stage in `docs/rag-chunking.md`.
 
 Use `local-openai-compatible` when the embedding endpoint is self-hosted inside
 the trusted deployment boundary. Use `openai-compatible` for cloud embedding

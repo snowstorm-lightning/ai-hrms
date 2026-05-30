@@ -302,7 +302,10 @@ function isIgnorableRequestFailure(rawURL, failure) {
   if (!failure.includes("ERR_ABORTED")) return false;
   try {
     const url = new URL(rawURL);
-    return url.pathname.startsWith("/src/") || url.pathname.startsWith("/@vite/") || url.search.includes("t=");
+    return isBackendRequest(rawURL) ||
+      url.pathname.startsWith("/src/") ||
+      url.pathname.startsWith("/@vite/") ||
+      url.search.includes("t=");
   } catch {
     return false;
   }

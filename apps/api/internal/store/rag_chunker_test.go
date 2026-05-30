@@ -3,6 +3,8 @@ package store
 import (
 	"strings"
 	"testing"
+
+	"ai-hrms/apps/api/internal/domain"
 )
 
 func TestPrepareRAGChunksPreservesMarkdownSectionsAndPunctuation(t *testing.T) {
@@ -25,6 +27,15 @@ func TestPrepareRAGChunksPreservesMarkdownSectionsAndPunctuation(t *testing.T) {
 	if !strings.Contains(records[1].Content, "章节：新人入职指南 > RAG 引用核验") {
 		t.Fatalf("missing section path context: %q", records[1].Content)
 	}
+	if records[1].SectionPath != "新人入职指南 > RAG 引用核验" {
+		t.Fatalf("section path = %q", records[1].SectionPath)
+	}
+	if records[1].BodyContent == "" || strings.Contains(records[1].BodyContent, "文档：") {
+		t.Fatalf("body content should be clean citation text: %q", records[1].BodyContent)
+	}
+	if records[1].ChunkStrategy != ragChunkStrategy {
+		t.Fatalf("chunk strategy = %q", records[1].ChunkStrategy)
+	}
 	if !strings.Contains(records[1].Content, "资料；") {
 		t.Fatalf("sentence punctuation should be preserved: %q", records[1].Content)
 	}
@@ -42,6 +53,12 @@ func TestPrepareRAGChunksAddsOverlapContextForLongSections(t *testing.T) {
 	}
 	if !strings.Contains(records[1].Content, "正文：") {
 		t.Fatalf("chunk should keep explicit body marker: %q", records[1].Content)
+	}
+	if strings.Contains(records[1].BodyContent, "上文：") {
+		t.Fatalf("overlap should not pollute body content: %q", records[1].BodyContent)
+	}
+	if records[1].OverlapRunes == 0 {
+		t.Fatalf("expected overlap metadata")
 	}
 }
 
@@ -67,6 +84,10 @@ func TestPrepareRAGChunksUsesFallbackWhenContentEmpty(t *testing.T) {
 	if !strings.Contains(chunks[0], "文档：只有标题的资料") {
 		t.Fatalf("fallback chunk should carry document context: %q", chunks[0])
 	}
+	records := prepareRAGChunkRecords("", "只有标题的资料")
+	if records[0].BodyContent != "只有标题的资料" {
+		t.Fatalf("fallback body content = %q", records[0].BodyContent)
+	}
 }
 
 func TestPrepareRAGQueryAddsQwenInstruction(t *testing.T) {
@@ -79,5 +100,26 @@ func TestPrepareRAGQueryAddsQwenInstruction(t *testing.T) {
 	}
 	if PrepareRAGQuery("   ") != "" {
 		t.Fatalf("blank query should stay blank")
+	}
+}
+
+func TestFuseRAGCandidatesDedupesAndRanksHybridHits(t *testing.T) {
+	vector := []ragCandidate{
+		{Citation: domain.RAGCitation{ChunkID: "vector-1", DocumentID: "doc-1", Title: "向量第一", Score: 0.91}},
+		{Citation: domain.RAGCitation{ChunkID: "shared", DocumentID: "doc-2", Title: "双路命中", Score: 0.82}},
+	}
+	lexical := []ragCandidate{
+		{Citation: domain.RAGCitation{ChunkID: "shared", DocumentID: "doc-2", Title: "双路命中", Score: 0.88}},
+		{Citation: domain.RAGCitation{ChunkID: "lexical-1", DocumentID: "doc-3", Title: "词法命中", Score: 0.72}},
+	}
+	fused := fuseRAGCandidates(vector, lexical, 3)
+	if len(fused) != 3 {
+		t.Fatalf("expected 3 fused citations, got %d", len(fused))
+	}
+	if fused[0].ChunkID != "shared" {
+		t.Fatalf("shared hybrid hit should rank first, got %#v", fused)
+	}
+	if fused[0].Score != 0.88 {
+		t.Fatalf("shared hit should preserve best source score, got %.2f", fused[0].Score)
 	}
 }

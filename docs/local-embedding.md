@@ -76,9 +76,40 @@ The harness validates endpoint compatibility and vector dimensions without
 printing vectors, keys, or real HR data.
 
 Passing this harness proves the embedding endpoint works. It does not prove
-existing PostgreSQL vectors were rebuilt. If you change provider, model, or
-dimension, re-ingest or regenerate RAG documents before expecting vector-first
-search to hit old documents.
+existing PostgreSQL vectors were rebuilt.
+
+## Rebuild Embeddings
+
+Rebuild a document when any of these change:
+
+- embedding provider, model, or dimensions;
+- chunk strategy, chunk size, overlap, or contextual prefix;
+- parser version or source-format adapter;
+- document content after publishing.
+
+Use Knowledge Hub's `重建向量` action for one document at a time. The API route is
+`POST /api/rag/documents/{id}/rebuild` and requires `rag.publish`. Rebuild
+replaces old chunks and embeddings, writes a `rebuild_embeddings` ingest job, and
+records `rag.document.rebuild` in audit. It does not change document content,
+scope, published time, trust level, or sensitivity.
+
+Before a rebuild:
+
+1. Run `npm run embedding:check` with explicit endpoint variables.
+2. Confirm `RAG_EMBEDDING_DIMENSIONS` matches provider output exactly.
+3. Rebuild a small document first.
+4. Run fixed RAG smoke queries and verify citations show the expected
+   provider/model metadata.
+
+If the provider is unavailable or a document cannot be sent to an external
+embedding provider, rebuild is rejected and the old chunks/embeddings are left
+intact. This avoids silently replacing a valid Qwen index with deterministic
+fallback vectors. Lexical fallback remains usable for normal search, but
+rebuild requires real embedding output.
+
+Do not mix old fake 8-dimensional vectors and new 1024-dimensional vectors in
+the same claim. Search filters by `(provider, model, dimensions)`, so old
+vectors will not satisfy Qwen queries until rebuilt.
 
 ## Safety Boundary
 

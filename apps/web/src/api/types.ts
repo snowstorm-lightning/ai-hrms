@@ -213,11 +213,12 @@ export interface RAGIngestJob {
   id: string;
   sourceId?: string | null;
   documentId?: string | null;
-  jobType: string;
+  jobType: "ingest" | "rebuild_embeddings" | string;
   status: string;
   provider: string;
   title?: string;
   content?: string;
+  scopes?: RAGDocumentScope[];
   summary: string;
   error: string;
   createdByUserId?: string | null;
