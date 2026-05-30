@@ -12,6 +12,7 @@
     "docker:down": "docker compose --env-file infra/.env -f infra/compose.yaml down",
     "docker:logs": "docker compose --env-file infra/.env -f infra/compose.yaml logs -f",
     "browser:check": "node harness/browser/check.mjs",
+    "embedding:check": "node harness/embedding/check.mjs",
     "web:dev": "npm --workspace apps/web run dev",
     "web:build": "npm --workspace apps/web run build",
     "web:check": "npm --workspace apps/web run check"

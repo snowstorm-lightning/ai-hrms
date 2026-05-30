@@ -29,13 +29,27 @@ RAG vectors are stored in PostgreSQL/pgvector. Configure embeddings separately
 when replacing deterministic embeddings:
 
 ```bash
-export AI_EMBEDDING_PROVIDER=openai-compatible
+export AI_EMBEDDING_PROVIDER=local-openai-compatible
 export AI_HRMS_AGENT_SERVICE_TOKEN='<same-token-as-go-api>'
 export OPENAI_COMPATIBLE_EMBEDDING_API_KEY='<your-embedding-api-key>'
 export OPENAI_COMPATIBLE_EMBEDDING_BASE_URL='<embedding-base-url>'
 export OPENAI_COMPATIBLE_EMBEDDING_MODEL='<embedding-model>'
 export RAG_EMBEDDING_DIMENSIONS='<embedding-dimensions>'
 ```
+
+For the optional local llama.cpp/Qwen3 embedding service, use:
+
+```bash
+export AI_EMBEDDING_PROVIDER=local-openai-compatible
+export OPENAI_COMPATIBLE_EMBEDDING_API_KEY='local-no-auth'
+export OPENAI_COMPATIBLE_EMBEDDING_BASE_URL='http://127.0.0.1:8082/v1'
+export OPENAI_COMPATIBLE_EMBEDDING_MODEL='Qwen3-Embedding-0.6B-Q8_0'
+export RAG_EMBEDDING_DIMENSIONS=1024
+```
+
+If the agent runs inside Docker Compose, replace the base URL with
+`http://embedding:80/v1`. The provider code appends `/embeddings`, so the base
+URL must not already end with `/embeddings`.
 
 Check what the running agent sees without printing secrets:
 

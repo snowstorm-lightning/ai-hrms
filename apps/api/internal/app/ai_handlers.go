@@ -586,7 +586,11 @@ func (s *Server) searchRAGResult(ctx context.Context, scope store.Scope, actor r
 	if s.externalEmbeddingProvider(ctx) && unsafeExternalProviderText(req.Query) {
 		return s.store.SearchRAG(ctx, scope, actor, req)
 	}
-	response, err := s.agent.Embed(ctx, []string{req.Query})
+	embeddingQuery := store.PrepareRAGQuery(req.Query)
+	if embeddingQuery == "" {
+		return s.store.SearchRAG(ctx, scope, actor, req)
+	}
+	response, err := s.agent.Embed(ctx, []string{embeddingQuery})
 	if err != nil {
 		return s.store.SearchRAG(ctx, scope, actor, req)
 	}
@@ -605,11 +609,11 @@ func (s *Server) searchRAGResult(ctx context.Context, scope store.Scope, actor r
 
 func (s *Server) externalEmbeddingProvider(ctx context.Context) bool {
 	if providerConfiguredForRouting(s.cfg.AI.EmbeddingProvider) {
-		return true
+		return !localEmbeddingProvider(s.cfg.AI.EmbeddingProvider)
 	}
 	if s.agent != nil && s.agent.Enabled() {
 		if agentStatus, err := s.agent.Config(ctx); err == nil {
-			return providerConfiguredForRouting(agentStatus.EmbeddingProvider)
+			return providerConfiguredForRouting(agentStatus.EmbeddingProvider) && !localEmbeddingProvider(agentStatus.EmbeddingProvider)
 		}
 		return true
 	}
@@ -632,6 +636,12 @@ func (s *Server) externalChatProvider(ctx context.Context) bool {
 func providerConfiguredForRouting(provider string) bool {
 	value := strings.ToLower(strings.TrimSpace(provider))
 	return value != "" && value != "fake"
+}
+
+func localEmbeddingProvider(provider string) bool {
+	value := strings.ToLower(strings.TrimSpace(provider))
+	value = strings.ReplaceAll(value, "_", "-")
+	return value == "local-openai-compatible" || value == "local-cpu"
 }
 
 func safeProviderStatusValue(value string) string {

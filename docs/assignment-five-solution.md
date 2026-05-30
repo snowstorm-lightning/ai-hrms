@@ -12,7 +12,7 @@ AI-HRMS 由五层组成：组织数据层、知识与学习层、智能体协作
 
 ## AI 工具选型理由
 
-React + Ant Design 适合企业级 UI 和复杂状态展示；Go 负责授权、scope、审计和业务 API；PostgreSQL/pgvector 作为系统数据与 RAG 向量底座；Python agent boundary 对接 DeepSeek OpenAI-compatible Chat Completions，并支持 OpenAI-compatible embedding provider。Demo 使用 deterministic mock AI，不调用外部 LLM，保护隐私并保证演示稳定。
+React + Ant Design 适合企业级 UI 和复杂状态展示；Go 负责授权、scope、审计和业务 API；PostgreSQL/pgvector 作为系统数据与 RAG 向量底座；Python agent boundary 对接 DeepSeek OpenAI-compatible Chat Completions，并独立支持本地或云端 OpenAI-compatible embedding provider。Demo 使用 deterministic mock AI，不调用外部 LLM，保护隐私并保证演示稳定。
 
 ## 关键配置
 

@@ -56,14 +56,14 @@ AGENT_BASE_URL=http://127.0.0.1:8090
 AI_HRMS_AGENT_SERVICE_TOKEN=<openssl-rand-hex-32>
 AI_CHAT_PROVIDER=deepseek
 DEEPSEEK_API_KEY=<local-secret>
-AI_EMBEDDING_PROVIDER=openai-compatible
-OPENAI_COMPATIBLE_EMBEDDING_API_KEY=<local-secret>
-OPENAI_COMPATIBLE_EMBEDDING_BASE_URL=<embedding-base-url>
-OPENAI_COMPATIBLE_EMBEDDING_MODEL=<embedding-model>
-RAG_EMBEDDING_DIMENSIONS=<embedding-dimensions>
+AI_EMBEDDING_PROVIDER=local-openai-compatible
+OPENAI_COMPATIBLE_EMBEDDING_API_KEY=local-no-auth
+OPENAI_COMPATIBLE_EMBEDDING_BASE_URL=http://127.0.0.1:8082/v1
+OPENAI_COMPATIBLE_EMBEDDING_MODEL=Qwen3-Embedding-0.6B-Q8_0
+RAG_EMBEDDING_DIMENSIONS=1024
 ```
 
-The Go API keeps RBAC, scope filtering, audit logging, and high-risk gates. The Python agent receives scoped text only and calls DeepSeek/OpenAI-compatible providers. RAG vectors are stored in PostgreSQL/pgvector.
+The Go API keeps RBAC, scope filtering, audit logging, and high-risk gates. The Python agent receives scoped text only and calls DeepSeek for chat plus an independent OpenAI-compatible embedding endpoint for RAG vectors. RAG vectors are stored in PostgreSQL/pgvector.
 
 Security defaults:
 

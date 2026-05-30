@@ -51,7 +51,7 @@ Narration rule: keep the 3-minute walkthrough about AI-HRMS capabilities. Treat 
 - Demo mode uses deterministic local data and does not call external LLMs.
 - Demo company data is fictional and must not be presented as Tencent or any real company's HR data.
 - Production reads, writes, RAG retrieval, tool calls, and audit events go through Go authorization and scope checks.
-- DeepSeek chat and OpenAI-compatible embeddings run behind the Python agent boundary; provider keys do not belong in frontend code.
+- DeepSeek chat and OpenAI-compatible embeddings run behind the Python agent boundary; chat and embedding providers are configured independently, and provider keys do not belong in frontend code.
 - Visual Copilot is text/context only in the current DeepSeek boundary: DOM hints and verified business references can support explanations, but screenshots are not sent to DeepSeek and image understanding is out of scope.
 - Agent harness policy is explicit: deterministic program flows handle permissions, scope, retrieval, tool execution, and audit; LLMs are used for explanation and drafting; bounded agents are reserved for cross-module multi-step work.
 

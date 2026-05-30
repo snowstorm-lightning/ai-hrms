@@ -20,5 +20,7 @@ Keep chat, embedding, rerank, vision, and parser providers swappable between clo
 Current production adapters:
 
 - DeepSeek OpenAI-compatible Chat Completions for chat.
-- OpenAI-compatible embedding API for RAG vectors.
+- OpenAI-compatible embedding API for RAG vectors. Use `local-openai-compatible`
+  for trusted local embedding endpoints and `openai-compatible` for cloud
+  providers.
 - LangGraph for workflow preview demos that still route through Go for auth and audit.

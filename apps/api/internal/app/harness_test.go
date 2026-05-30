@@ -95,3 +95,15 @@ func TestVisualHarnessDoesNotClaimLLMForSynchronousExplain(t *testing.T) {
 		t.Fatalf("visual synchronous explain should not claim LLM/Agent use: %+v", decision)
 	}
 }
+
+func TestLocalEmbeddingProviderIsNotTreatedAsExternal(t *testing.T) {
+	if localEmbeddingProvider("openai-compatible") {
+		t.Fatalf("cloud/openai-compatible provider should remain external")
+	}
+	if !localEmbeddingProvider("local-openai-compatible") {
+		t.Fatalf("local OpenAI-compatible provider should be local")
+	}
+	if !localEmbeddingProvider("local_cpu") {
+		t.Fatalf("underscore local provider alias should be accepted")
+	}
+}

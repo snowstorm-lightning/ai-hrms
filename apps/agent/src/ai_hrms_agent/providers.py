@@ -90,6 +90,14 @@ def load_ai_provider_settings() -> AIProviderSettings:
     )
 
 
+def _provider_name(value: str) -> str:
+    return value.strip().lower().replace("_", "-")
+
+
+def _openai_compatible_embedding_provider(value: str) -> bool:
+    return _provider_name(value) in {"openai-compatible", "local-openai-compatible", "local-cpu"}
+
+
 class ChatProvider(Protocol):
     provider: str
     model: str
@@ -202,6 +210,7 @@ class OpenAICompatibleEmbeddingProvider:
             raise ProviderConfigurationError("Embedding base URL must be an http(s) URL.")
         if not settings.embedding_model:
             raise ProviderConfigurationError("Embedding model is not configured.")
+        self.provider = _provider_name(settings.embedding_provider)
         self.model = settings.embedding_model
         self.dimensions = settings.embedding_dimensions
         self._api_key = settings.embedding_api_key
@@ -251,7 +260,7 @@ def build_chat_provider(settings: AIProviderSettings | None = None) -> ChatProvi
 
 def build_embedding_provider(settings: AIProviderSettings | None = None) -> EmbeddingProvider:
     settings = settings or load_ai_provider_settings()
-    if settings.embedding_provider in {"openai-compatible", "openai_compatible"}:
+    if _openai_compatible_embedding_provider(settings.embedding_provider):
         return OpenAICompatibleEmbeddingProvider(settings)
     if settings.embedding_provider == "fake":
         return FakeEmbeddingProvider()

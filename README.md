@@ -132,7 +132,9 @@ DOCKER_CORS_ALLOWED_ORIGINS=https://hrms.snowstormlightning.top
 For real AI mode, put `DEEPSEEK_API_KEY` and embedding provider keys in
 `infra/.env`. Compose passes provider keys only to the Python agent service;
 the Go API talks to the agent over `AGENT_BASE_URL` and keeps RBAC, scope, and
-audit control.
+audit control. If you use the optional local embedding service, start Compose
+with `--profile embedding` and set
+`OPENAI_COMPATIBLE_EMBEDDING_BASE_URL=http://embedding:80/v1` for containers.
 
 Start the stack:
 
@@ -276,11 +278,35 @@ export DEEPSEEK_BASE_URL='https://api.deepseek.com'
 export DEEPSEEK_CHAT_MODEL='deepseek-v4-flash'
 export DEEPSEEK_REASONING_EFFORT='high'
 export DEEPSEEK_TIMEOUT_SECONDS=30
-export AI_EMBEDDING_PROVIDER=openai-compatible
+export AI_EMBEDDING_PROVIDER=local-openai-compatible
 export OPENAI_COMPATIBLE_EMBEDDING_API_KEY='<your-embedding-api-key>'
 export OPENAI_COMPATIBLE_EMBEDDING_BASE_URL='<embedding-base-url>'
 export OPENAI_COMPATIBLE_EMBEDDING_MODEL='<embedding-model>'
 export RAG_EMBEDDING_DIMENSIONS='<embedding-dimensions>'
+```
+
+Recommended local CPU embedding setup for a 4C/4GB host:
+
+```bash
+docker compose --profile embedding --env-file infra/.env -f infra/compose.yaml up -d embedding
+```
+
+Then set the agent/API embedding variables to:
+
+```bash
+export AI_EMBEDDING_PROVIDER=local-openai-compatible
+export OPENAI_COMPATIBLE_EMBEDDING_API_KEY='local-no-auth'
+export OPENAI_COMPATIBLE_EMBEDDING_BASE_URL='http://127.0.0.1:8082/v1' # native agent
+export OPENAI_COMPATIBLE_EMBEDDING_MODEL='Qwen3-Embedding-0.6B-Q8_0'
+export RAG_EMBEDDING_DIMENSIONS=1024
+```
+
+Inside Docker Compose, use `http://embedding:80/v1` instead of
+`http://127.0.0.1:8082/v1` because the agent container reaches the embedding
+service through the Compose network. Validate the endpoint with:
+
+```bash
+npm run embedding:check
 ```
 
 Environment matrix:
@@ -290,7 +316,9 @@ Environment matrix:
 | `AI_HRMS_ENV` | required | optional | `production` for public deployments |
 | `AI_HRMS_ENABLE_DEMO_SEED` | required | no | `false` in production; `true` only for local/demo seed data |
 | `AI_HRMS_AGENT_SERVICE_TOKEN` | required for real providers | required for real providers | same random value on both services |
+| `AI_CHAT_PROVIDER` | required | required | `deepseek` for DeepSeek LLM calls, `fake` for deterministic mode |
 | `DEEPSEEK_API_KEY` | no | required for `AI_CHAT_PROVIDER=deepseek` | never commit or package `.env` |
+| `AI_EMBEDDING_PROVIDER` | required | required | `local-openai-compatible` for local llama.cpp, `openai-compatible` for cloud providers, `fake` for deterministic mode |
 | `OPENAI_COMPATIBLE_EMBEDDING_API_KEY` | no | required for real embeddings | never commit or package `.env` |
 | `OPENAI_COMPATIBLE_EMBEDDING_BASE_URL` | metadata only | required URL | must be an `http(s)` URL, not an API key |
 | `OPENAI_COMPATIBLE_EMBEDDING_MODEL` | metadata only | required model name | must be a model name, not an API key |
@@ -301,6 +329,12 @@ vector-first through PostgreSQL/pgvector; embeddings are configured separately
 with `AI_EMBEDDING_PROVIDER` and `OPENAI_COMPATIBLE_EMBEDDING_*`. The Go API
 keeps authorization, scope filtering, and audit; the agent only receives scoped
 chunks/citations and provider calls.
+
+Use `local-openai-compatible` when the embedding endpoint is self-hosted inside
+the trusted deployment boundary. Use `openai-compatible` for cloud embedding
+providers; the Go API blocks internal/restricted/high-impact text before sending
+it to those external providers. See `docs/local-embedding.md` for the llama.cpp
+Qwen3 profile and CPU sizing notes.
 
 Visual Copilot in the DeepSeek setup is text-only: it uses DOM hints, route
 context, verified business-object references, scope checks, and audit records.

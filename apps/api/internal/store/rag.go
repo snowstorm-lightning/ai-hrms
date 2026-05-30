@@ -156,24 +156,21 @@ func (s *Store) CreateRAGDocumentWithEmbeddings(ctx context.Context, doc domain.
 			return nil, err
 		}
 	}
-	chunks := chunkText(doc.Content, 420)
-	if len(chunks) == 0 {
-		chunks = []string{doc.Title}
-	}
-	for i, content := range chunks {
+	chunks := prepareRAGChunkRecords(doc.Content, doc.Title)
+	for i, chunk := range chunks {
 		var chunkID string
 		err = tx.QueryRow(ctx, `
-			INSERT INTO rag_chunks (document_id, chunk_index, title, content, content_hash, sensitivity)
-			VALUES ($1,$2,$3,$4,$5,$6)
+			INSERT INTO rag_chunks (document_id, chunk_index, title, content, location_ref, content_hash, sensitivity)
+			VALUES ($1,$2,$3,$4,$5,$6,$7)
 			RETURNING id::text
-		`, id, i, doc.Title, content, hashText(content), doc.Sensitivity).Scan(&chunkID)
+		`, id, i, chunk.Title, chunk.Content, chunk.LocationRef, hashText(chunk.Content), doc.Sensitivity).Scan(&chunkID)
 		if err != nil {
 			return nil, err
 		}
 		provider := "fake"
 		model := "deterministic-v1"
 		dimensions := 8
-		vector := fakeVector(content)
+		vector := fakeVector(chunk.Content)
 		if i < len(embeddings) && len(embeddings[i].Vector) > 0 {
 			if embeddings[i].Provider != "" {
 				provider = embeddings[i].Provider
@@ -523,16 +520,115 @@ func scopeSummary(scope Scope) map[string]any {
 	}
 }
 
+const (
+	ragChunkBodyRunes    = 760
+	ragChunkOverlapRunes = 120
+	ragQueryInstruction  = "Instruct: Retrieve the most relevant AI-HRMS passages about HR policy, onboarding, learning, agent runs, audit evidence, governance scope, risk control, and human review. Return passages that directly answer the query.\nQuery: "
+)
+
+type ragChunkRecord struct {
+	Title       string
+	Content     string
+	LocationRef string
+}
+
 func chunkText(content string, size int) []string {
+	records := prepareRAGChunkRecordsWithOptions(content, "", size, ragChunkOverlapRunes)
+	chunks := make([]string, 0, len(records))
+	for _, record := range records {
+		chunks = append(chunks, record.Content)
+	}
+	return chunks
+}
+
+func prepareRAGChunkRecords(content, fallback string) []ragChunkRecord {
+	return prepareRAGChunkRecordsWithOptions(content, fallback, ragChunkBodyRunes, ragChunkOverlapRunes)
+}
+
+func prepareRAGChunkRecordsWithOptions(content, fallback string, size, overlap int) []ragChunkRecord {
 	content = sanitizePromptInjection(strings.TrimSpace(content))
 	if content == "" {
-		return nil
+		fallback = strings.TrimSpace(fallback)
+		if fallback == "" {
+			return nil
+		}
+		return []ragChunkRecord{{
+			Title:   fallback,
+			Content: contextualizeChunk(fallback, nil, "", fallback),
+		}}
 	}
+	if size <= 0 {
+		size = ragChunkBodyRunes
+	}
+	if overlap < 0 {
+		overlap = 0
+	}
+	var records []ragChunkRecord
+	documentTitle := strings.TrimSpace(fallback)
+	headings := []string{}
+	var section strings.Builder
+	flushSection := func() {
+		body := strings.TrimSpace(section.String())
+		section.Reset()
+		if body == "" {
+			return
+		}
+		sectionPath := append([]string(nil), headings...)
+		for _, bodyChunk := range chunkSectionText(body, size, overlap) {
+			records = append(records, ragChunkRecord{
+				Title:       chunkRecordTitle(documentTitle, sectionPath),
+				Content:     contextualizeChunk(documentTitle, sectionPath, bodyChunk.Overlap, bodyChunk.Content),
+				LocationRef: strings.Join(sectionPath, " > "),
+			})
+		}
+	}
+	for _, rawLine := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if level, title, ok := parseMarkdownHeading(line); ok {
+			flushSection()
+			if documentTitle == "" && level == 1 {
+				documentTitle = title
+			}
+			if level < 1 {
+				level = 1
+			}
+			if level <= len(headings) {
+				headings = headings[:level-1]
+			}
+			for len(headings) < level-1 {
+				headings = append(headings, "")
+			}
+			headings = append(headings, title)
+			continue
+		}
+		if line == "" {
+			section.WriteByte('\n')
+			continue
+		}
+		section.WriteString(rawLine)
+		section.WriteByte('\n')
+	}
+	flushSection()
+	if len(records) == 0 && documentTitle != "" {
+		records = append(records, ragChunkRecord{
+			Title:   documentTitle,
+			Content: contextualizeChunk(documentTitle, headings, "", documentTitle),
+		})
+	}
+	return records
+}
+
+type sectionChunk struct {
+	Content string
+	Overlap string
+}
+
+func chunkSectionText(content string, size, overlap int) []sectionChunk {
 	var chunks []string
 	var current strings.Builder
 	flush := func() {
 		if strings.TrimSpace(current.String()) != "" {
-			chunks = append(chunks, current.String())
+			chunks = append(chunks, strings.TrimSpace(current.String()))
 			current.Reset()
 		}
 	}
@@ -543,7 +639,7 @@ func chunkText(content string, size int) []string {
 		}
 		if utf8.RuneCountInString(segment) > size {
 			flush()
-			chunks = append(chunks, splitRunes(segment, size, 60)...)
+			chunks = append(chunks, splitRunes(segment, size, overlap)...)
 			return
 		}
 		nextLen := utf8.RuneCountInString(current.String()) + utf8.RuneCountInString(segment)
@@ -566,14 +662,108 @@ func chunkText(content string, size int) []string {
 		}
 	}
 	flush()
-	return chunks
+	records := make([]sectionChunk, 0, len(chunks))
+	for i, chunk := range chunks {
+		record := sectionChunk{Content: chunk}
+		if i > 0 && overlap > 0 {
+			record.Overlap = tailRunes(chunks[i-1], overlap)
+		}
+		records = append(records, record)
+	}
+	return records
+}
+
+func parseMarkdownHeading(line string) (int, string, bool) {
+	if !strings.HasPrefix(line, "#") {
+		return 0, "", false
+	}
+	level := 0
+	for _, r := range line {
+		if r != '#' {
+			break
+		}
+		level++
+	}
+	if level == 0 || level > 6 || len(line) <= level {
+		return 0, "", false
+	}
+	if line[level] != ' ' && line[level] != '\t' {
+		return 0, "", false
+	}
+	title := strings.TrimSpace(line[level:])
+	title = strings.Trim(title, "# \t")
+	if title == "" {
+		return 0, "", false
+	}
+	return level, title, true
+}
+
+func chunkRecordTitle(documentTitle string, sectionPath []string) string {
+	if len(sectionPath) == 0 {
+		return strings.TrimSpace(documentTitle)
+	}
+	section := sectionPath[len(sectionPath)-1]
+	if strings.TrimSpace(documentTitle) == "" || section == documentTitle {
+		return section
+	}
+	return documentTitle + " / " + section
+}
+
+func contextualizeChunk(documentTitle string, sectionPath []string, overlap, body string) string {
+	var parts []string
+	if strings.TrimSpace(documentTitle) != "" {
+		parts = append(parts, "文档："+strings.TrimSpace(documentTitle))
+	}
+	if len(sectionPath) > 0 {
+		parts = append(parts, "章节："+strings.Join(cleanSectionPath(sectionPath), " > "))
+	}
+	if strings.TrimSpace(overlap) != "" {
+		parts = append(parts, "上文："+strings.TrimSpace(overlap))
+	}
+	body = strings.TrimSpace(body)
+	if len(parts) == 0 {
+		return body
+	}
+	parts = append(parts, "正文："+body)
+	return strings.Join(parts, "\n")
+}
+
+func cleanSectionPath(sectionPath []string) []string {
+	cleaned := make([]string, 0, len(sectionPath))
+	for _, item := range sectionPath {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			cleaned = append(cleaned, item)
+		}
+	}
+	return cleaned
 }
 
 func splitSentences(value string) []string {
-	return strings.FieldsFunc(value, func(r rune) bool {
-		return r == '。' || r == '；' || r == ';' || r == '!' || r == '！' ||
-			r == '?' || r == '？'
-	})
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	var sentences []string
+	var current strings.Builder
+	for _, r := range value {
+		current.WriteRune(r)
+		if isSentenceBoundary(r) {
+			if sentence := strings.TrimSpace(current.String()); sentence != "" {
+				sentences = append(sentences, sentence)
+			}
+			current.Reset()
+		}
+	}
+	if sentence := strings.TrimSpace(current.String()); sentence != "" {
+		sentences = append(sentences, sentence)
+	}
+	return sentences
+}
+
+func isSentenceBoundary(r rune) bool {
+	return r == '。' || r == '；' || r == ';' || r == '!' || r == '！' ||
+		r == '?' || r == '？'
 }
 
 func splitRunes(value string, size, overlap int) []string {
@@ -600,11 +790,28 @@ func splitRunes(value string, size, overlap int) []string {
 }
 
 func PrepareRAGChunks(content, fallback string) []string {
-	chunks := chunkText(content, 420)
-	if len(chunks) == 0 && strings.TrimSpace(fallback) != "" {
-		chunks = []string{strings.TrimSpace(fallback)}
+	records := prepareRAGChunkRecords(content, fallback)
+	chunks := make([]string, 0, len(records))
+	for _, record := range records {
+		chunks = append(chunks, record.Content)
 	}
 	return chunks
+}
+
+func PrepareRAGQuery(query string) string {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return ""
+	}
+	return ragQueryInstruction + query
+}
+
+func tailRunes(value string, max int) string {
+	runes := []rune(strings.TrimSpace(value))
+	if max <= 0 || len(runes) <= max {
+		return string(runes)
+	}
+	return string(runes[len(runes)-max:])
 }
 
 func sanitizePromptInjection(content string) string {

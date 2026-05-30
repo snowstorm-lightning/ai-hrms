@@ -11,6 +11,7 @@ Each harness should state its prerequisites, command, and pass criteria.
 | `frontend` | Run frontend type and build gates. | `./harness/frontend/check.sh` | `.\harness\frontend\check.ps1` |
 | `browser` | Playwright smoke test for real/demo web routes and Visual Copilot. | `./harness/browser/check.sh` | `.\harness\browser\check.ps1` |
 | `agent` | Verify Python agent boundary imports. | `./harness/agent/check.sh` | `.\harness\agent\check.ps1` |
+| `embedding` | Verify an OpenAI-compatible local embedding endpoint and vector dimensions. | `./harness/embedding/check.sh` | `.\harness\embedding\check.ps1` |
 | `e2e` | Validate cross-service HRMS workflows. | `./harness/e2e/check.sh` | `.\harness\e2e\check.ps1` |
 
 Rules:
@@ -31,3 +32,7 @@ harnesses separately when you want to manage the API process yourself.
 The browser harness is intentionally standalone because it expects real and demo
 web servers to already be running. Use `npm run browser:check` after starting
 the web servers.
+
+The embedding harness is intentionally standalone because it expects a local or
+managed embedding endpoint to be running. Use `npm run embedding:check` after
+starting the optional Compose `embedding` profile or another compatible service.
