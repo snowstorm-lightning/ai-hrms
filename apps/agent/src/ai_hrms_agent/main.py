@@ -60,7 +60,19 @@ class ConnectorPreviewRequest(BaseModel):
     content: str = ""
 
 
+def _validate_agent_boundary() -> None:
+    settings = load_ai_provider_settings()
+    token = os.getenv("AI_HRMS_AGENT_SERVICE_TOKEN", "").strip()
+    if token:
+        return
+    if settings.chat_provider != "fake" or settings.embedding_provider != "fake":
+        raise RuntimeError(
+            "AI_HRMS_AGENT_SERVICE_TOKEN is required when chat or embedding providers are not fake."
+        )
+
+
 def create_app() -> FastAPI:
+    _validate_agent_boundary()
     app = FastAPI(title="AI-HRMS Agent", version="0.1.0")
 
     @app.middleware("http")

@@ -6,7 +6,7 @@ import {
   SafetyCertificateOutlined,
 } from "@ant-design/icons";
 import { Alert, Progress, Space, Tag, Timeline, Typography } from "antd";
-import type { RAGCitation } from "../api/types";
+import type { ContextPacket, HarnessDecision, RAGCitation, TrustPacket } from "../api/types";
 
 export type TrustRiskLevel = "low" | "medium" | "high" | string;
 
@@ -60,6 +60,71 @@ export function TrustMetaBar({
       </Tag>
       {auditStatus ? <Tag icon={<AuditOutlined />}>auditStatus={auditStatus}</Tag> : null}
     </Space>
+  );
+}
+
+export function TrustPacketBar({ packet }: { packet?: TrustPacket | null }) {
+  if (!packet) return null;
+  return (
+    <TrustMetaBar
+      riskLevel={packet.riskLevel}
+      confidence={Math.round(packet.confidence * 100)}
+      evidenceCount={packet.evidenceCount}
+      humanReviewRequired={packet.humanReviewRequired}
+      toolPreview={Boolean(packet.toolPreview)}
+      auditStatus={packet.auditStatus}
+    />
+  );
+}
+
+export function ExecutionDecisionPanel({ decision }: { decision?: HarnessDecision | null }) {
+  if (!decision) return null;
+  return (
+    <Alert
+      className="harness-decision-panel"
+      showIcon
+      type={decision.humanReviewRequired ? "warning" : "info"}
+      title={`Execution Router：${decision.executionMode}`}
+      description={(
+        <Space orientation="vertical" size={6}>
+          <Typography.Text>{decision.reason}</Typography.Text>
+          <Space wrap>
+            <Tag color={riskColor(decision.riskLevel)}>risk={decision.riskLevel}</Tag>
+            <Tag>intent={decision.intent}</Tag>
+            <Tag color={decision.useLlm ? "purple" : "default"}>LLM={String(decision.useLlm)}</Tag>
+            <Tag color={decision.useAgent ? "geekblue" : "default"}>agent={String(decision.useAgent)}</Tag>
+            {decision.routedBy.map((item) => <Tag key={item}>{item}</Tag>)}
+          </Space>
+        </Space>
+      )}
+    />
+  );
+}
+
+export function ContextPacketPanel({ packet }: { packet?: ContextPacket | null }) {
+  if (!packet) return null;
+  return (
+    <div className="context-packet-panel" data-vc-kind="context-packet">
+      <Typography.Text strong>Context Resolver</Typography.Text>
+      <Typography.Paragraph type="secondary">{packet.boundary}</Typography.Paragraph>
+      <Space wrap>
+        {Object.entries(packet.sourceCount).map(([key, value]) => <Tag key={key}>{key}={value}</Tag>)}
+        <Tag>staleness={packet.staleness}</Tag>
+      </Space>
+      <div className="context-item-list">
+        {packet.items.slice(0, 4).map((item) => (
+          <article key={`${item.type}:${item.id ?? item.label}`} className="context-item-card">
+            <Typography.Text strong>{item.label}</Typography.Text>
+            <Typography.Text type="secondary">{item.summary}</Typography.Text>
+            <Space wrap>
+              <Tag>{item.type}</Tag>
+              {item.riskLevel ? <Tag color={riskColor(item.riskLevel)}>{item.riskLevel}</Tag> : null}
+              <Tag>{item.source}</Tag>
+            </Space>
+          </article>
+        ))}
+      </div>
+    </div>
   );
 }
 

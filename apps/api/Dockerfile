@@ -9,7 +9,9 @@ COPY apps/api/go.mod apps/api/go.mod
 RUN cd apps/api && go mod download
 
 COPY apps/api apps/api
-RUN cd apps/api && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ai-hrms-api ./cmd/server
+RUN cd apps/api && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ai-hrms-api ./cmd/server && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ai-hrms-admin ./cmd/admin
 
 FROM alpine:3.22
 
@@ -17,6 +19,7 @@ RUN apk add --no-cache ca-certificates
 
 RUN addgroup -S app && adduser -S -G app app
 COPY --from=build /out/ai-hrms-api /usr/local/bin/ai-hrms-api
+COPY --from=build /out/ai-hrms-admin /usr/local/bin/ai-hrms-admin
 
 USER app
 EXPOSE 8080

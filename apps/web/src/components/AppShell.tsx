@@ -14,14 +14,13 @@ import {
   TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { Avatar, Button, Drawer, Dropdown, Layout, Menu, Tag, theme, Typography } from "antd";
+import { Alert, Avatar, Button, Drawer, Dropdown, Layout, Menu, Tag, theme, Typography } from "antd";
 import { Suspense, useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import type { AIProviderStatus } from "../api/types";
 import { useAuth } from "../app/AuthContext";
 import { PageLoading } from "./PageLoading";
-import { VisualCopilotOverlay } from "./VisualCopilotOverlay";
 
 const { Header, Sider, Content } = Layout;
 
@@ -112,12 +111,18 @@ export function AppShell() {
           </Dropdown>
         </Header>
         <Content className="app-content">
+          <Alert
+            className="demo-boundary-banner"
+            type="info"
+            showIcon
+            title="当前组织、员工、制度和审计均为虚构样本企业数据"
+            description="企鹅互联网科技有限公司只用于承载 AI-HRMS 演示流程；不是腾讯，也不是任何真实公司的 HR 数据。"
+          />
           <Suspense fallback={<PageLoading />}>
             <Outlet />
           </Suspense>
         </Content>
       </Layout>
-      <VisualCopilotOverlay />
       <Drawer
         title="AI-HRMS Navigation"
         placement="left"

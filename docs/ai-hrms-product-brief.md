@@ -6,6 +6,8 @@ AI-HRMS｜人机共生的人力资源智能操作系统
 
 AI-HRMS is not a traditional HRMS with a chat box attached. It is an operating system where people, organization data, governed knowledge, learning growth, agent runs, and audit evidence collaborate inside explicit safety boundaries.
 
+Product/data boundary: AI-HRMS is the product. `企鹅互联网科技有限公司` is only a fictional demo company dataset with simulated business records used to show product workflows; it is not Tencent, is not affiliated with Tencent, and is not real company data.
+
 ## System Layers
 
 - Organization Data Layer: employees, legal entities, org units, attendance, messages, roles, and scope.
@@ -40,13 +42,20 @@ AI-HRMS is not a traditional HRMS with a chat box attached. It is an operating s
 6. Open Audit Center to show the evidence chain.
 7. Close with the human-agent governance loop.
 
+Narration rule: keep the 3-minute walkthrough about AI-HRMS capabilities. Treat company dataset names, employees, policies, and citations as sample data, not as a real enterprise case study.
+
 ## Safety Boundaries
 
 - AI does not make final promotion, termination, pay, performance, or hiring decisions.
 - High-risk suggestions are preview-only until a human confirms them.
 - Demo mode uses deterministic local data and does not call external LLMs.
+- Demo company data is fictional and must not be presented as Tencent or any real company's HR data.
 - Production reads, writes, RAG retrieval, tool calls, and audit events go through Go authorization and scope checks.
 - DeepSeek chat and OpenAI-compatible embeddings run behind the Python agent boundary; provider keys do not belong in frontend code.
+- Visual Copilot is text/context only in the current DeepSeek boundary: DOM hints and verified business references can support explanations, but screenshots are not sent to DeepSeek and image understanding is out of scope.
+- Agent harness policy is explicit: deterministic program flows handle permissions, scope, retrieval, tool execution, and audit; LLMs are used for explanation and drafting; bounded agents are reserved for cross-module multi-step work.
+
+See [agent-harness-engineering.md](agent-harness-engineering.md) for the routing policy and trust packet model.
 
 ## P0
 

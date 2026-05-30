@@ -149,6 +149,7 @@ export function CoGrowthPage() {
   const [instruction, setInstruction] = useState("帮我把本周工作任务转化成一个不超过 30 分钟的 AI 学习实战任务");
   const [coachResult, setCoachResult] = useState<CoachSuggestion>(demo.coachSuggestions[0]);
   const [selectedMissionId, setSelectedMissionId] = useState(demo.missions[0].id);
+  const [activeTab, setActiveTab] = useState("overview");
   const [missionStatuses, setMissionStatuses] = useState<Record<string, MissionStatus>>(loadMissionStatuses);
 
   useEffect(() => {
@@ -214,13 +215,19 @@ export function CoGrowthPage() {
           </Button>
         </div>
       </header>
+      <Alert
+        className="co-growth-boundary"
+        type="info"
+        showIcon
+        title="Co-Growth 是 AI-HRMS 的成长引擎模块；页面数据为虚构样本组织，不是真实公司或真实员工数据。"
+      />
 
       <section className="co-growth-console" data-vc-kind="co-growth-command-center">
         <div className="co-growth-command-panel">
           <Badge color="#16a34a" text={isCoGrowthDemoMode ? "受控演示环境" : "API mode：保持原有后端边界"} />
           <Typography.Title level={1}>Co-Growth OS｜AI-HRMS 人机共生成长引擎</Typography.Title>
           <Typography.Paragraph>
-            Co-Growth OS 是 AI-HRMS 的成长引擎，帮助员工学习 AI 原理、把 AI 嵌入真实工作、复盘人机协作过程，并沉淀为可审计的成长证据。
+            Co-Growth OS 是 AI-HRMS 的成长引擎，帮助员工学习 AI 原理、把 AI 嵌入模拟工作、复盘人机协作过程，并沉淀为可审计的成长证据。
           </Typography.Paragraph>
           <Input.Search
             data-vc-field="co_growth.ai_instruction"
@@ -244,7 +251,7 @@ export function CoGrowthPage() {
           <div className="coach-panel-header">
             <RobotBadge />
             <div>
-              <Typography.Title level={4}>AI Coach</Typography.Title>
+              <Typography.Title level={4}>规则化 AI Coach</Typography.Title>
               <Typography.Text type="secondary">{user?.username ?? demo.currentEmployee.name} · {learningModeLabels[selectedMode]}</Typography.Text>
             </div>
           </div>
@@ -283,6 +290,8 @@ export function CoGrowthPage() {
       <section className="co-growth-workspace">
         <Tabs
           size="large"
+          activeKey={activeTab}
+          onChange={setActiveTab}
           items={[
             {
               key: "overview",
@@ -309,7 +318,15 @@ export function CoGrowthPage() {
                           <Typography.Paragraph type="secondary">{item.nextStep}</Typography.Paragraph>
                           <Space wrap>
                             <Tag color="cyan">{item.courseCard}</Tag>
-                            <Button size="small" onClick={() => setSelectedMissionId(item.missionId)}>查看 mission</Button>
+                            <Button
+                              size="small"
+                              onClick={() => {
+                                setSelectedMissionId(item.missionId);
+                                setActiveTab("missions");
+                              }}
+                            >
+                              查看 mission
+                            </Button>
                           </Space>
                         </article>
                       ))}
@@ -372,7 +389,7 @@ export function CoGrowthPage() {
                     <div className="section-heading">
                       <div>
                         <Typography.Title level={3}>Learning Mission Board</Typography.Title>
-                        <Typography.Text type="secondary">把真实工作任务改造成小步可复盘的 AI 学习实战。</Typography.Text>
+                        <Typography.Text type="secondary">把模拟工作任务改造成小步可复盘的 AI 学习实战。</Typography.Text>
                       </div>
                       <Tag color="green">Work with AI</Tag>
                     </div>

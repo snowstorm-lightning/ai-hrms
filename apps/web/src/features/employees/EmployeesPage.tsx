@@ -1,4 +1,4 @@
-import { Button, DatePicker, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag } from "antd";
+import { Alert, Button, DatePicker, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
@@ -80,6 +80,7 @@ export function EmployeesPage() {
   return (
     <>
       <PageTitle title="员工管理" description="维护员工档案。第一阶段展示主任职，底层支持多任职。" />
+      <Alert className="section-card" type="info" showIcon title="当前员工档案为合成样本，用于演示权限、组织关系和审计流程；不是任何真实员工数据。" />
       <InlineError message={error} onRetry={() => reload()} />
       <Space className="toolbar">
         <Button type="primary" onClick={() => openEditor()}>新增员工</Button>

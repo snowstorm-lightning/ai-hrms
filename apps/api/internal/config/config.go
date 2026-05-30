@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"strings"
 )
@@ -8,6 +9,8 @@ import (
 type Config struct {
 	DatabaseURL    string
 	JWTSecret      string
+	Environment    string
+	EnableDemoSeed bool
 	Port           string
 	AllowedOrigins []string
 	AI             AIConfig
@@ -29,10 +32,13 @@ type AIConfig struct {
 }
 
 func Load() Config {
+	environment := strings.ToLower(strings.TrimSpace(env("AI_HRMS_ENV", "development")))
 	return Config{
-		DatabaseURL: env("DATABASE_URL", "postgres://ai_hrms:ai_hrms@localhost:55432/ai_hrms?sslmode=disable"),
-		JWTSecret:   env("JWT_SECRET", "dev-secret-change-me"),
-		Port:        env("API_PORT", "8080"),
+		DatabaseURL:    env("DATABASE_URL", "postgres://ai_hrms:ai_hrms@localhost:55432/ai_hrms?sslmode=disable"),
+		JWTSecret:      env("JWT_SECRET", "dev-secret-change-me"),
+		Environment:    environment,
+		EnableDemoSeed: boolEnv("AI_HRMS_ENABLE_DEMO_SEED", environment == "development" || environment == "test"),
+		Port:           env("API_PORT", "8080"),
 		AllowedOrigins: csvEnv("CORS_ALLOWED_ORIGINS", []string{
 			"http://localhost:5173",
 			"http://127.0.0.1:5173",
@@ -54,11 +60,43 @@ func Load() Config {
 	}
 }
 
+func (c Config) Validate() error {
+	if c.AI.AgentBaseURL != "" && c.AI.AgentServiceToken == "" && (providerEnabled(c.AI.ChatProvider) || providerEnabled(c.AI.EmbeddingProvider)) {
+		return errors.New("AI_HRMS_AGENT_SERVICE_TOKEN is required when AGENT_BASE_URL is set with non-fake AI providers")
+	}
+	if c.Environment == "production" && c.EnableDemoSeed {
+		return errors.New("AI_HRMS_ENABLE_DEMO_SEED must be false in production")
+	}
+	if c.Environment == "production" && c.JWTSecret == "dev-secret-change-me" {
+		return errors.New("JWT_SECRET must be changed in production")
+	}
+	if c.Environment != "development" && c.Environment != "test" && c.JWTSecret == "dev-secret-change-me" {
+		return errors.New("JWT_SECRET must be changed outside development and test")
+	}
+	if c.Environment != "development" && c.Environment != "test" && len(strings.TrimSpace(c.JWTSecret)) < 32 {
+		return errors.New("JWT_SECRET must be at least 32 characters outside development and test")
+	}
+	return nil
+}
+
+func providerEnabled(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return value != "" && value != "fake"
+}
+
 func env(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
 	return fallback
+}
+
+func boolEnv(key string, fallback bool) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if value == "" {
+		return fallback
+	}
+	return value == "1" || value == "true" || value == "yes" || value == "on"
 }
 
 func csvEnv(key string, fallback []string) []string {

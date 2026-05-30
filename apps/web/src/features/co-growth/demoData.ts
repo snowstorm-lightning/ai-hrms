@@ -151,7 +151,7 @@ export const principleCards: PrincipleCard[] = [
     title: "为什么大模型像懂了，但本质是在基于上下文生成下一个 token",
     fiveMinuteExplanation: "模型根据大量训练形成的统计规律和当前上下文，预测更可能出现的下一个 token。它能表现出推理感，但不等于拥有人的意图和事实记忆。",
     tenMinuteExperiment: "给同一个问题分别提供清晰背景、模糊背景和错误背景，比较输出差异。",
-    workApplicationTask: "在本周一个真实任务前补充目标、受众、约束和验收标准。",
+    workApplicationTask: "在本周一个模拟任务前补充目标、受众、约束和验收标准。",
     reflectionQuestion: "这次输出中哪些内容来自上下文，哪些可能只是模型推断？",
     recommendedModes: ["visual", "qa", "reading"],
     relatedMissionId: "mission-meeting-minutes",
@@ -277,7 +277,7 @@ export const literacyMap: AILiteracyDimension[] = [
     title: "Prompt 与上下文设计",
     growthStage: "从单句指令走向上下文工程",
     currentLevel: 74,
-    nextStep: "将一个真实工作任务拆成目标、资料、限制和验收标准",
+    nextStep: "将一个模拟工作任务拆成目标、资料、限制和验收标准",
     evidenceCount: 11,
     recentWorkApplication: "销售话术 prompt 从 v1 改为包含客户画像和风险限制的 v3",
     coachAdvice: "继续保留 prompt 版本，观察哪类上下文最影响输出质量。",
@@ -404,14 +404,14 @@ export const promptVersions: PromptVersion[] = [
   },
   {
     version: "v2",
-    prompt: "我是研发实习生，本周有接口联调任务，请给我一个 AI 学习计划。",
-    improvement: "加入角色和任务，但仍缺少负荷控制和证据要求。",
+    prompt: "我是企鹅科技平台研发新人林晨，本周有接口联调任务，请给我一个 AI 学习计划。",
+    improvement: "加入企鹅科技新人身份和任务，但仍缺少负荷控制和证据要求。",
     reliabilityGain: 54,
   },
   {
     version: "v3",
-    prompt: "我是有编程基础的研发实习生，本周工作负荷中等，可用 60 分钟学习。请把接口联调任务改造成 1 个不超过 30 分钟的 AI 实战 mission，包含学习目标、工作产出、风险等级、证据记录和人工确认点。",
-    improvement: "明确时间、真实任务、输出结构、风险和证据链，适合沉淀为 workflow。",
+    prompt: "我是企鹅科技有编程基础的平台研发新人林晨，本周工作负荷中等，可用 60 分钟学习。请把接口联调任务改造成 1 个不超过 30 分钟的 AI 实战 mission，包含学习目标、工作产出、风险等级、证据记录和人工确认点。",
+    improvement: "明确时间、模拟任务、输出结构、风险和证据链，适合沉淀为 workflow。",
     reliabilityGain: 86,
   },
 ];
@@ -492,7 +492,7 @@ function evidence(id: string, title: string, type: GrowthEvidence["type"], riskL
     type,
     title,
     description: `${title} 的上下文、AI 输出、人工验证和复盘记录。`,
-    source: "Co-Growth Demo Portfolio",
+    source: "企鹅科技 AI-HRMS Co-Growth Demo Portfolio",
     createdAt: "2026-05-27",
     confidence: riskLevel === "high" ? 72 : riskLevel === "medium" ? 84 : 91,
     relatedMissionId: missionId,
@@ -505,7 +505,7 @@ function coach(title: string, riskLevel: CoachSuggestion["riskLevel"], missionId
     title,
     summary: riskLevel === "high"
       ? "该建议涉及人、隐私或公平性，AI 只提供检查框架，必须由导师或 HR 人工确认。"
-      : "基于当前工作任务和学习偏好，建议把学习嵌入本周真实交付。",
+      : "基于当前工作任务和学习偏好，建议把学习嵌入本周模拟交付。",
     riskLevel,
     confidence: riskLevel === "high" ? 74 : riskLevel === "medium" ? 83 : 90,
     estimatedMinutes,
@@ -578,18 +578,18 @@ function buildEmployee(
 }
 
 export const employees: EmployeeLearningSample[] = [
-  buildEmployee(1, "林晨", "研发实习生", "平台研发", "collaborator", "hands_on", 75, "medium", ["mission-code-tests", "mission-agent-workflow"], ["mission-meeting-minutes"]),
-  buildEmployee(2, "周雨桐", "产品助理", "产品体验", "user", "case", 60, "high", ["mission-meeting-minutes"], ["mission-unreliable-reasoning"]),
-  buildEmployee(3, "陈向南", "HRBP", "人力资源", "evaluator", "qa", 50, "medium", ["mission-interview-bias"], ["mission-rag-knowledge"]),
-  buildEmployee(4, "顾清", "销售顾问", "华东销售", "user", "case", 45, "high", ["mission-sales-script"], ["mission-meeting-minutes"]),
-  buildEmployee(5, "王若溪", "运营专员", "用户运营", "beginner", "visual", 40, "medium", ["mission-meeting-minutes"], []),
-  buildEmployee(6, "赵航", "数据分析师", "数据智能", "evaluator", "reading", 90, "low", ["mission-rag-knowledge", "mission-unreliable-reasoning"], ["mission-code-tests"]),
-  buildEmployee(7, "孙芮", "内容策划", "市场内容", "collaborator", "project", 70, "medium", ["mission-sales-script"], ["mission-meeting-minutes"]),
-  buildEmployee(8, "李嘉言", "设计师", "品牌设计", "user", "visual", 55, "medium", ["mission-unreliable-reasoning"], []),
-  buildEmployee(9, "邵一鸣", "后端工程师", "平台研发", "orchestrator", "project", 100, "low", ["mission-agent-workflow"], ["mission-code-tests", "mission-rag-knowledge"]),
+  buildEmployee(1, "林晨", "平台研发新人", "平台研发", "collaborator", "hands_on", 75, "medium", ["mission-code-tests", "mission-agent-workflow"], ["mission-meeting-minutes"]),
+  buildEmployee(2, "周雨桐", "带教导师", "平台研发", "evaluator", "case", 60, "high", ["mission-meeting-minutes"], ["mission-unreliable-reasoning"]),
+  buildEmployee(3, "许安宁", "集团 HR", "人力资源", "evaluator", "qa", 50, "medium", ["mission-interview-bias"], ["mission-rag-knowledge"]),
+  buildEmployee(4, "顾明远", "业务管理者", "平台业务", "orchestrator", "project", 70, "medium", ["mission-agent-workflow"], ["mission-rag-knowledge"]),
+  buildEmployee(5, "顾清", "企业客户成功顾问", "企业服务交付与客户成功", "user", "case", 45, "high", ["mission-sales-script"], ["mission-meeting-minutes"]),
+  buildEmployee(6, "王若溪", "社区运营专员", "社交产品运营", "beginner", "visual", 40, "medium", ["mission-meeting-minutes"], []),
+  buildEmployee(7, "赵航", "增长数据分析师", "增长策略", "evaluator", "reading", 90, "low", ["mission-rag-knowledge", "mission-unreliable-reasoning"], ["mission-code-tests"]),
+  buildEmployee(8, "孙芮", "内容生态策划", "数字内容生态", "collaborator", "project", 70, "medium", ["mission-sales-script"], ["mission-meeting-minutes"]),
+  buildEmployee(9, "李嘉言", "协同体验设计师", "协同产品体验", "user", "visual", 55, "medium", ["mission-unreliable-reasoning"], []),
   buildEmployee(10, "许知夏", "招聘专员", "人力资源", "user", "qa", 45, "high", ["mission-interview-bias"], []),
   buildEmployee(11, "孟予安", "客户成功", "客户运营", "collaborator", "case", 65, "medium", ["mission-sales-script", "mission-rag-knowledge"], ["mission-meeting-minutes"]),
-  buildEmployee(12, "何景澄", "前端实习生", "体验研发", "beginner", "hands_on", 80, "medium", ["mission-code-tests"], []),
+  buildEmployee(12, "何景澄", "前端新人", "AI 平台体验研发", "beginner", "hands_on", 80, "medium", ["mission-code-tests"], []),
 ];
 
 export const currentEmployee = employees[0];

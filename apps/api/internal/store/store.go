@@ -2,8 +2,12 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"io/fs"
 	"sort"
 	"strings"
 
@@ -17,6 +21,10 @@ var migrations embed.FS
 
 type Store struct {
 	pool *pgxpool.Pool
+}
+
+type MigrationOptions struct {
+	EnableDemoSeed bool
 }
 
 type Scope struct {
@@ -41,7 +49,7 @@ func (s *Store) Close() {
 	s.pool.Close()
 }
 
-func (s *Store) Migrate(ctx context.Context) error {
+func (s *Store) Migrate(ctx context.Context, options MigrationOptions) error {
 	entries, err := migrations.ReadDir("migrations")
 	if err != nil {
 		return err
@@ -49,16 +57,217 @@ func (s *Store) Migrate(ctx context.Context) error {
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].Name() < entries[j].Name()
 	})
+	applied, err := s.prepareMigrationLedger(ctx, entries, options)
+	if err != nil {
+		return err
+	}
 	for _, entry := range entries {
-		sql, err := migrations.ReadFile("migrations/" + entry.Name())
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		sql, err := migrations.ReadFile("migrations/" + name)
 		if err != nil {
 			return err
 		}
-		if _, err := s.pool.Exec(ctx, string(sql)); err != nil {
+		checksum := checksumSQL(sql)
+		if existing, ok := applied[name]; ok {
+			if existing != checksum {
+				repaired, err := s.repairKnownSeedChecksum(ctx, name, existing, checksum)
+				if err != nil {
+					return err
+				}
+				if !repaired {
+					return fmt.Errorf("migration %s checksum changed after it was applied", name)
+				}
+				applied[name] = checksum
+			}
+			continue
+		}
+		if skipUnappliedMigration(name, options) {
+			continue
+		}
+		tx, err := s.pool.Begin(ctx)
+		if err != nil {
 			return err
 		}
+		if _, err := tx.Exec(ctx, string(sql)); err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO schema_migrations (name, checksum)
+			VALUES ($1, $2)
+		`, name, checksum); err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return err
+		}
+		applied[name] = checksum
 	}
 	return nil
+}
+
+func (s *Store) prepareMigrationLedger(ctx context.Context, entries []fs.DirEntry, options MigrationOptions) (map[string]string, error) {
+	if _, err := s.pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			name text PRIMARY KEY,
+			checksum text NOT NULL,
+			applied_at timestamptz NOT NULL DEFAULT now()
+		)
+	`); err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT name, checksum FROM schema_migrations`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	applied := map[string]string{}
+	for rows.Next() {
+		var name, checksum string
+		if err := rows.Scan(&name, &checksum); err != nil {
+			return nil, err
+		}
+		applied[name] = checksum
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(applied) > 0 {
+		return applied, nil
+	}
+	initialized, err := s.schemaAlreadyInitialized(ctx)
+	if err != nil || !initialized {
+		return applied, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || skipUnappliedMigration(entry.Name(), options) {
+			continue
+		}
+		satisfied, err := s.migrationAlreadySatisfied(ctx, entry.Name())
+		if err != nil {
+			return nil, err
+		}
+		if !satisfied {
+			continue
+		}
+		sql, err := migrations.ReadFile("migrations/" + entry.Name())
+		if err != nil {
+			return nil, err
+		}
+		checksum := checksumSQL(sql)
+		if _, err := s.pool.Exec(ctx, `
+			INSERT INTO schema_migrations (name, checksum)
+			VALUES ($1, $2)
+			ON CONFLICT (name) DO NOTHING
+		`, entry.Name(), checksum); err != nil {
+			return nil, err
+		}
+		applied[entry.Name()] = checksum
+	}
+	return applied, nil
+}
+
+func (s *Store) schemaAlreadyInitialized(ctx context.Context) (bool, error) {
+	var initialized bool
+	err := s.pool.QueryRow(ctx, `SELECT to_regclass('public.users') IS NOT NULL`).Scan(&initialized)
+	return initialized, err
+}
+
+func skipUnappliedMigration(name string, options MigrationOptions) bool {
+	if options.EnableDemoSeed {
+		return false
+	}
+	return name == "002_seed.sql" ||
+		name == "003_seed_passwords.sql" ||
+		name == "004_ai_native.sql" ||
+		name == "005_real_rag_pgvector.sql" ||
+		name == "006_penguin_company_seed.sql"
+}
+
+func (s *Store) repairKnownSeedChecksum(ctx context.Context, name, existing, current string) (bool, error) {
+	if !knownSeedMigrationChecksum(name, existing, current) {
+		return false, nil
+	}
+	satisfied, err := s.migrationAlreadySatisfied(ctx, name)
+	if err != nil || !satisfied {
+		return false, err
+	}
+	_, err = s.pool.Exec(ctx, `UPDATE schema_migrations SET checksum = $1 WHERE name = $2`, current, name)
+	return err == nil, err
+}
+
+func knownSeedMigrationChecksum(name, existing, current string) bool {
+	// During the AI-HRMS demo-data pass, two seed migrations briefly carried
+	// Penguin sample copy before the data was moved to append-only migration 006.
+	// Accept only those known pre-release checksums and repair the ledger back to
+	// the immutable seed file checksum after confirming the schema/data exists.
+	switch name {
+	case "002_seed.sql":
+		return current == "5164f1ac2b3293f02b2b9e384ca364c4229c788582d02f19aa36e17b4bdb380c" &&
+			existing == "5987732623fed549793af521528ebaa9671a6ca455d28edeb9285a8e7ff10419"
+	case "004_ai_native.sql":
+		return current == "df9cfa085598a34408454dc28d13e015e2f85b8f0df3257d154adcba5a09f4c6" &&
+			existing == "3f357d76e9f84ab64dbe73239c10fa6236b8c208ea6ca44b6d28b15cb57c2c56"
+	default:
+		return false
+	}
+}
+
+func (s *Store) migrationAlreadySatisfied(ctx context.Context, name string) (bool, error) {
+	switch name {
+	case "001_init.sql":
+		return s.tableExists(ctx, "users")
+	case "002_seed.sql", "003_seed_passwords.sql":
+		return s.rowExists(ctx, "SELECT EXISTS (SELECT 1 FROM users WHERE id = '00000000-0000-0000-0000-000000000301')")
+	case "004_ai_native.sql":
+		return s.tableExists(ctx, "visual_copilot_events")
+	case "005_real_rag_pgvector.sql":
+		return s.ragEmbeddingIsUnconstrained(ctx)
+	case "006_penguin_company_seed.sql":
+		return s.rowExists(ctx, "SELECT EXISTS (SELECT 1 FROM legal_entities WHERE id = '00000000-0000-0000-0000-000000000105')")
+	case "007_ai_native_schema_only.sql":
+		events, err := s.tableExists(ctx, "visual_copilot_events")
+		if err != nil || !events {
+			return events, err
+		}
+		return s.ragEmbeddingIsUnconstrained(ctx)
+	default:
+		return false, nil
+	}
+}
+
+func (s *Store) tableExists(ctx context.Context, table string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL`, "public."+table).Scan(&exists)
+	return exists, err
+}
+
+func (s *Store) rowExists(ctx context.Context, query string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, query).Scan(&exists)
+	return exists, err
+}
+
+func (s *Store) ragEmbeddingIsUnconstrained(ctx context.Context) (bool, error) {
+	var ok bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT COALESCE((
+			SELECT a.atttypmod = -1
+			FROM pg_attribute a
+			WHERE a.attrelid = to_regclass('public.rag_embeddings')
+			  AND a.attname = 'embedding'
+		), false)
+	`).Scan(&ok)
+	return ok, err
+}
+
+func checksumSQL(sql []byte) string {
+	sum := sha256.Sum256(sql)
+	return hex.EncodeToString(sum[:])
 }
 
 func (s *Store) GetPrincipal(ctx context.Context, userID string) (rbac.Principal, error) {

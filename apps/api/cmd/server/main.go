@@ -16,6 +16,9 @@ import (
 
 func main() {
 	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatal(err)
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -25,7 +28,7 @@ func main() {
 	}
 	defer db.Close()
 
-	if err := db.Migrate(ctx); err != nil {
+	if err := db.Migrate(ctx, store.MigrationOptions{EnableDemoSeed: cfg.EnableDemoSeed}); err != nil {
 		log.Fatal(err)
 	}
 

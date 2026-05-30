@@ -44,6 +44,39 @@ func (s *Store) ListEmployees(ctx context.Context, scope Scope, page, size int) 
 	return employees, total, err
 }
 
+func (s *Store) EmployeeStatusCounts(ctx context.Context, scope Scope) (int64, map[string]int64, error) {
+	where, args := assignmentScopeWhere(scope, "pa", 1)
+	if where == "FALSE" {
+		return 0, map[string]int64{}, nil
+	}
+	query := `
+		SELECT e.status, count(*)
+		FROM employees e
+		LEFT JOIN employee_assignments pa ON pa.employee_id = e.id AND pa.is_primary AND pa.end_date IS NULL
+	`
+	if where != "" {
+		query += " WHERE " + where
+	}
+	query += " GROUP BY e.status"
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer rows.Close()
+	total := int64(0)
+	counts := map[string]int64{}
+	for rows.Next() {
+		var status string
+		var count int64
+		if err := rows.Scan(&status, &count); err != nil {
+			return 0, nil, err
+		}
+		counts[status] = count
+		total += count
+	}
+	return total, counts, rows.Err()
+}
+
 func (s *Store) GetEmployee(ctx context.Context, scope Scope, id string) (*domain.Employee, error) {
 	where, args := assignmentScopeWhere(scope, "pa", 2)
 	if where == "FALSE" {

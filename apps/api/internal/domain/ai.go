@@ -87,6 +87,67 @@ type RAGCitation struct {
 	Score       float64 `json:"score,omitempty"`
 }
 
+type HarnessDecision struct {
+	Intent              string   `json:"intent"`
+	ExecutionMode       string   `json:"executionMode"`
+	RiskLevel           string   `json:"riskLevel"`
+	UseLLM              bool     `json:"useLlm"`
+	UseAgent            bool     `json:"useAgent"`
+	UseMultiAgent       bool     `json:"useMultiAgent"`
+	HumanReviewRequired bool     `json:"humanReviewRequired"`
+	Reason              string   `json:"reason"`
+	RoutedBy            []string `json:"routedBy"`
+}
+
+type ToolPreview struct {
+	ToolName           string         `json:"toolName"`
+	Purpose            string         `json:"purpose"`
+	ExecutionMode      string         `json:"executionMode"`
+	RiskLevel          string         `json:"riskLevel"`
+	Decision           string         `json:"decision"`
+	RequiredCapability string         `json:"requiredCapability,omitempty"`
+	Accepted           bool           `json:"accepted"`
+	PreviewOnly        bool           `json:"previewOnly"`
+	Reversible         bool           `json:"reversible"`
+	Writes             []string       `json:"writes"`
+	Arguments          map[string]any `json:"arguments,omitempty"`
+	Reason             string         `json:"reason"`
+}
+
+type TrustPacket struct {
+	RiskLevel           string        `json:"riskLevel"`
+	Confidence          float64       `json:"confidence"`
+	HumanReviewRequired bool          `json:"humanReviewRequired"`
+	EvidenceCount       int           `json:"evidenceCount"`
+	Citations           []RAGCitation `json:"citations,omitempty"`
+	ToolPreview         *ToolPreview  `json:"toolPreview,omitempty"`
+	AuditStatus         string        `json:"auditStatus"`
+	Reversible          bool          `json:"reversible"`
+	PolicyChecks        []string      `json:"policyChecks"`
+}
+
+type ContextItem struct {
+	Type       string         `json:"type"`
+	ID         string         `json:"id,omitempty"`
+	Label      string         `json:"label"`
+	Summary    string         `json:"summary"`
+	Source     string         `json:"source"`
+	RiskLevel  string         `json:"riskLevel,omitempty"`
+	Provenance string         `json:"provenance"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
+}
+
+type ContextPacket struct {
+	Route       string         `json:"route,omitempty"`
+	Intent      string         `json:"intent"`
+	Subject     string         `json:"subject"`
+	Items       []ContextItem  `json:"items"`
+	SourceCount map[string]int `json:"sourceCount"`
+	Staleness   string         `json:"staleness"`
+	Boundary    string         `json:"boundary"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
+}
+
 type RAGSearchRequest struct {
 	Query string `json:"query"`
 	Limit int    `json:"limit"`
@@ -110,6 +171,7 @@ type RAGSearchResult struct {
 	RiskLevel           string        `json:"riskLevel,omitempty"`
 	HumanReviewRequired bool          `json:"humanReviewRequired,omitempty"`
 	AuditStatus         string        `json:"auditStatus,omitempty"`
+	TrustPacket         *TrustPacket  `json:"trustPacket,omitempty"`
 }
 
 type AIChatRequest struct {
@@ -117,14 +179,17 @@ type AIChatRequest struct {
 }
 
 type AIChatResponse struct {
-	Message             string        `json:"message"`
-	Citations           []RAGCitation `json:"citations"`
-	Provider            string        `json:"provider,omitempty"`
-	Model               string        `json:"model,omitempty"`
-	Confidence          float64       `json:"confidence,omitempty"`
-	RiskLevel           string        `json:"riskLevel,omitempty"`
-	HumanReviewRequired bool          `json:"humanReviewRequired,omitempty"`
-	AuditStatus         string        `json:"auditStatus,omitempty"`
+	Message             string           `json:"message"`
+	Citations           []RAGCitation    `json:"citations"`
+	Provider            string           `json:"provider,omitempty"`
+	Model               string           `json:"model,omitempty"`
+	Confidence          float64          `json:"confidence,omitempty"`
+	RiskLevel           string           `json:"riskLevel,omitempty"`
+	HumanReviewRequired bool             `json:"humanReviewRequired,omitempty"`
+	AuditStatus         string           `json:"auditStatus,omitempty"`
+	ExecutionDecision   *HarnessDecision `json:"executionDecision,omitempty"`
+	ContextPacket       *ContextPacket   `json:"contextPacket,omitempty"`
+	TrustPacket         *TrustPacket     `json:"trustPacket,omitempty"`
 }
 
 type LearningCourse struct {
@@ -189,10 +254,13 @@ type AgentToolPreviewRequest struct {
 }
 
 type AgentToolPreviewResponse struct {
-	Accepted      bool           `json:"accepted"`
-	Message       string         `json:"message"`
-	RequiredRisk  string         `json:"requiredRisk"`
-	ResultPreview map[string]any `json:"resultPreview"`
+	Accepted          bool             `json:"accepted"`
+	Message           string           `json:"message"`
+	RequiredRisk      string           `json:"requiredRisk"`
+	ResultPreview     map[string]any   `json:"resultPreview"`
+	ToolPreview       *ToolPreview     `json:"toolPreview,omitempty"`
+	ExecutionDecision *HarnessDecision `json:"executionDecision,omitempty"`
+	TrustPacket       *TrustPacket     `json:"trustPacket,omitempty"`
 }
 
 type AgentActionPlan struct {

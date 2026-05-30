@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 import re
+import socket
 from dataclasses import dataclass
+from ipaddress import ip_address
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -35,15 +37,51 @@ def preview_connector(source_type: str, uri: str, content: str = "") -> Connecto
 
 
 def _preview_url(uri: str) -> ConnectorPreview:
+    if os.environ.get("AI_HRMS_ENABLE_AGENT_URL_CONNECTOR", "").lower() not in {"1", "true", "yes", "on"}:
+        raise ValueError("url connector is disabled in the agent; use the Go API ingestion boundary")
     parsed = urlparse(uri)
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError("url connector requires http or https URI")
-    response = httpx.get(uri, timeout=10, follow_redirects=True, headers={"User-Agent": "AI-HRMS-Agent/0.1"})
-    response.raise_for_status()
+    _validate_public_http_url(parsed)
+    url = uri
+    response: httpx.Response | None = None
+    with httpx.Client(timeout=10, follow_redirects=False, headers={"User-Agent": "AI-HRMS-Agent/0.1"}, trust_env=False) as client:
+        for _ in range(5):
+            parsed = urlparse(url)
+            _validate_public_http_url(parsed)
+            response = client.get(url)
+            if response.status_code not in {301, 302, 303, 307, 308}:
+                break
+            location = response.headers.get("location")
+            if not location:
+                break
+            url = urljoin(url, location)
+        if response is None:
+            raise ValueError("url connector request was not created")
+        response.raise_for_status()
     body = response.text[:512 * 1024]
     if "html" in response.headers.get("content-type", "") or "<html" in body.lower():
         body = strip_html(body)
     return ConnectorPreview("url", uri, body.strip(), [])
+
+
+def _validate_public_http_url(parsed) -> None:
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("url connector requires http or https URI")
+    if not parsed.hostname:
+        raise ValueError("url connector requires a hostname")
+    if parsed.username or parsed.password:
+        raise ValueError("url connector does not allow embedded credentials")
+    infos = socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
+    for info in infos:
+        candidate = ip_address(info[4][0])
+        if (
+            candidate.is_private
+            or candidate.is_loopback
+            or candidate.is_link_local
+            or candidate.is_multicast
+            or candidate.is_reserved
+            or candidate.is_unspecified
+        ):
+            raise ValueError("url connector target is not a public address")
 
 
 def _preview_local(uri: str) -> ConnectorPreview:

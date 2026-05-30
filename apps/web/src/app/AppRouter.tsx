@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./AuthContext";
 import { PageLoading } from "../components/PageLoading";
+import { VisualCopilotOverlay } from "../components/VisualCopilotOverlay";
 
 const AppShell = lazy(() => import("../components/AppShell").then((module) => ({ default: module.AppShell })));
 const LoginPage = lazy(() => import("../features/auth/LoginPage").then((module) => ({ default: module.LoginPage })));
@@ -31,6 +32,15 @@ function RequireAuth() {
   return <Outlet />;
 }
 
+function AuthenticatedWorkspace() {
+  return (
+    <>
+      <Outlet />
+      <VisualCopilotOverlay />
+    </>
+  );
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -39,22 +49,24 @@ export function AppRouter() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route element={<RequireAuth />}>
-              <Route path="/co-growth" element={<CoGrowthPage />} />
-              <Route path="/app" element={<AppShell />}>
-                <Route index element={<Navigate to="/app/dashboard" replace />} />
-                <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="legal-entities" element={<LegalEntitiesPage />} />
-                <Route path="org-units" element={<OrgUnitsPage />} />
-                <Route path="users" element={<UsersPage />} />
-                <Route path="employees" element={<EmployeesPage />} />
-                <Route path="attendance" element={<AttendancePage />} />
-                <Route path="messages" element={<MessagesPage />} />
-                <Route path="ai-command" element={<AiCommandCenterPage />} />
-                <Route path="knowledge" element={<KnowledgePage />} />
-                <Route path="learning" element={<LearningPage />} />
-                <Route path="co-growth" element={<Navigate to="/co-growth" replace />} />
-                <Route path="agents" element={<AgentRunsPage />} />
-                <Route path="audit" element={<AuditPage />} />
+              <Route element={<AuthenticatedWorkspace />}>
+                <Route path="/co-growth" element={<CoGrowthPage />} />
+                <Route path="/app" element={<AppShell />}>
+                  <Route index element={<Navigate to="/app/dashboard" replace />} />
+                  <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="legal-entities" element={<LegalEntitiesPage />} />
+                  <Route path="org-units" element={<OrgUnitsPage />} />
+                  <Route path="users" element={<UsersPage />} />
+                  <Route path="employees" element={<EmployeesPage />} />
+                  <Route path="attendance" element={<AttendancePage />} />
+                  <Route path="messages" element={<MessagesPage />} />
+                  <Route path="ai-command" element={<AiCommandCenterPage />} />
+                  <Route path="knowledge" element={<KnowledgePage />} />
+                  <Route path="learning" element={<LearningPage />} />
+                  <Route path="co-growth" element={<Navigate to="/co-growth" replace />} />
+                  <Route path="agents" element={<AgentRunsPage />} />
+                  <Route path="audit" element={<AuditPage />} />
+                </Route>
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/app/dashboard" replace />} />

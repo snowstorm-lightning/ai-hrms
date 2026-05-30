@@ -2,8 +2,8 @@ import { AuditOutlined, FileSearchOutlined, RobotOutlined, SafetyCertificateOutl
 import { Alert, Button, Card, Col, Divider, Input, Select, Space, Tag, Typography, message } from "antd";
 import { useState } from "react";
 import { api, getErrorMessage } from "../../api/client";
-import type { AgentRun, RAGCitation } from "../../api/types";
-import { CitationList, HumanReviewBanner, TrustMetaBar } from "../../components/AiTrust";
+import type { AgentRun, AIChatResponse, ContextPacket, HarnessDecision, RAGCitation, TrustPacket } from "../../api/types";
+import { CitationList, ContextPacketPanel, ExecutionDecisionPanel, HumanReviewBanner, TrustMetaBar, TrustPacketBar } from "../../components/AiTrust";
 import { InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
 
@@ -17,11 +17,14 @@ type CommandResult = {
   suggestedActions: string[];
   toolPreview: Array<{ tool: string; purpose: string; riskLevel: string; status: string }>;
   auditPreview: string[];
+  executionDecision?: HarnessDecision;
+  contextPacket?: ContextPacket;
+  trustPacket?: TrustPacket;
 };
 
 const promptLibrary = [
   { label: "解释制度并给引用", value: "解释新员工 7 天内必须完成哪些事项，并给出引用来源。", riskLevel: "low" },
-  { label: "生成新人 30 天成长计划", value: "为研发实习生生成新人 30 天成长计划，包含导师复盘和 AI 学习 mission。", riskLevel: "medium" },
+  { label: "生成新人 30 天成长计划", value: "为企鹅科技平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。", riskLevel: "medium" },
   { label: "检查高风险建议", value: "检查一条面试建议是否涉及隐私、公平性或自动化录用风险。", riskLevel: "high" },
   { label: "生成下周带教计划", value: "为 HR 和导师生成下周带教计划，并标注哪些步骤需要人工确认。", riskLevel: "medium" },
   { label: "拆成 Agent workflow", value: "把新人学习推荐任务拆成 Agent workflow：检索、生成、检查、人工确认、审计。", riskLevel: "medium" },
@@ -29,14 +32,15 @@ const promptLibrary = [
   { label: "总结审计风险模式", value: "总结最近审计事件中的高风险模式，不输出任何人事裁决。", riskLevel: "high" },
 ];
 
-function buildResult(chatMessage: string, citations: RAGCitation[], run: AgentRun, riskLevel: string): CommandResult {
-  const humanReviewRequired = riskLevel !== "low";
+function buildResult(chat: AIChatResponse, run: AgentRun, fallbackRiskLevel: string): CommandResult {
+  const riskLevel = chat.riskLevel || fallbackRiskLevel;
+  const humanReviewRequired = Boolean(chat.humanReviewRequired ?? riskLevel !== "low");
   return {
-    answer: chatMessage,
-    citations,
+    answer: chat.message,
+    citations: chat.citations ?? [],
     run,
     riskLevel,
-    confidence: riskLevel === "high" ? 76 : riskLevel === "medium" ? 84 : 91,
+    confidence: Math.round((chat.confidence ?? (riskLevel === "high" ? 0.76 : riskLevel === "medium" ? 0.84 : 0.91)) * 100),
     humanReviewRequired,
     suggestedActions: riskLevel === "high"
       ? ["生成风险说明", "请求 HR 人工确认", "查看引用和审计草案"]
@@ -54,11 +58,14 @@ function buildResult(chatMessage: string, citations: RAGCitation[], run: AgentRu
       humanReviewRequired ? "human.review.requested" : "agent.run.previewed",
       humanReviewRequired ? "high_risk.action.blocked" : "audit.event.ready",
     ],
+    executionDecision: chat.executionDecision,
+    contextPacket: chat.contextPacket,
+    trustPacket: chat.trustPacket,
   };
 }
 
 export function AiCommandCenterPage() {
-  const [prompt, setPrompt] = useState("为研发实习生生成新人 30 天成长计划，包含导师复盘和 AI 学习 mission。");
+  const [prompt, setPrompt] = useState("为企鹅科技平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。");
   const [riskLevel, setRiskLevel] = useState("medium");
   const [result, setResult] = useState<CommandResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -68,11 +75,22 @@ export function AiCommandCenterPage() {
     setLoading(true);
     setError("");
     try {
-      const [chat, createdRun] = await Promise.all([
-        api.aiChat(prompt),
-        api.createAgentRun({ runType: "command_center", prompt, riskLevel }),
-      ]);
-      setResult(buildResult(chat.message, chat.citations, createdRun, riskLevel));
+      const chat = await api.aiChat(prompt);
+      const effectiveRiskLevel = chat.riskLevel || riskLevel;
+      const shouldCreateRun = ["single_agent", "multi_agent", "action_preview", "human_review_required"].includes(chat.executionDecision?.executionMode ?? "");
+      const createdRun = shouldCreateRun
+        ? await api.createAgentRun({ runType: "command_center", prompt, riskLevel: effectiveRiskLevel })
+        : {
+          id: "program-flow",
+          runType: "deterministic_program_flow",
+          status: "not_created",
+          provider: chat.provider ?? "go-api",
+          model: chat.model ?? "program",
+          riskLevel: effectiveRiskLevel,
+          summary: "Execution Router 判定该请求可由程序或检索完成，因此没有创建 Agent run。",
+          createdAt: new Date().toISOString(),
+        };
+      setResult(buildResult(chat, createdRun, riskLevel));
     } catch (err) {
       setError(getErrorMessage(err, "AI 指挥中心执行失败"));
     } finally {
@@ -157,13 +175,16 @@ export function AiCommandCenterPage() {
             toolPreview
             auditStatus={result.humanReviewRequired ? "waiting_human_review" : "preview_ready"}
           />
+          <TrustPacketBar packet={result.trustPacket} />
+          <ExecutionDecisionPanel decision={result.executionDecision} />
+          <ContextPacketPanel packet={result.contextPacket} />
           <Divider />
           <HumanReviewBanner riskLevel={result.riskLevel} humanReviewRequired={result.humanReviewRequired} />
           <div className="result-section-grid">
             <article>
               <Typography.Title level={4}>Scenario</Typography.Title>
               <Space wrap>
-                <Tag>object=employee:研发实习生</Tag>
+                <Tag>object=employee:林晨 / 平台研发新人</Tag>
                 <Tag>policy=onboarding / AI safety</Tag>
                 <Tag>mode=preview</Tag>
               </Space>

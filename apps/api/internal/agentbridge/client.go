@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -72,6 +73,9 @@ func (c *Client) Embed(ctx context.Context, texts []string) (*EmbeddingResponse,
 	if len(response.Embeddings) != len(texts) {
 		return nil, errors.New("agent returned mismatched embedding count")
 	}
+	if err := validateEmbeddingResponse(response); err != nil {
+		return nil, err
+	}
 	return &response, nil
 }
 
@@ -87,6 +91,23 @@ func (c *Client) Chat(ctx context.Context, message string, citations []domain.RA
 		return nil, errors.New("agent returned empty chat response")
 	}
 	return &response, nil
+}
+
+func validateEmbeddingResponse(response EmbeddingResponse) error {
+	if response.Dimensions <= 0 {
+		return errors.New("agent returned invalid embedding dimensions")
+	}
+	for _, vector := range response.Embeddings {
+		if len(vector) != response.Dimensions {
+			return errors.New("agent returned embedding vector with unexpected dimensions")
+		}
+		for _, value := range vector {
+			if math.IsNaN(value) || math.IsInf(value, 0) {
+				return errors.New("agent returned non-finite embedding value")
+			}
+		}
+	}
+	return nil
 }
 
 func (c *Client) WorkflowDemo(ctx context.Context, goal string, contextItems []string) (map[string]any, error) {

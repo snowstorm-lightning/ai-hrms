@@ -14,13 +14,34 @@ function riskColor(risk: string) {
 }
 
 function eventLabel(eventType: string) {
-  if (eventType.includes("citation")) return "Knowledge citation";
-  if (eventType.includes("tool")) return "Agent tool preview";
-  if (eventType.includes("review")) return "Human review";
-  if (eventType.includes("blocked")) return "High-risk blocked";
-  if (eventType.includes("co_growth")) return "Co-Growth evidence";
-  if (eventType.includes("command")) return "AI suggestion";
+  const type = eventType.toLowerCase();
+  if (type.includes("blocked")) return "High-risk blocked";
+  if (type.includes("citation")) return "Knowledge citation";
+  if (type.includes("visual_copilot")) return "Visual Copilot evidence";
+  if (type.includes("tool") || type.includes("preview")) return "Agent tool preview";
+  if (type.includes("human.review") || type.endsWith(".reviewed") || type.includes("review.requested")) return "Human review";
+  if (type.includes("co_growth")) return "Co-Growth evidence";
+  if (type.includes("command")) return "AI suggestion";
   return "Audit event";
+}
+
+function auditSummary(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return String(value || "已记录事件");
+  }
+  const data = value as Record<string, unknown>;
+  const parts = [
+    data.blockedReason ? `阻断原因：${String(data.blockedReason)}` : "",
+    data.riskReason ? `风险原因：${String(data.riskReason)}` : "",
+    typeof data.humanReviewRequired === "boolean" ? `人工确认：${data.humanReviewRequired ? "需要" : "不需要"}` : "",
+    data.provider ? `provider=${String(data.provider)}` : "",
+    Array.isArray(data.citations) && data.citations.length ? `引用=${data.citations.length}` : "",
+    data.queryPreview ? `查询：${String(data.queryPreview)}` : "",
+  ].filter(Boolean);
+  if (parts.length) {
+    return parts.join(" · ");
+  }
+  return JSON.stringify(value);
 }
 
 export function AuditPage() {
@@ -107,12 +128,12 @@ export function AuditPage() {
       <Row gutter={[16, 16]} className="section-card">
         {items.filter((item) => item.riskLevel === "high" || item.eventType.includes("review") || item.eventType.includes("blocked")).slice(0, 3).map((item) => (
           <Col xs={24} md={8} key={item.id}>
-            <Card className="audit-risk-card" data-vc-kind="audit-risk-card" data-vc-object-type={item.objectType} data-vc-object-id={item.objectId} data-vc-label={item.eventType}>
+            <Card className="audit-risk-card" data-vc-kind="audit-risk-card" data-vc-object-type="audit_event" data-vc-object-id={item.id} data-vc-label={item.eventType}>
               <Space orientation="vertical">
                 <Tag color={riskColor(item.riskLevel)}>{item.riskLevel}</Tag>
                 <Typography.Text strong>{eventLabel(item.eventType)}</Typography.Text>
                 <Typography.Text type="secondary">{item.eventType}</Typography.Text>
-                <Typography.Paragraph>{JSON.stringify(item.newValueSummary)}</Typography.Paragraph>
+                <Typography.Paragraph>{auditSummary(item.newValueSummary)}</Typography.Paragraph>
               </Space>
             </Card>
           </Col>
@@ -120,25 +141,25 @@ export function AuditPage() {
       </Row>
 
       <Table
-        className="section-card"
+        className="section-card audit-event-table"
         rowKey="id"
         loading={loading}
         dataSource={items}
-        scroll={{ x: "max-content" }}
+        scroll={{ x: 1180 }}
         locale={{ emptyText: <EmptyBlock description="暂无审计事件" /> }}
         onRow={(row) => ({
           "data-vc-kind": "audit-event-row",
-          "data-vc-object-type": row.objectType,
-          "data-vc-object-id": row.objectId,
+          "data-vc-object-type": "audit_event",
+          "data-vc-object-id": row.id,
           "data-vc-label": row.eventType,
         } as HTMLAttributes<HTMLElement>)}
         columns={[
           { title: "事件类型", dataIndex: "eventType", width: 260, ellipsis: true },
           { title: "分类", width: 180, render: (_, row) => <Tag>{eventLabel(row.eventType)}</Tag> },
-          { title: "对象", width: 260, render: (_, row) => <><Tag>{row.objectType}</Tag><Typography.Text>{row.objectId}</Typography.Text></> },
+          { title: "对象", width: 240, render: (_, row) => <><Tag>{row.objectType}</Tag><Typography.Text className="audit-object-id">{row.objectId}</Typography.Text></> },
           { title: "风险", dataIndex: "riskLevel", width: 100, render: (risk) => <Tag color={riskColor(risk)}>{risk}</Tag> },
           { title: "来源", dataIndex: "source", width: 120 },
-          { title: "证据摘要", width: 340, render: (_, row) => <Typography.Text ellipsis>{JSON.stringify(row.newValueSummary)}</Typography.Text> },
+          { title: "证据摘要", width: 300, render: (_, row) => <Typography.Text className="audit-summary-text" ellipsis>{auditSummary(row.newValueSummary)}</Typography.Text> },
           { title: "时间", dataIndex: "createdAt", width: 220 },
         ]}
       />

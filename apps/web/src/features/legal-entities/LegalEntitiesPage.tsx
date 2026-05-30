@@ -1,4 +1,4 @@
-import { Button, Form, Input, Modal, Space, Table, Tag } from "antd";
+import { Alert, Button, Form, Input, Modal, Space, Table, Tag } from "antd";
 import { useEffect, useState } from "react";
 import { api, getErrorMessage } from "../../api/client";
 import type { LegalEntity } from "../../api/types";
@@ -30,6 +30,7 @@ export function LegalEntitiesPage() {
   return (
     <>
       <PageTitle title="法人实体" description="维护总公司和具有独立法人属性的子公司。" />
+      <Alert className="section-card" type="info" showIcon title="当前公司与法人字段为虚构样本数据，不代表腾讯或任何真实企业。" />
       <InlineError message={error} onRetry={reload} />
       <Space className="toolbar">
         <Button type="primary" onClick={() => setEditing({ status: "active" })}>新增法人实体</Button>

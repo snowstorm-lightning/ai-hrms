@@ -237,6 +237,67 @@ export interface RAGCitation {
   locationRef?: string;
 }
 
+export interface HarnessDecision {
+  intent: string;
+  executionMode: string;
+  riskLevel: string;
+  useLlm: boolean;
+  useAgent: boolean;
+  useMultiAgent: boolean;
+  humanReviewRequired: boolean;
+  reason: string;
+  routedBy: string[];
+}
+
+export interface ToolPreview {
+  toolName: string;
+  purpose: string;
+  executionMode: string;
+  riskLevel: string;
+  decision?: string;
+  requiredCapability?: string;
+  accepted: boolean;
+  previewOnly: boolean;
+  reversible: boolean;
+  writes: string[];
+  arguments?: Record<string, unknown>;
+  reason: string;
+}
+
+export interface TrustPacket {
+  riskLevel: string;
+  confidence: number;
+  humanReviewRequired: boolean;
+  evidenceCount: number;
+  citations?: RAGCitation[];
+  toolPreview?: ToolPreview;
+  auditStatus: string;
+  reversible: boolean;
+  policyChecks: string[];
+}
+
+export interface ContextItem {
+  type: string;
+  id?: string;
+  label: string;
+  summary: string;
+  source: string;
+  riskLevel?: string;
+  provenance: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ContextPacket {
+  route?: string;
+  intent: string;
+  subject: string;
+  items: ContextItem[];
+  sourceCount: Record<string, number>;
+  staleness: string;
+  boundary: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface RAGSearchResult {
   answer: string;
   citations: RAGCitation[];
@@ -247,6 +308,7 @@ export interface RAGSearchResult {
   riskLevel?: string;
   humanReviewRequired?: boolean;
   auditStatus?: string;
+  trustPacket?: TrustPacket;
 }
 
 export interface AIChatResponse {
@@ -258,6 +320,9 @@ export interface AIChatResponse {
   riskLevel?: string;
   humanReviewRequired?: boolean;
   auditStatus?: string;
+  executionDecision?: HarnessDecision;
+  contextPacket?: ContextPacket;
+  trustPacket?: TrustPacket;
 }
 
 export interface AIProviderStatus {
@@ -329,6 +394,9 @@ export interface AgentToolPreviewResponse {
   message: string;
   requiredRisk: string;
   resultPreview: Record<string, unknown>;
+  toolPreview?: ToolPreview;
+  executionDecision?: HarnessDecision;
+  trustPacket?: TrustPacket;
 }
 
 export interface AgentWorkflowDemoResult {
@@ -341,7 +409,7 @@ export interface AgentWorkflowDemoResult {
 }
 
 export interface BusinessRef {
-  type: "employee" | "user" | "legal_entity" | "org_unit" | "attendance" | "message" | "learning" | "rag_document";
+  type: "employee" | "user" | "legal_entity" | "org_unit" | "attendance" | "message" | "learning" | "rag_document" | "agent_run" | "audit_event" | "agent_tool_call" | string;
   id: string;
   label?: string;
 }
@@ -378,7 +446,23 @@ export interface VisualCopilotEvent {
 
 export interface VisualCopilotResponse {
   event: VisualCopilotEvent;
-  result: { preview: string; actions: Array<Record<string, unknown>> };
+  executionDecision?: HarnessDecision;
+  contextPacket?: ContextPacket;
+  trustPacket?: TrustPacket;
+  result: {
+    title?: string;
+    preview: string;
+    explanation?: string;
+    selectedSummary?: string;
+    trustBoundary?: string;
+    riskLevel?: string;
+    confidence?: number;
+    imageMode?: string;
+    executionDecision?: HarnessDecision;
+    contextPacket?: ContextPacket;
+    trustPacket?: TrustPacket;
+    actions: Array<Record<string, unknown>>;
+  };
 }
 
 export interface CommentItem {

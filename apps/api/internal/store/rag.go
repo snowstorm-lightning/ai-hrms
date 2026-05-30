@@ -434,10 +434,21 @@ func ragSearchPatterns(query string) []string {
 	for _, token := range strings.FieldsFunc(query, func(r rune) bool {
 		return r == ' ' || r == '\t' || r == '\n' || r == '\r' ||
 			r == '?' || r == '？' || r == ',' || r == '，' ||
-			r == '.' || r == '。' || r == ';' || r == '；'
+			r == '.' || r == '。' || r == ';' || r == '；' ||
+			r == '、' || r == ':' || r == '：'
 	}) {
-		if utf8.RuneCountInString(token) >= 2 {
+		runes := []rune(token)
+		if len(runes) >= 2 {
 			add(token)
+		}
+		maxGram := 4
+		if len(runes) < maxGram {
+			maxGram = len(runes)
+		}
+		for size := 2; size <= maxGram; size++ {
+			for start := 0; start+size <= len(runes); start++ {
+				add(string(runes[start : start+size]))
+			}
 		}
 	}
 	return patterns
@@ -456,10 +467,11 @@ func (s *Store) recordRAGRetrieval(ctx context.Context, userID, query string, sc
 	if err != nil {
 		return err
 	}
+	queryHash := sha256.Sum256([]byte(strings.TrimSpace(query)))
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO rag_retrieval_logs (actor_user_id, query, resolved_scope, hit_chunk_ids, citations, rejected_reason)
 		VALUES ($1,$2,$3,$4,$5,$6)
-	`, nullString(userID), query, scopeJSON, chunksJSON, citationsJSON, rejected)
+	`, nullString(userID), "sha256:"+hex.EncodeToString(queryHash[:]), scopeJSON, chunksJSON, citationsJSON, rejected)
 	return err
 }
 
@@ -518,18 +530,71 @@ func chunkText(content string, size int) []string {
 	}
 	var chunks []string
 	var current strings.Builder
-	for _, field := range strings.Fields(content) {
-		if current.Len()+len(field)+1 > size && current.Len() > 0 {
+	flush := func() {
+		if strings.TrimSpace(current.String()) != "" {
 			chunks = append(chunks, current.String())
 			current.Reset()
+		}
+	}
+	appendSegment := func(segment string) {
+		segment = strings.TrimSpace(segment)
+		if segment == "" {
+			return
+		}
+		if utf8.RuneCountInString(segment) > size {
+			flush()
+			chunks = append(chunks, splitRunes(segment, size, 60)...)
+			return
+		}
+		nextLen := utf8.RuneCountInString(current.String()) + utf8.RuneCountInString(segment)
+		if current.Len() > 0 {
+			nextLen++
+		}
+		if nextLen > size {
+			flush()
 		}
 		if current.Len() > 0 {
 			current.WriteByte(' ')
 		}
-		current.WriteString(field)
+		current.WriteString(segment)
 	}
-	if current.Len() > 0 {
-		chunks = append(chunks, current.String())
+	for _, paragraph := range strings.FieldsFunc(content, func(r rune) bool {
+		return r == '\n' || r == '\r'
+	}) {
+		for _, sentence := range splitSentences(paragraph) {
+			appendSegment(sentence)
+		}
+	}
+	flush()
+	return chunks
+}
+
+func splitSentences(value string) []string {
+	return strings.FieldsFunc(value, func(r rune) bool {
+		return r == '。' || r == '；' || r == ';' || r == '!' || r == '！' ||
+			r == '?' || r == '？'
+	})
+}
+
+func splitRunes(value string, size, overlap int) []string {
+	runes := []rune(value)
+	if len(runes) == 0 {
+		return nil
+	}
+	if overlap >= size {
+		overlap = 0
+	}
+	var chunks []string
+	for start := 0; start < len(runes); {
+		end := start + size
+		if end > len(runes) {
+			end = len(runes)
+		}
+		chunks = append(chunks, string(runes[start:end]))
+		if end == len(runes) {
+			break
+		}
+		start = end - overlap
 	}
 	return chunks
 }

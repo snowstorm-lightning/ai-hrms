@@ -140,20 +140,20 @@ def main() -> None:
     )
     assert_success(replaced_bindings, "role binding replacement")
 
-    for path, label in [("/employees/export", "Employee"), ("/attendance/export", "Attendance")]:
+    for path, label in [("/employees/export", "员工"), ("/attendance/export", "考勤")]:
         csv_body, response = request("GET", path, headers=headers, expect_json=False)
         content_type = response.headers.get("Content-Type", "")
         if response.status != 200 or "text/csv" not in content_type or len(csv_body) < 10:  # type: ignore[arg-type]
             raise AssertionError(f"{label} export did not return CSV content")
 
-    entity_headers = auth_headers("100111")
+    entity_headers = auth_headers("100112")
     entity_profile = api_json("/profile", headers=entity_headers)
     profile_data = get_data(entity_profile, "/profile")
-    if profile_data.get("mobile") != "100111":  # type: ignore[union-attr]
+    if profile_data.get("mobile") != "100112":  # type: ignore[union-attr]
         raise AssertionError("Scoped profile returned the wrong user")
 
     assert_success(
-        api_json("/employees/00000000-0000-0000-0000-000000000402", headers=entity_headers),
+        api_json("/employees/00000000-0000-0000-0000-000000000403", headers=entity_headers),
         "scoped employee read",
     )
 
@@ -165,16 +165,16 @@ def main() -> None:
     assert_api_rejected("/users", {403}, headers=entity_headers)
     assert_api_rejected("/roles", {403}, headers=entity_headers)
     assert_api_rejected("/legal-entities", {403}, method="POST", headers=entity_headers, body={})
-    assert_api_rejected("/employees/00000000-0000-0000-0000-000000000403", {404}, headers=entity_headers)
+    assert_api_rejected("/employees/00000000-0000-0000-0000-000000000402", {404}, headers=entity_headers)
     assert_api_rejected(
         "/attendance",
         {404},
         method="POST",
         headers=entity_headers,
-        body={"employeeId": "00000000-0000-0000-0000-000000000403", "attendanceStatus": 1},
+        body={"employeeId": "00000000-0000-0000-0000-000000000402", "attendanceStatus": 1},
     )
     assert_api_rejected(
-        "/attendance/00000000-0000-0000-0000-000000000601/checkout",
+        "/attendance/00000000-0000-0000-0000-000000000602/checkout",
         {404},
         method="PUT",
         headers=entity_headers,
@@ -270,14 +270,14 @@ def main() -> None:
     visual_allowed_body = {
         "route": "/app/employees",
         "viewport": {"width": 1280, "height": 720, "scrollX": 0, "scrollY": 0},
-        "dom": [{"kind": "table-row", "objectType": "employee", "objectId": "00000000-0000-0000-0000-000000000402"}],
+        "dom": [{"kind": "table-row", "objectType": "employee", "objectId": "00000000-0000-0000-0000-000000000403"}],
         "regions": [
             {
                 "id": "r1",
                 "mode": "rect",
                 "rect": {"x": 1, "y": 1, "width": 20, "height": 20, "dpr": 1},
                 "businessRefs": [
-                    {"type": "employee", "id": "00000000-0000-0000-0000-000000000402", "label": "Average"}
+                    {"type": "employee", "id": "00000000-0000-0000-0000-000000000403", "label": "林晨"}
                 ],
             }
         ],
@@ -298,7 +298,7 @@ def main() -> None:
                 "mode": "rect",
                 "rect": {"x": 1, "y": 1, "width": 20, "height": 20, "dpr": 1},
                 "businessRefs": [
-                    {"type": "employee", "id": "00000000-0000-0000-0000-000000000403", "label": "simon"}
+                    {"type": "employee", "id": "00000000-0000-0000-0000-000000000402", "label": "陈向南"}
                 ],
             }
         ],

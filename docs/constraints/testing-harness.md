@@ -9,7 +9,8 @@ Harnesses make agent-driven work repeatable and verifiable.
 - `harness/bootstrap`: local tool availability.
 - `harness/database`: PostgreSQL migrations and seed data.
 - `harness/api`: OpenAPI-facing API smoke tests.
-- `harness/frontend`: type checks, build, and future browser smoke checks.
+- `harness/frontend`: type checks and build.
+- `harness/browser`: Playwright smoke checks for real/demo web routes, Visual Copilot, and Demo-mode backend isolation.
 - `harness/agent`: Python agent boundary and future AI evaluations.
 - `harness/e2e`: cross-service HRMS workflow checks.
 

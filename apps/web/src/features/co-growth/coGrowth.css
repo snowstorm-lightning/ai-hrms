@@ -45,6 +45,12 @@
   gap: 8px;
 }
 
+.co-growth-boundary {
+  max-width: 1680px;
+  margin: 0 auto 14px;
+  border-radius: 8px;
+}
+
 .co-growth-console,
 .co-growth-metrics,
 .co-growth-workspace,
@@ -540,7 +546,16 @@
     grid-template-columns: 1fr;
   }
 
-  .co-growth-topbar,
+  .co-growth-topbar {
+    align-items: stretch;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+
+  .co-growth-top-actions .ant-btn {
+    width: 100%;
+  }
+
   .co-growth-profile-summary {
     align-items: flex-start;
     justify-content: flex-start;

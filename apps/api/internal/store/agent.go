@@ -58,12 +58,18 @@ func (s *Store) CreateAgentRun(ctx context.Context, input domain.AgentRun, userI
 	if summary == "" {
 		summary = "Agent run created with delegated Go context."
 	}
+	status := "previewed"
+	if input.RiskLevel == "high" {
+		status = "waiting_human_review"
+	} else if input.RiskLevel == "medium" {
+		status = "previewed_requires_review"
+	}
 	var run domain.AgentRun
 	err = s.pool.QueryRow(ctx, `
 		INSERT INTO agent_runs (run_type, status, actor_user_id, delegated_context, provider, model, risk_level, summary, completed_at)
-		VALUES ($1,'completed',$2,$3,$4,$5,$6,$7,now())
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULL)
 		RETURNING id::text, run_type, status, actor_user_id::text, provider, model, risk_level, summary, created_at
-	`, input.RunType, userID, contextJSON, input.Provider, input.Model, input.RiskLevel, summary).Scan(
+	`, input.RunType, status, userID, contextJSON, input.Provider, input.Model, input.RiskLevel, summary).Scan(
 		&run.ID, &run.RunType, &run.Status, &run.ActorUserID, &run.Provider, &run.Model,
 		&run.RiskLevel, &run.Summary, &run.CreatedAt)
 	if err != nil {
@@ -87,10 +93,6 @@ func (s *Store) CreateAgentRun(ctx context.Context, input domain.AgentRun, userI
 }
 
 func (s *Store) CreateAgentToolCall(ctx context.Context, runID *string, toolName string, arguments map[string]any, accepted bool, message string) error {
-	argsJSON, err := json.Marshal(nonNilMap(arguments))
-	if err != nil {
-		return err
-	}
 	safeArgsJSON, err := json.Marshal(redactMap(arguments))
 	if err != nil {
 		return err
@@ -106,7 +108,7 @@ func (s *Store) CreateAgentToolCall(ctx context.Context, runID *string, toolName
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO agent_tool_calls (run_id, tool_name, arguments, sanitized_arguments, status, result_summary, completed_at)
 		VALUES ($1,$2,$3,$4,$5,$6,now())
-	`, runID, toolName, argsJSON, safeArgsJSON, status, resultJSON)
+	`, runID, toolName, safeArgsJSON, safeArgsJSON, status, resultJSON)
 	return err
 }
 

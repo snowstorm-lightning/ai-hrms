@@ -79,23 +79,23 @@ if ($replacedBindings.success -ne $true) {
 
 $employeeCsv = Invoke-WebRequest -UseBasicParsing -Uri "$base/employees/export" -Headers $headers
 if ($employeeCsv.StatusCode -ne 200 -or $employeeCsv.Headers["Content-Type"] -notmatch "text/csv" -or $employeeCsv.Content.Length -lt 10) {
-  throw "Employee export did not return CSV content"
+  throw "员工 export did not return CSV content"
 }
 $attendanceCsv = Invoke-WebRequest -UseBasicParsing -Uri "$base/attendance/export" -Headers $headers
 if ($attendanceCsv.StatusCode -ne 200 -or $attendanceCsv.Headers["Content-Type"] -notmatch "text/csv" -or $attendanceCsv.Content.Length -lt 10) {
-  throw "Attendance export did not return CSV content"
+  throw "考勤 export did not return CSV content"
 }
 
-$entityLoginBody = @{ mobile = "100111"; password = "password" } | ConvertTo-Json
+$entityLoginBody = @{ mobile = "100112"; password = "password" } | ConvertTo-Json
 $entityLogin = Invoke-ApiJson -Method Post -Path "/auth/login" -Body $entityLoginBody
 $entityHeaders = @{ Authorization = "Bearer $($entityLogin.data.token)" }
 
 $entityProfile = Invoke-ApiJson -Path "/profile" -Headers $entityHeaders
-if ($entityProfile.data.mobile -ne "100111") {
+if ($entityProfile.data.mobile -ne "100112") {
   throw "Scoped profile returned the wrong user"
 }
 
-$allowedEmployee = Invoke-ApiJson -Path "/employees/00000000-0000-0000-0000-000000000402" -Headers $entityHeaders
+$allowedEmployee = Invoke-ApiJson -Path "/employees/00000000-0000-0000-0000-000000000403" -Headers $entityHeaders
 if ($allowedEmployee.success -ne $true) {
   throw "Scoped employee read should succeed"
 }
@@ -108,9 +108,9 @@ if ($entityLegalEntities.data.id -contains "00000000-0000-0000-0000-000000000103
 Assert-ApiRejected -Path "/users" -Headers $entityHeaders -ExpectedStatus @(403)
 Assert-ApiRejected -Path "/roles" -Headers $entityHeaders -ExpectedStatus @(403)
 Assert-ApiRejected -Method "Post" -Path "/legal-entities" -Headers $entityHeaders -ExpectedStatus @(403) -Body "{}"
-Assert-ApiRejected -Path "/employees/00000000-0000-0000-0000-000000000403" -Headers $entityHeaders -ExpectedStatus @(404)
-Assert-ApiRejected -Method "Post" -Path "/attendance" -Headers $entityHeaders -ExpectedStatus @(404) -Body (@{ employeeId = "00000000-0000-0000-0000-000000000403"; attendanceStatus = 1 } | ConvertTo-Json)
-Assert-ApiRejected -Method "Put" -Path "/attendance/00000000-0000-0000-0000-000000000601/checkout" -Headers $entityHeaders -ExpectedStatus @(404)
+Assert-ApiRejected -Path "/employees/00000000-0000-0000-0000-000000000402" -Headers $entityHeaders -ExpectedStatus @(404)
+Assert-ApiRejected -Method "Post" -Path "/attendance" -Headers $entityHeaders -ExpectedStatus @(404) -Body (@{ employeeId = "00000000-0000-0000-0000-000000000402"; attendanceStatus = 1 } | ConvertTo-Json)
+Assert-ApiRejected -Method "Put" -Path "/attendance/00000000-0000-0000-0000-000000000602/checkout" -Headers $entityHeaders -ExpectedStatus @(404)
 
 $ragSourceBody = @{
   sourceType = "url"
@@ -171,12 +171,12 @@ Assert-ApiRejected -Method "Post" -Path "/agent/tools/preview" -Headers $headers
 $visualAllowedBody = @{
   route = "/app/employees"
   viewport = @{ width = 1280; height = 720; scrollX = 0; scrollY = 0 }
-  dom = @(@{ kind = "table-row"; objectType = "employee"; objectId = "00000000-0000-0000-0000-000000000402" })
+  dom = @(@{ kind = "table-row"; objectType = "employee"; objectId = "00000000-0000-0000-0000-000000000403" })
   regions = @(@{
     id = "r1"
     mode = "rect"
     rect = @{ x = 1; y = 1; width = 20; height = 20; dpr = 1 }
-    businessRefs = @(@{ type = "employee"; id = "00000000-0000-0000-0000-000000000402"; label = "Average" })
+    businessRefs = @(@{ type = "employee"; id = "00000000-0000-0000-0000-000000000403"; label = "林晨" })
   })
   instruction = "Explain this employee row"
 } | ConvertTo-Json -Depth 10
@@ -193,7 +193,7 @@ $visualRejectedBody = @{
     id = "r2"
     mode = "rect"
     rect = @{ x = 1; y = 1; width = 20; height = 20; dpr = 1 }
-    businessRefs = @(@{ type = "employee"; id = "00000000-0000-0000-0000-000000000403"; label = "simon" })
+    businessRefs = @(@{ type = "employee"; id = "00000000-0000-0000-0000-000000000402"; label = "陈向南" })
   })
   instruction = "Explain unauthorized employee"
 } | ConvertTo-Json -Depth 10

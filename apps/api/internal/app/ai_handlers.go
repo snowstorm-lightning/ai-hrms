@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"ai-hrms/apps/api/internal/domain"
 	"ai-hrms/apps/api/internal/httpx"
@@ -44,6 +46,11 @@ func (s *Server) listRAGSources(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.respondErr(w, err)
 		return
+	}
+	if !principal(r).HasCapability("rag.publish") {
+		for i := range items {
+			items[i].URI = redactRAGSourceURI(items[i].URI)
+		}
 	}
 	httpx.OK(w, items)
 }
@@ -209,6 +216,7 @@ func (s *Server) materializeRAGDocument(ctx context.Context, job domain.RAGInges
 	if title == "" {
 		title = "Untitled knowledge document"
 	}
+	sensitivity := materializedRAGSensitivity(title + "\n" + content)
 	scopes := job.Scopes
 	if len(scopes) == 0 {
 		scopes = []domain.RAGDocumentScope{{ScopeType: "global", IncludeDescendants: true}}
@@ -219,7 +227,7 @@ func (s *Server) materializeRAGDocument(ctx context.Context, job domain.RAGInges
 		Version:     "v1",
 		Status:      "published",
 		TrustLevel:  "internal",
-		Sensitivity: "normal",
+		Sensitivity: sensitivity,
 		Content:     content,
 		Scopes:      scopes,
 	}, nil
@@ -273,111 +281,218 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
+	decision := decidePromptHarness(req.Message)
+	if decision.Intent == "employee_status_lookup" {
+		total, counts, err := s.store.EmployeeStatusCounts(r.Context(), scope)
+		if err != nil {
+			s.respondErr(w, err)
+			return
+		}
+		item := domain.ContextItem{
+			Type:       "employee_status_counts",
+			Label:      "员工数量与状态统计",
+			Summary:    fmt.Sprintf("当前权限范围内员工总数=%d，状态分布=%v。", total, counts),
+			Source:     "postgres.sql",
+			Provenance: "employees",
+			Metadata:   map[string]any{"total": total, "statusCounts": counts},
+		}
+		contextPacket := domain.ContextPacket{
+			Intent:      decision.Intent,
+			Subject:     "employee_status_counts",
+			Items:       []domain.ContextItem{item},
+			SourceCount: map[string]int{"postgres.sql": 1},
+			Staleness:   "live_database",
+			Boundary:    "该结果由 SQL 直接统计，不调用 DeepSeek、embedding 或 Agent。",
+		}
+		trust := buildTrustPacket(decision, 0.99, nil, "program_sql_logged", nil)
+		summary := promptAuditSummary(req.Message, decision)
+		summary["total"] = total
+		summary["statusCounts"] = counts
+		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+			ActorUserID:     principal(r).UserID,
+			EventType:       "ai.command.deterministic_query",
+			ObjectType:      "employees",
+			ObjectID:        "status_counts",
+			RequestID:       requestID(r),
+			RiskLevel:       "low",
+			NewValueSummary: summary,
+		})
+		httpx.OK(w, domain.AIChatResponse{
+			Message:             fmt.Sprintf("当前权限范围内共有 %d 名员工。状态分布：%s。该结果由 SQL 直接统计，没有调用大模型。", total, formatCounts(counts)),
+			Confidence:          trust.Confidence,
+			RiskLevel:           "low",
+			HumanReviewRequired: false,
+			AuditStatus:         "program_sql_logged",
+			ExecutionDecision:   &decision,
+			ContextPacket:       &contextPacket,
+			TrustPacket:         &trust,
+		})
+		return
+	}
+	if decision.ExecutionMode == executionHumanReviewRequired {
+		contextPacket := domain.ContextPacket{
+			Intent:      decision.Intent,
+			Subject:     "blocked_high_impact_hr_request",
+			Items:       []domain.ContextItem{},
+			SourceCount: map[string]int{},
+			Staleness:   "not_retrieved",
+			Boundary:    "高风险人事裁决请求在外部 embedding/chat 前被本地策略阻断，避免把敏感 prompt 发送给模型 provider。",
+		}
+		trust := buildTrustPacket(decision, 0.9, nil, "blocked_before_external_call", nil)
+		summary := promptAuditSummary(req.Message, decision)
+		summary["blockedReason"] = decision.Reason
+		summary["actionExecuted"] = false
+		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+			ActorUserID:     principal(r).UserID,
+			EventType:       "ai.chat.blocked",
+			ObjectType:      "ai_chat",
+			ObjectID:        requestID(r),
+			RequestID:       requestID(r),
+			RiskLevel:       decision.RiskLevel,
+			NewValueSummary: summary,
+		})
+		httpx.OK(w, domain.AIChatResponse{
+			Message:             "该请求触及高风险人事裁决边界。AI-HRMS 已在调用外部模型前阻断，不会生成录用、淘汰、降薪、晋升或绩效裁决。",
+			Confidence:          trust.Confidence,
+			RiskLevel:           decision.RiskLevel,
+			HumanReviewRequired: true,
+			AuditStatus:         "blocked_before_external_call",
+			ExecutionDecision:   &decision,
+			ContextPacket:       &contextPacket,
+			TrustPacket:         &trust,
+		})
+		return
+	}
 	result, err := s.searchRAGResult(r.Context(), scope, principal(r), domain.RAGSearchRequest{Query: req.Message, Limit: 5})
 	if err != nil {
 		s.respondErr(w, err)
 		return
 	}
+	contextPacket := contextPacketFromCitations(req.Message, decision, result.Citations)
 	if result.RefusalReason != "" {
+		decision.RiskLevel = maxRisk(decision.RiskLevel, "medium")
+		decision.HumanReviewRequired = true
+		trust := buildTrustPacket(decision, result.Confidence, result.Citations, "refused_no_citation", nil)
+		summary := promptAuditSummary(req.Message, decision)
+		summary["refusalReason"] = result.RefusalReason
 		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
-			ActorUserID: principal(r).UserID,
-			EventType:   "ai.chat.refused",
-			ObjectType:  "ai_chat",
-			ObjectID:    requestID(r),
-			RequestID:   requestID(r),
-			RiskLevel:   "medium",
-			NewValueSummary: map[string]any{
-				"prompt":              req.Message,
-				"refusalReason":       result.RefusalReason,
-				"humanReviewRequired": true,
-			},
+			ActorUserID:     principal(r).UserID,
+			EventType:       "ai.chat.refused",
+			ObjectType:      "ai_chat",
+			ObjectID:        requestID(r),
+			RequestID:       requestID(r),
+			RiskLevel:       "medium",
+			NewValueSummary: summary,
 		})
 		httpx.OK(w, domain.AIChatResponse{
 			Message:             "没有可引用的资料，因此不能直接回答该问题。",
 			RiskLevel:           "medium",
 			HumanReviewRequired: true,
 			AuditStatus:         "refused_no_citation",
+			ExecutionDecision:   &decision,
+			ContextPacket:       &contextPacket,
+			TrustPacket:         &trust,
 		})
 		return
 	}
-	riskLevel, blockedReason := classifyAIRisk(req.Message)
-	if blockedReason != "" {
-		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
-			ActorUserID: principal(r).UserID,
-			EventType:   "ai.chat.blocked",
-			ObjectType:  "ai_chat",
-			ObjectID:    requestID(r),
-			RequestID:   requestID(r),
-			RiskLevel:   riskLevel,
-			NewValueSummary: map[string]any{
-				"prompt":              req.Message,
-				"blockedReason":       blockedReason,
-				"citations":           citationIDs(result.Citations),
-				"humanReviewRequired": true,
-				"actionExecuted":      false,
-			},
-		})
-		httpx.OK(w, domain.AIChatResponse{
-			Message:             "该请求触及高风险人事裁决边界。AI-HRMS 已阻断自动结论，只允许查看证据、生成问题清单，并提交人工复核。",
-			Citations:           result.Citations,
-			Provider:            result.Provider,
-			Model:               result.Model,
-			Confidence:          result.Confidence,
-			RiskLevel:           riskLevel,
-			HumanReviewRequired: true,
-			AuditStatus:         "blocked_and_logged",
-		})
-		return
+	if decision.UseLLM && s.externalChatProvider(r.Context()) && !externalChatAllowed(req.Message, result.Citations) {
+		decision.RoutedBy = append(decision.RoutedBy, "llm.external_safety_fallback")
+		decision.UseLLM = false
 	}
-	if s.agent != nil && s.agent.Enabled() {
+	if decision.UseLLM && s.agent != nil && s.agent.Enabled() {
 		response, err := s.agent.Chat(r.Context(), req.Message, result.Citations)
-		if err != nil {
-			s.respondErr(w, err)
+		if err == nil {
+			if highImpactOutputViolation(response.Message) {
+				decision.RiskLevel = "high"
+				decision.HumanReviewRequired = true
+				decision.ExecutionMode = executionHumanReviewRequired
+				decision.RoutedBy = append(decision.RoutedBy, "output.verifier.high_impact_block")
+				trust := buildTrustPacket(decision, 0.92, result.Citations, "blocked_after_output_verification", nil)
+				summary := promptAuditSummary(req.Message, decision)
+				summary["provider"] = response.Provider
+				summary["model"] = response.Model
+				summary["citations"] = citationIDs(result.Citations)
+				summary["blockedReason"] = "llm_output_high_impact_hr_decision"
+				_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+					ActorUserID:     principal(r).UserID,
+					EventType:       "ai.chat.output_blocked",
+					ObjectType:      "ai_chat",
+					ObjectID:        requestID(r),
+					RequestID:       requestID(r),
+					RiskLevel:       "high",
+					NewValueSummary: summary,
+				})
+				httpx.OK(w, domain.AIChatResponse{
+					Message:             "模型输出触及自动化人事裁决边界，AI-HRMS 已阻断该回答。系统只允许查看证据、整理复核问题，并提交人工确认。",
+					Citations:           result.Citations,
+					Provider:            response.Provider,
+					Model:               response.Model,
+					Confidence:          trust.Confidence,
+					RiskLevel:           "high",
+					HumanReviewRequired: true,
+					AuditStatus:         "blocked_after_output_verification",
+					ExecutionDecision:   &decision,
+					ContextPacket:       &contextPacket,
+					TrustPacket:         &trust,
+				})
+				return
+			}
+			trust := buildTrustPacket(decision, result.Confidence, result.Citations, "agent_preview_logged", nil)
+			summary := promptAuditSummary(req.Message, decision)
+			summary["provider"] = response.Provider
+			summary["model"] = response.Model
+			summary["citations"] = citationIDs(result.Citations)
+			summary["actionExecuted"] = false
+			summary["useLlm"] = decision.UseLLM
+			summary["useAgent"] = decision.UseAgent
+			_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+				ActorUserID:     principal(r).UserID,
+				EventType:       "ai.chat.preview",
+				ObjectType:      "ai_chat",
+				ObjectID:        requestID(r),
+				RequestID:       requestID(r),
+				RiskLevel:       decision.RiskLevel,
+				NewValueSummary: summary,
+			})
+			httpx.OK(w, domain.AIChatResponse{
+				Message:             response.Message,
+				Citations:           result.Citations,
+				Provider:            response.Provider,
+				Model:               response.Model,
+				Confidence:          result.Confidence,
+				RiskLevel:           decision.RiskLevel,
+				HumanReviewRequired: decision.HumanReviewRequired,
+				AuditStatus:         "agent_preview_logged",
+				ExecutionDecision:   &decision,
+				ContextPacket:       &contextPacket,
+				TrustPacket:         &trust,
+			})
 			return
 		}
-		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
-			ActorUserID: principal(r).UserID,
-			EventType:   "ai.chat.preview",
-			ObjectType:  "ai_chat",
-			ObjectID:    requestID(r),
-			RequestID:   requestID(r),
-			RiskLevel:   riskLevel,
-			NewValueSummary: map[string]any{
-				"prompt":              req.Message,
-				"provider":            response.Provider,
-				"model":               response.Model,
-				"citations":           citationIDs(result.Citations),
-				"humanReviewRequired": true,
-				"actionExecuted":      false,
-			},
-		})
-		httpx.OK(w, domain.AIChatResponse{
-			Message:             response.Message,
-			Citations:           result.Citations,
-			Provider:            response.Provider,
-			Model:               response.Model,
-			Confidence:          result.Confidence,
-			RiskLevel:           riskLevel,
-			HumanReviewRequired: true,
-			AuditStatus:         "agent_preview_logged",
-		})
-		return
+		decision.RoutedBy = append(decision.RoutedBy, "llm.unavailable.fallback")
+		decision.UseLLM = false
 	}
+	trust := buildTrustPacket(decision, result.Confidence, result.Citations, "deterministic_preview_logged", nil)
+	auditStatus := "deterministic_preview_logged"
+	if decision.ExecutionMode == executionRetrievalOnly {
+		auditStatus = "program_retrieval_logged"
+		trust.AuditStatus = auditStatus
+	}
+	summary := promptAuditSummary(req.Message, decision)
+	summary["provider"] = result.Provider
+	summary["model"] = result.Model
+	summary["citations"] = citationIDs(result.Citations)
+	summary["actionExecuted"] = false
+	summary["useLlm"] = decision.UseLLM
+	summary["useAgent"] = decision.UseAgent
 	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
-		ActorUserID: principal(r).UserID,
-		EventType:   "ai.chat.preview",
-		ObjectType:  "ai_chat",
-		ObjectID:    requestID(r),
-		RequestID:   requestID(r),
-		RiskLevel:   riskLevel,
-		NewValueSummary: map[string]any{
-			"prompt":              req.Message,
-			"provider":            result.Provider,
-			"model":               result.Model,
-			"citations":           citationIDs(result.Citations),
-			"humanReviewRequired": true,
-			"actionExecuted":      false,
-		},
+		ActorUserID:     principal(r).UserID,
+		EventType:       "ai.chat.preview",
+		ObjectType:      "ai_chat",
+		ObjectID:        requestID(r),
+		RequestID:       requestID(r),
+		RiskLevel:       decision.RiskLevel,
+		NewValueSummary: summary,
 	})
 	httpx.OK(w, domain.AIChatResponse{
 		Message:             result.Answer,
@@ -385,9 +500,12 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		Provider:            result.Provider,
 		Model:               result.Model,
 		Confidence:          result.Confidence,
-		RiskLevel:           riskLevel,
-		HumanReviewRequired: true,
-		AuditStatus:         "deterministic_preview_logged",
+		RiskLevel:           decision.RiskLevel,
+		HumanReviewRequired: decision.HumanReviewRequired,
+		AuditStatus:         auditStatus,
+		ExecutionDecision:   &decision,
+		ContextPacket:       &contextPacket,
+		TrustPacket:         &trust,
 	})
 }
 
@@ -398,22 +516,22 @@ func (s *Server) aiProviderStatus(w http.ResponseWriter, r *http.Request) {
 	status := map[string]any{
 		"agentBoundaryConfigured": s.agent != nil && s.agent.Enabled(),
 		"agentBoundaryStatus":     "not_configured",
-		"chatProvider":            s.cfg.AI.ChatProvider,
-		"chatModel":               s.cfg.AI.DeepSeekChatModel,
+		"chatProvider":            safeProviderStatusValue(s.cfg.AI.ChatProvider),
+		"chatModel":               safeProviderStatusValue(s.cfg.AI.DeepSeekChatModel),
 		"deepseekKeyConfigured":   false,
-		"embeddingProvider":       s.cfg.AI.EmbeddingProvider,
-		"embeddingModel":          s.cfg.AI.OpenAICompatibleEmbeddingModel,
+		"embeddingProvider":       safeProviderStatusValue(s.cfg.AI.EmbeddingProvider),
+		"embeddingModel":          safeProviderStatusValue(s.cfg.AI.OpenAICompatibleEmbeddingModel),
 		"embeddingDimensions":     s.cfg.AI.RAGEmbeddingDimensions,
 		"embeddingKeyConfigured":  false,
 	}
 	if s.agent != nil && s.agent.Enabled() {
 		if agentStatus, err := s.agent.Config(r.Context()); err == nil {
 			status["agentBoundaryStatus"] = "ok"
-			status["chatProvider"] = agentStatus.ChatProvider
-			status["chatModel"] = agentStatus.DeepSeekChatModel
+			status["chatProvider"] = safeProviderStatusValue(agentStatus.ChatProvider)
+			status["chatModel"] = safeProviderStatusValue(agentStatus.DeepSeekChatModel)
 			status["deepseekKeyConfigured"] = agentStatus.DeepSeekAPIKeyConfigured
-			status["embeddingProvider"] = agentStatus.EmbeddingProvider
-			status["embeddingModel"] = agentStatus.EmbeddingModel
+			status["embeddingProvider"] = safeProviderStatusValue(agentStatus.EmbeddingProvider)
+			status["embeddingModel"] = safeProviderStatusValue(agentStatus.EmbeddingModel)
 			status["embeddingDimensions"] = agentStatus.EmbeddingDimensions
 			status["embeddingKeyConfigured"] = agentStatus.EmbeddingAPIKeyConfigured
 		} else {
@@ -428,13 +546,21 @@ func (s *Server) embeddingsForDocument(ctx context.Context, doc domain.RAGDocume
 	if s.agent == nil || !s.agent.Enabled() {
 		return nil, nil
 	}
+	if s.externalEmbeddingProvider(ctx) {
+		if err := validateExternalEmbeddingDocument(doc); err != nil {
+			return nil, nil
+		}
+	}
 	chunks := store.PrepareRAGChunks(doc.Content, doc.Title)
 	if len(chunks) == 0 {
 		return nil, nil
 	}
 	response, err := s.agent.Embed(ctx, chunks)
 	if err != nil {
-		return nil, err
+		// Keep knowledge authoring available when the embedding provider is
+		// temporarily unavailable or misconfigured; lexical RAG remains usable
+		// and vectors can be regenerated by a later ingest run.
+		return nil, nil
 	}
 	inputs := make([]domain.RAGEmbeddingInput, 0, len(response.Embeddings))
 	for i, vector := range response.Embeddings {
@@ -457,9 +583,12 @@ func (s *Server) searchRAGResult(ctx context.Context, scope store.Scope, actor r
 	if s.agent == nil || !s.agent.Enabled() {
 		return s.store.SearchRAG(ctx, scope, actor, req)
 	}
+	if s.externalEmbeddingProvider(ctx) && unsafeExternalProviderText(req.Query) {
+		return s.store.SearchRAG(ctx, scope, actor, req)
+	}
 	response, err := s.agent.Embed(ctx, []string{req.Query})
 	if err != nil {
-		return nil, err
+		return s.store.SearchRAG(ctx, scope, actor, req)
 	}
 	if len(response.Embeddings) == 0 {
 		return s.store.SearchRAG(ctx, scope, actor, req)
@@ -474,24 +603,154 @@ func (s *Server) searchRAGResult(ctx context.Context, scope store.Scope, actor r
 	return result, nil
 }
 
+func (s *Server) externalEmbeddingProvider(ctx context.Context) bool {
+	if providerConfiguredForRouting(s.cfg.AI.EmbeddingProvider) {
+		return true
+	}
+	if s.agent != nil && s.agent.Enabled() {
+		if agentStatus, err := s.agent.Config(ctx); err == nil {
+			return providerConfiguredForRouting(agentStatus.EmbeddingProvider)
+		}
+		return true
+	}
+	return false
+}
+
+func (s *Server) externalChatProvider(ctx context.Context) bool {
+	if providerConfiguredForRouting(s.cfg.AI.ChatProvider) {
+		return true
+	}
+	if s.agent != nil && s.agent.Enabled() {
+		if agentStatus, err := s.agent.Config(ctx); err == nil {
+			return providerConfiguredForRouting(agentStatus.ChatProvider)
+		}
+		return true
+	}
+	return false
+}
+
+func providerConfiguredForRouting(provider string) bool {
+	value := strings.ToLower(strings.TrimSpace(provider))
+	return value != "" && value != "fake"
+}
+
+func safeProviderStatusValue(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return value
+	}
+	if keyLikePattern.MatchString(value) {
+		return "[redacted-key-like-value]"
+	}
+	return value
+}
+
+func materializedRAGSensitivity(value string) string {
+	if unsafeExternalProviderText(value) {
+		return "restricted"
+	}
+	return "internal"
+}
+
+func externalChatAllowed(message string, citations []domain.RAGCitation) bool {
+	if unsafeExternalProviderText(message) {
+		return false
+	}
+	for _, citation := range citations {
+		if !citationSafeForExternalProvider(citation) {
+			return false
+		}
+	}
+	return true
+}
+
+func citationSafeForExternalProvider(citation domain.RAGCitation) bool {
+	trustLevel := strings.ToLower(strings.TrimSpace(citation.TrustLevel))
+	if trustLevel == "" {
+		trustLevel = "internal"
+	}
+	if trustLevel == "internal" || trustLevel == "restricted" {
+		return false
+	}
+	sensitivity := strings.ToLower(strings.TrimSpace(citation.Sensitivity))
+	if sensitivity == "" {
+		sensitivity = "internal"
+	}
+	if sensitivity != "normal" && sensitivity != "public" {
+		return false
+	}
+	return !unsafeExternalProviderText(citation.Title + "\n" + citation.Snippet)
+}
+
+func validateExternalEmbeddingDocument(doc domain.RAGDocument) error {
+	trustLevel := strings.ToLower(strings.TrimSpace(doc.TrustLevel))
+	if trustLevel == "" {
+		trustLevel = "internal"
+	}
+	if trustLevel == "internal" || trustLevel == "restricted" {
+		return errors.New("external embedding is disabled for internal or restricted knowledge; redact it or use a local/fake embedding provider")
+	}
+	sensitivity := strings.ToLower(strings.TrimSpace(doc.Sensitivity))
+	if sensitivity == "" {
+		sensitivity = "internal"
+	}
+	if sensitivity != "normal" && sensitivity != "public" {
+		return errors.New("external embedding is disabled for internal or restricted knowledge; redact it or use a local/fake embedding provider")
+	}
+	if unsafeExternalProviderText(doc.Title + "\n" + doc.Content) {
+		return errors.New("external embedding is disabled for content that appears to contain personal or high-impact HR data")
+	}
+	return nil
+}
+
+func unsafeExternalProviderText(value string) bool {
+	if emailLikePattern.MatchString(value) || mobileLikePattern.MatchString(value) || idLikePattern.MatchString(value) {
+		return true
+	}
+	if regexp.MustCompile(`\b\d{12,19}\b`).MatchString(value) {
+		return true
+	}
+	risk, _ := classifyAIRisk(value)
+	return risk == "high"
+}
+
 func classifyAIRisk(message string) (string, string) {
 	lower := strings.ToLower(message)
 	highRiskPatterns := []string{
 		"录用", "拒绝候选人", "辞退", "解雇", "淘汰", "降薪", "调薪", "晋升", "绩效评级",
+		"裁员", "末位淘汰", "pip", "绩效排名", "排名员工", "奖金", "年终奖", "调岗", "离职",
+		"纪律处分", "停职", "受保护特征", "年龄歧视", "性别", "婚育", "病史",
 		"hire", "reject candidate", "fire", "terminate", "layoff", "salary", "compensation", "promotion", "performance rating",
+		"rank employees", "bonus", "disciplinary", "protected characteristic", "pip",
 	}
 	for _, pattern := range highRiskPatterns {
 		if strings.Contains(lower, strings.ToLower(pattern)) {
 			return "high", "high_impact_hr_decision"
 		}
 	}
-	mediumRiskPatterns := []string{"面试", "绩效", "候选人", "薪酬", "公平", "敏感", "隐私", "interview", "candidate", "pay", "privacy", "fairness"}
+	mediumRiskPatterns := []string{"面试", "绩效", "候选人", "薪酬", "公平", "敏感", "隐私", "调动", "员工关系", "interview", "candidate", "pay", "privacy", "fairness"}
 	for _, pattern := range mediumRiskPatterns {
 		if strings.Contains(lower, strings.ToLower(pattern)) {
 			return "medium", ""
 		}
 	}
 	return "low", ""
+}
+
+func highImpactOutputViolation(message string) bool {
+	lower := strings.ToLower(message)
+	patterns := []string{
+		"建议录用", "可以录用", "应当录用", "建议拒绝", "拒绝候选人",
+		"建议辞退", "可以辞退", "建议解雇", "建议淘汰", "建议降薪", "建议调薪",
+		"建议晋升", "绩效评级为", "hire this candidate", "reject this candidate",
+		"should be fired", "should terminate", "recommend promotion", "salary should",
+	}
+	for _, pattern := range patterns {
+		if strings.Contains(lower, strings.ToLower(pattern)) {
+			return true
+		}
+	}
+	return false
 }
 
 func citationIDs(citations []domain.RAGCitation) []string {
@@ -620,35 +879,41 @@ func (s *Server) createAgentRun(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
-	if req.RiskLevel == "high" && !principal(r).HasCapability("agent.execute_write") {
-		httpx.Error(w, http.StatusForbidden, 4003, "高风险 Agent 动作需要写执行权限")
-		return
-	}
+	decision := decidePromptHarness(req.RunType + " " + req.Prompt)
+	req.RiskLevel = maxRisk(req.RiskLevel, decision.RiskLevel)
+	decision.RiskLevel = req.RiskLevel
+	decision.HumanReviewRequired = decision.HumanReviewRequired || req.RiskLevel != "low"
 	scope, ok := s.scope(r)
 	if !ok {
 		httpx.Error(w, http.StatusInternalServerError, 5000, "解析权限失败")
 		return
 	}
 	run, err := s.store.CreateAgentRun(r.Context(), domain.AgentRun{
-		RunType: req.RunType, RiskLevel: req.RiskLevel,
+		RunType: req.RunType, RiskLevel: req.RiskLevel, Summary: "Agent run routed by Go harness as " + decision.ExecutionMode + ".",
 	}, principal(r).UserID, map[string]any{
-		"userId":       principal(r).UserID,
-		"roles":        principal(r).RoleCodes(),
-		"capabilities": principal(r).Capabilities,
-		"scope":        map[string]any{"global": scope.Global},
-	}, req.Prompt)
+		"userId":            principal(r).UserID,
+		"roles":             principal(r).RoleCodes(),
+		"capabilities":      principal(r).Capabilities,
+		"scope":             map[string]any{"global": scope.Global},
+		"executionDecision": decision,
+	}, redactPromptPreview(req.Prompt))
 	if err != nil {
 		s.respondErr(w, err)
 		return
 	}
 	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
-		ActorUserID:     principal(r).UserID,
-		EventType:       "agent.run.create",
-		ObjectType:      "agent_run",
-		ObjectID:        run.ID,
-		RequestID:       requestID(r),
-		RiskLevel:       run.RiskLevel,
-		NewValueSummary: map[string]any{"runType": run.RunType},
+		ActorUserID: principal(r).UserID,
+		EventType:   "agent.run.create",
+		ObjectType:  "agent_run",
+		ObjectID:    run.ID,
+		RequestID:   requestID(r),
+		RiskLevel:   run.RiskLevel,
+		NewValueSummary: map[string]any{
+			"runType":             run.RunType,
+			"status":              run.Status,
+			"executionMode":       decision.ExecutionMode,
+			"humanReviewRequired": decision.HumanReviewRequired,
+		},
 	})
 	httpx.Created(w, run)
 }
@@ -674,18 +939,18 @@ func (s *Server) langgraphWorkflowDemo(w http.ResponseWriter, r *http.Request) {
 		s.respondErr(w, err)
 		return
 	}
+	decision := decidePromptHarness(req.Goal)
+	summary := promptAuditSummary(req.Goal, decision)
+	summary["auditStatus"] = result["audit_status"]
+	summary["steps"] = result["steps"]
 	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
-		ActorUserID: principal(r).UserID,
-		EventType:   "agent.workflow.preview",
-		ObjectType:  "agent_workflow",
-		ObjectID:    requestID(r),
-		RequestID:   requestID(r),
-		RiskLevel:   fmt.Sprint(result["risk_level"]),
-		NewValueSummary: map[string]any{
-			"goal":        req.Goal,
-			"auditStatus": result["audit_status"],
-			"steps":       result["steps"],
-		},
+		ActorUserID:     principal(r).UserID,
+		EventType:       "agent.workflow.preview",
+		ObjectType:      "agent_workflow",
+		ObjectID:        requestID(r),
+		RequestID:       requestID(r),
+		RiskLevel:       fmt.Sprint(result["risk_level"]),
+		NewValueSummary: summary,
 	})
 	httpx.OK(w, result)
 }
@@ -703,10 +968,8 @@ func (s *Server) previewAgentTool(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "Agent 工具不接受裸 userId")
 		return
 	}
-	accepted := isReadOnlyTool(req.ToolName)
-	if !accepted && principal(r).HasCapability("agent.execute_write") {
-		accepted = true
-	}
+	toolPreview := previewForTool(req.ToolName, req.Arguments, principal(r).HasCapability("agent.execute_write"))
+	accepted := toolPreview.Accepted
 	message := "工具已进入预览，执行前仍由 Go 重新校验权限。"
 	if !accepted {
 		message = "该工具需要写执行权限或二次确认。"
@@ -715,26 +978,45 @@ func (s *Server) previewAgentTool(w http.ResponseWriter, r *http.Request) {
 		s.respondErr(w, err)
 		return
 	}
+	decision := domain.HarnessDecision{
+		Intent:              "tool_preview",
+		ExecutionMode:       toolPreview.ExecutionMode,
+		RiskLevel:           toolPreview.RiskLevel,
+		HumanReviewRequired: toolPreview.PreviewOnly,
+		Reason:              toolPreview.Reason,
+		RoutedBy:            []string{"tool.registry", "rbac.capability", "preview.first"},
+	}
+	trust := buildTrustPacket(decision, 0.9, nil, "tool_preview_logged", &toolPreview)
+	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+		ActorUserID: principal(r).UserID,
+		EventType:   "agent.tool.preview",
+		ObjectType:  "agent_tool_call",
+		ObjectID:    req.ToolName,
+		RequestID:   requestID(r),
+		RiskLevel:   toolPreview.RiskLevel,
+		NewValueSummary: map[string]any{
+			"toolName":            req.ToolName,
+			"accepted":            accepted,
+			"previewOnly":         toolPreview.PreviewOnly,
+			"executionMode":       toolPreview.ExecutionMode,
+			"humanReviewRequired": decision.HumanReviewRequired,
+			"writes":              toolPreview.Writes,
+		},
+	})
 	httpx.OK(w, domain.AgentToolPreviewResponse{
 		Accepted: accepted,
 		Message:  message,
 		RequiredRisk: func() string {
 			if accepted {
-				return "low"
+				return toolPreview.RiskLevel
 			}
 			return "high"
 		}(),
-		ResultPreview: map[string]any{"toolName": req.ToolName},
+		ResultPreview:     map[string]any{"toolName": req.ToolName, "executionMode": toolPreview.ExecutionMode, "writes": toolPreview.Writes},
+		ToolPreview:       &toolPreview,
+		ExecutionDecision: &decision,
+		TrustPacket:       &trust,
 	})
-}
-
-func isReadOnlyTool(tool string) bool {
-	switch tool {
-	case "list_employees", "get_employee", "list_attendance", "rag_search", "learning_recommend":
-		return true
-	default:
-		return false
-	}
 }
 
 func fetchRAGURL(ctx context.Context, rawURL string) (string, error) {
@@ -742,12 +1024,24 @@ func fetchRAGURL(ctx context.Context, rawURL string) (string, error) {
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return "", errors.New("url source requires http or https URI")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err := validatePublicRAGURL(ctx, parsed); err != nil {
+		return "", err
+	}
+	client := &http.Client{
+		Timeout: 8 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 3 {
+				return errors.New("url source redirected too many times")
+			}
+			return validatePublicRAGURL(req.Context(), req.URL)
+		},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("User-Agent", "AI-HRMS-RAG/0.1")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -764,6 +1058,49 @@ func fetchRAGURL(ctx context.Context, rawURL string) (string, error) {
 		return stripHTML(text), nil
 	}
 	return text, nil
+}
+
+func validatePublicRAGURL(ctx context.Context, parsed *url.URL) error {
+	host := parsed.Hostname()
+	if host == "" {
+		return errors.New("url source requires a host")
+	}
+	if strings.EqualFold(host, "localhost") || strings.HasSuffix(strings.ToLower(host), ".localhost") {
+		return errors.New("url source cannot target localhost")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if blockedRAGIP(ip) {
+			return errors.New("url source cannot target private, loopback, link-local, or multicast addresses")
+		}
+		return nil
+	}
+	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	addresses, err := net.DefaultResolver.LookupIPAddr(lookupCtx, host)
+	if err != nil || len(addresses) == 0 {
+		return errors.New("url source host could not be resolved")
+	}
+	for _, address := range addresses {
+		if blockedRAGIP(address.IP) {
+			return errors.New("url source resolved to a private, loopback, link-local, or multicast address")
+		}
+	}
+	return nil
+}
+
+func blockedRAGIP(ip net.IP) bool {
+	if ip == nil {
+		return true
+	}
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified()
+}
+
+func redactRAGSourceURI(rawURI string) string {
+	parsed, err := url.Parse(rawURI)
+	if err != nil || parsed.Host == "" {
+		return "[redacted]"
+	}
+	return parsed.Scheme + "://" + parsed.Host + "/[redacted]"
 }
 
 func readRAGLocalSource(uri string) (string, error) {
@@ -850,6 +1187,7 @@ var (
 	scriptTagPattern = regexp.MustCompile(`(?is)<(script|style)[^>]*>.*?</(script|style)>`)
 	htmlTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
 	spacePattern     = regexp.MustCompile(`\s+`)
+	keyLikePattern   = regexp.MustCompile(`(?i)^(sk-|sk_)[A-Za-z0-9_-]{16,}$|^(ghp_|github_pat_|AKIA|AIza)[A-Za-z0-9_-]{12,}$`)
 )
 
 func stripHTML(value string) string {
@@ -878,13 +1216,14 @@ func (s *Server) visualActionExecute(w http.ResponseWriter, r *http.Request) {
 	if !requireCapability(w, r, "agent.execute_write") {
 		return
 	}
-	s.handleVisual(w, r, "executed", "action_execute", 0.88)
+	s.handleVisual(w, r, "blocked_preview", "action_execute_blocked", 0.88)
 }
 
 func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, intent string, confidence float64) {
 	if !requireCapability(w, r, "visual_copilot.use") {
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 768*1024)
 	scope, ok := s.scope(r)
 	if !ok {
 		httpx.Error(w, http.StatusInternalServerError, 5000, "解析权限失败")
@@ -895,9 +1234,27 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
+	totalRefs := 0
+	for _, region := range req.Regions {
+		totalRefs += len(region.BusinessRefs)
+	}
+	if len(req.Route) > 240 || len(req.Regions) > 8 || totalRefs > 16 || len(req.DOM) > 200 || len(req.Instruction) > 1200 {
+		httpx.Error(w, http.StatusBadRequest, 4001, "Visual Copilot 请求过大")
+		return
+	}
+	if req.Screenshot != nil {
+		if data, ok := req.Screenshot["dataBase64"].(string); ok && len(data) > 512*1024 {
+			httpx.Error(w, http.StatusBadRequest, 4001, "Visual Copilot 截图只允许脱敏小图或哈希用途")
+			return
+		}
+		if redacted, ok := req.Screenshot["redacted"].(bool); !ok || !redacted {
+			httpx.Error(w, http.StatusBadRequest, 4001, "Visual Copilot 截图必须先脱敏")
+			return
+		}
+	}
 	for _, region := range req.Regions {
 		for _, ref := range region.BusinessRefs {
-			visible, err := s.store.BusinessRefVisible(r.Context(), scope, ref)
+			visible, err := s.store.BusinessRefVisible(r.Context(), scope, principal(r), ref)
 			if err != nil {
 				s.respondErr(w, err)
 				return
@@ -917,19 +1274,104 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 			}
 		}
 	}
-	result := map[string]any{
-		"preview": "已基于圈选区域生成建议。写操作必须先预览再执行。",
-		"actions": []map[string]any{{
-			"type":  "explain",
-			"label": "解释选区",
-			"risk":  "low",
-		}},
+	refs := make([]domain.BusinessRef, 0)
+	refLabels := make([]string, 0)
+	for _, region := range req.Regions {
+		for _, ref := range region.BusinessRefs {
+			refs = append(refs, ref)
+			if ref.Label != "" {
+				refLabels = append(refLabels, ref.Label)
+			} else if ref.Type != "" || ref.ID != "" {
+				refLabels = append(refLabels, fmt.Sprintf("%s:%s", ref.Type, ref.ID))
+			}
+		}
 	}
-	event, err := s.store.CreateVisualCopilotEvent(r.Context(), principal(r).UserID, req, status, intent, confidence, result)
+	requested := redactPromptPreview(strings.TrimSpace(req.Instruction))
+	if requested == "" {
+		requested = "解释选区"
+	}
+	sanitizedReq := req
+	sanitizedReq.Instruction = requested
+	imageMode := "no-image-analysis"
+	if req.Screenshot != nil {
+		imageMode = "screenshot-hash-only"
+	}
+	decision := decideVisualHarness(sanitizedReq)
+	riskLevel := "low"
+	if len(refs) > 0 {
+		riskLevel = "medium"
+	}
+	if status == "executed" || intent == "action_execute" || intent == "action_execute_blocked" {
+		riskLevel = "high"
+	}
+	decision.RiskLevel = maxRisk(decision.RiskLevel, riskLevel)
+	decision.HumanReviewRequired = decision.HumanReviewRequired || decision.RiskLevel != "low"
+	riskLevel = decision.RiskLevel
+	if intent == "action_preview" || intent == "action_execute" || intent == "action_execute_blocked" {
+		decision.Intent = intent
+		decision.ExecutionMode = executionActionPreview
+		decision.HumanReviewRequired = true
+		decision.RoutedBy = append(decision.RoutedBy, "visual.action.preview")
+	}
+	contextPacket := visualContextPacket(sanitizedReq, decision)
+	resolvedItems, err := s.store.ResolveBusinessRefs(r.Context(), scope, principal(r), collectRefs(sanitizedReq.Regions))
 	if err != nil {
 		s.respondErr(w, err)
 		return
 	}
+	if len(resolvedItems) > 0 {
+		contextPacket.Items = resolvedItems
+		contextPacket.SourceCount["postgres_context"] = len(resolvedItems)
+		contextPacket.Boundary = "业务对象详情由 Go Context Resolver 按当前用户 scope 从数据库读取；DeepSeek 不直接访问数据库或页面。"
+	}
+	trust := buildTrustPacket(decision, confidence, nil, status, nil)
+	selectedSummary := visualSelectedSummary(len(req.Regions), refLabels, contextPacket)
+	result := map[string]any{
+		"title":             "选区上下文已解析",
+		"preview":           fmt.Sprintf("已基于 %s 的圈选上下文生成解释。", req.Route),
+		"explanation":       visualExplanation(requested, contextPacket, decision),
+		"selectedSummary":   selectedSummary,
+		"trustBoundary":     "当前模式是 DOM + 业务对象上下文解释；截图只用于审计哈希，不用于模型视觉识别。图片/像素级解释需要接入支持 vision 的 OpenAI-compatible provider。",
+		"riskLevel":         riskLevel,
+		"confidence":        confidence,
+		"imageMode":         imageMode,
+		"executionDecision": decision,
+		"contextPacket":     contextPacket,
+		"trustPacket":       trust,
+		"actions": []map[string]any{
+			{"type": "explain", "label": "解释选区", "riskLevel": "low"},
+			{"type": "open_evidence", "label": "查看证据链", "riskLevel": "medium"},
+			{"type": "request_review", "label": "请求人工确认", "riskLevel": "high", "blocked": true},
+		},
+	}
+	event, err := s.store.CreateVisualCopilotEvent(r.Context(), principal(r).UserID, sanitizedReq, status, intent, confidence, result)
+	if err != nil {
+		s.respondErr(w, err)
+		return
+	}
+	auditEventType := "visual_copilot.preview"
+	if intent == "action_execute_blocked" {
+		auditEventType = "visual_copilot.action.blocked"
+	} else if intent == "action_preview" {
+		auditEventType = "visual_copilot.action.preview"
+	}
+	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+		ActorUserID: principal(r).UserID,
+		EventType:   auditEventType,
+		ObjectType:  "visual_copilot_event",
+		ObjectID:    event.ID,
+		RequestID:   requestID(r),
+		RiskLevel:   decision.RiskLevel,
+		NewValueSummary: map[string]any{
+			"route":               event.Route,
+			"intent":              event.Intent,
+			"status":              event.Status,
+			"executionMode":       decision.ExecutionMode,
+			"humanReviewRequired": decision.HumanReviewRequired,
+			"contextItems":        len(contextPacket.Items),
+			"imageMode":           imageMode,
+		},
+	})
 	if status == "executed" {
 		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
 			ActorUserID:     principal(r).UserID,
@@ -941,7 +1383,7 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 			NewValueSummary: map[string]any{"route": event.Route, "intent": event.Intent},
 		})
 	}
-	httpx.OK(w, map[string]any{"event": event, "result": result})
+	httpx.OK(w, map[string]any{"event": event, "result": result, "executionDecision": decision, "contextPacket": contextPacket, "trustPacket": trust})
 }
 
 func (s *Server) listVisualEvents(w http.ResponseWriter, r *http.Request) {

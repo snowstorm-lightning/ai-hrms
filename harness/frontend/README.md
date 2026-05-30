@@ -19,8 +19,11 @@ Current checks:
 - Type check.
 - Build.
 
+Related checks:
+
+- Browser smoke test for login, app shell, Visual Copilot, and Demo-mode backend isolation: `npm run browser:check`.
+
 Planned checks:
 
-- Browser smoke test for login and app shell.
 - Visual checks for core pages after the UI stabilizes.
 - Generated client drift check once OpenAPI generation is wired.

@@ -904,10 +904,15 @@ paths:
     post:
       tags: [VisualCopilot]
       operationId: executeVisualAction
-      summary: Execute confirmed visual copilot action
+      summary: Deprecated: return blocked preview for visual action execution
+      description: >
+        Current Visual Copilot does not execute business writes from screen selection.
+        This endpoint is retained for compatibility and returns a blocked preview.
+        Real execution must use previewId, confirmationToken, idempotencyKey,
+        a whitelisted backend tool handler, and an audit event.
       responses:
         "200":
-          description: Executed action result.
+          description: Blocked preview result.
           content:
             application/json:
               schema:

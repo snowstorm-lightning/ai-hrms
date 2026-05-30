@@ -43,6 +43,7 @@ export function KnowledgePage() {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
   const [form] = Form.useForm();
+  const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
   const [ingestForm] = Form.useForm();
 
   const reload = async () => {
@@ -159,7 +160,7 @@ export function KnowledgePage() {
               >
                 引用预览
               </Button>
-              <Button size="small" icon={<SafetyCertificateOutlined />} onClick={() => message.info("Demo：已生成资料治理提示，真实发布需 Go 授权和审计。")}>
+              <Button size="small" icon={<SafetyCertificateOutlined />} onClick={() => message.info(demoMode ? "Demo：已生成资料治理提示，真实发布需 Go 授权和审计。" : "已生成资料治理提示；发布动作需 Go 授权和审计。")}>
                 治理提示
               </Button>
             </Space>
@@ -205,7 +206,7 @@ export function KnowledgePage() {
               setEditing(false);
               form.resetFields();
               await reload();
-              message.success("Demo 已保存资料，并生成可审计的治理元数据。");
+              message.success(demoMode ? "Demo 已保存资料，并生成可审计的治理元数据。" : "已保存资料，并生成可审计的治理元数据。");
             } catch (err) {
               setError(getErrorMessage(err, "资料创建失败"));
             }

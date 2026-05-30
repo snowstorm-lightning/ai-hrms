@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 import os
 from typing import Protocol
+from urllib.parse import urlparse
 
 import httpx
 
@@ -196,6 +197,9 @@ class OpenAICompatibleEmbeddingProvider:
             raise ProviderConfigurationError("Embedding API key is not configured.")
         if not settings.embedding_base_url:
             raise ProviderConfigurationError("Embedding base URL is not configured.")
+        parsed_base_url = urlparse(settings.embedding_base_url)
+        if parsed_base_url.scheme not in {"http", "https"} or not parsed_base_url.netloc:
+            raise ProviderConfigurationError("Embedding base URL must be an http(s) URL.")
         if not settings.embedding_model:
             raise ProviderConfigurationError("Embedding model is not configured.")
         self.model = settings.embedding_model
@@ -226,8 +230,13 @@ class OpenAICompatibleEmbeddingProvider:
             raise ProviderCallError("Embedding request failed.") from exc
         if len(embeddings) != len(texts):
             raise ProviderCallError("Embedding response count did not match input count.")
-        if self.dimensions and any(len(vector) != self.dimensions for vector in embeddings):
-            raise ProviderCallError("Embedding response dimensions did not match configuration.")
+        actual_dimensions = len(embeddings[0]) if embeddings else 0
+        if actual_dimensions <= 0 or any(len(vector) != actual_dimensions for vector in embeddings):
+            raise ProviderCallError("Embedding response dimensions were empty or inconsistent.")
+        if actual_dimensions != self.dimensions:
+            raise ProviderCallError(
+                "Embedding response dimensions did not match RAG_EMBEDDING_DIMENSIONS."
+            )
         return embeddings
 
 

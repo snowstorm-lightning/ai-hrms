@@ -17,6 +17,7 @@ The agent reads provider configuration from environment variables. Leave
 
 ```bash
 export AI_CHAT_PROVIDER=deepseek
+export AI_HRMS_AGENT_SERVICE_TOKEN='<same-token-as-go-api>'
 export DEEPSEEK_API_KEY='<your-deepseek-api-key>'
 export DEEPSEEK_BASE_URL='https://api.deepseek.com'
 export DEEPSEEK_CHAT_MODEL='deepseek-v4-flash'
@@ -28,11 +29,12 @@ RAG vectors are stored in PostgreSQL/pgvector. Configure embeddings separately
 when replacing deterministic embeddings:
 
 ```bash
-export AI_EMBEDDING_PROVIDER=fake
-export OPENAI_COMPATIBLE_EMBEDDING_API_KEY=''
-export OPENAI_COMPATIBLE_EMBEDDING_BASE_URL=''
-export OPENAI_COMPATIBLE_EMBEDDING_MODEL=''
-export RAG_EMBEDDING_DIMENSIONS=8
+export AI_EMBEDDING_PROVIDER=openai-compatible
+export AI_HRMS_AGENT_SERVICE_TOKEN='<same-token-as-go-api>'
+export OPENAI_COMPATIBLE_EMBEDDING_API_KEY='<your-embedding-api-key>'
+export OPENAI_COMPATIBLE_EMBEDDING_BASE_URL='<embedding-base-url>'
+export OPENAI_COMPATIBLE_EMBEDDING_MODEL='<embedding-model>'
+export RAG_EMBEDDING_DIMENSIONS='<embedding-dimensions>'
 ```
 
 Check what the running agent sees without printing secrets:
@@ -41,5 +43,7 @@ Check what the running agent sees without printing secrets:
 curl http://127.0.0.1:8090/config/ai
 ```
 
-If `AI_HRMS_AGENT_SERVICE_TOKEN` is set, internal calls must include
-`X-AI-HRMS-Agent-Token`. `/health` remains open for container health checks.
+`AI_HRMS_AGENT_SERVICE_TOKEN` is required whenever chat or embedding providers
+are not `fake`. Internal calls must include `X-AI-HRMS-Agent-Token`; `/health`
+remains open for container health checks. URL connector preview is disabled by
+default and should normally be handled by the Go ingestion boundary.

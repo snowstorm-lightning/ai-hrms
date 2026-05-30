@@ -1,9 +1,14 @@
 # AI-HRMS
 
-AI-HRMS is a single-company HRMS for one corporate group with multiple
-subsidiaries and organization units. The first phase reproduces useful
-`../saas_hrms` workflows with a Go API, PostgreSQL, React, Ant Design, and a
-separate Python agent boundary managed by `uv`.
+AI-HRMS is a Human-Agent Symbiotic HR Operating System: it connects
+organization data, governed knowledge, learning growth, agent runs, human
+review, and audit evidence so HR teams and AI agents can work together inside
+traceable boundaries.
+
+It still preserves the practical single-company HRMS foundation for one
+corporate group with subsidiaries and organization units. The implementation
+uses a Go API, PostgreSQL/pgvector, React, Ant Design, and a separate Python
+agent boundary managed by `uv`.
 
 ## Assignment Demo: AI-HRMS
 
@@ -14,6 +19,11 @@ AI-HRMS｜人机共生的人力资源智能操作系统
 The assignment demo presents the full AI-HRMS product, not a standalone
 Co-Growth demo. Co-Growth OS is one highlighted module inside AI-HRMS: the
 growth engine for AI literacy, work missions, reflection, and evidence.
+
+Demo company boundary: AI-HRMS is the product. `企鹅互联网科技有限公司` is only a
+fictional seeded demo company dataset used to make HR workflows concrete; it is
+not Tencent, is not affiliated with Tencent, and does not represent real company
+data.
 
 Run the deterministic frontend demo:
 
@@ -34,6 +44,9 @@ Recommended 3-minute path:
 4. `/co-growth` - Co-Growth OS as the AI-HRMS growth engine.
 5. `/app/agents` - human-agent run cards, tool preview, and confirmation.
 6. `/app/audit` - trust, audit, and evidence chain.
+
+When narrating this path, describe any company names, employee records, policies,
+or citations as simulated company data for the AI-HRMS product demo.
 
 Build the public demo:
 
@@ -110,8 +123,10 @@ Set `DOCKER_DATABASE_URL` with the same PostgreSQL password, for example:
 POSTGRES_PASSWORD=<hex-24>
 DOCKER_DATABASE_URL=postgres://ai_hrms:<hex-24>@postgres:5432/ai_hrms?sslmode=disable
 JWT_SECRET=<hex-32>
+AI_HRMS_ENV=production
+AI_HRMS_ENABLE_DEMO_SEED=false
 VITE_API_BASE_URL=/api
-DOCKER_CORS_ALLOWED_ORIGINS=http://hrms.snowstormlightning.top,https://hrms.snowstormlightning.top
+DOCKER_CORS_ALLOWED_ORIGINS=https://hrms.snowstormlightning.top
 ```
 
 For real AI mode, put `DEEPSEEK_API_KEY` and embedding provider keys in
@@ -134,6 +149,25 @@ curl -i http://127.0.0.1:8020/api/health
 
 The API Docker image has a healthcheck for `/api/health`, so Web waits for API
 health before starting.
+
+### Create First Production Admin
+
+When `AI_HRMS_ENABLE_DEMO_SEED=false`, the local demo account does not exist.
+Create the first production `group_admin` with the one-shot bootstrap service:
+
+```bash
+read -rsp 'Bootstrap admin password: ' BOOTSTRAP_ADMIN_PASSWORD; echo
+printf '%s' "$BOOTSTRAP_ADMIN_PASSWORD" | docker compose --env-file infra/.env -f infra/compose.yaml run --rm -T bootstrap-admin \
+  --mobile '+8613800000000' \
+  --name 'Platform Admin' \
+  --password-stdin
+unset BOOTSTRAP_ADMIN_PASSWORD
+```
+
+Use a real organization-controlled login and a strong one-time password. The
+command runs migrations, creates or updates that user, grants global
+`group_admin`, and writes a bootstrap audit event. Remove the password from
+shell history or terminal scrollback if your environment records commands.
 
 Stop the stack:
 
@@ -195,10 +229,13 @@ Linux/WSL:
 ```bash
 cd apps/api
 export DATABASE_URL='postgres://ai_hrms:ai_hrms@localhost:55432/ai_hrms?sslmode=disable'
+export AI_HRMS_ENV='development'
+export AI_HRMS_ENABLE_DEMO_SEED=true
 export JWT_SECRET='dev-secret-change-me'
 export API_PORT=8080
 export CORS_ALLOWED_ORIGINS='http://localhost:5173,http://127.0.0.1:5173'
 export AGENT_BASE_URL='http://127.0.0.1:8090'
+export AI_HRMS_AGENT_SERVICE_TOKEN='<same-token-as-agent-when-real-provider-is-enabled>'
 go run ./cmd/server
 ```
 
@@ -207,10 +244,13 @@ Windows PowerShell:
 ```powershell
 Set-Location apps/api
 $env:DATABASE_URL = "postgres://ai_hrms:ai_hrms@localhost:55432/ai_hrms?sslmode=disable"
+$env:AI_HRMS_ENV = "development"
+$env:AI_HRMS_ENABLE_DEMO_SEED = "true"
 $env:JWT_SECRET = "dev-secret-change-me"
 $env:API_PORT = "8080"
 $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 $env:AGENT_BASE_URL = "http://127.0.0.1:8090"
+$env:AI_HRMS_AGENT_SERVICE_TOKEN = "<same-token-as-agent-when-real-provider-is-enabled>"
 go run ./cmd/server
 ```
 
@@ -223,12 +263,15 @@ AI_CHAT_PROVIDER=fake AI_EMBEDDING_PROVIDER=fake uv run ai-hrms-agent
 ```
 
 For real AI/RAG mode, set the provider env vars on the Python agent process
-before starting it. Keep keys in local env files or deployment secrets only and
-do not commit them:
+before starting it. The Go API must use the same `AI_HRMS_AGENT_SERVICE_TOKEN`
+and provider metadata so routing and safety checks match the agent. Keep keys in
+local env files or deployment secrets only and do not commit them:
 
 ```bash
+export AGENT_BASE_URL='http://127.0.0.1:8090'               # Go API only
+export AI_HRMS_AGENT_SERVICE_TOKEN='<openssl-rand-hex-32>' # Go API and agent
 export AI_CHAT_PROVIDER=deepseek
-export DEEPSEEK_API_KEY='<your-deepseek-api-key>'
+export DEEPSEEK_API_KEY='<your-deepseek-api-key>'          # agent only
 export DEEPSEEK_BASE_URL='https://api.deepseek.com'
 export DEEPSEEK_CHAT_MODEL='deepseek-v4-flash'
 export DEEPSEEK_REASONING_EFFORT='high'
@@ -240,11 +283,29 @@ export OPENAI_COMPATIBLE_EMBEDDING_MODEL='<embedding-model>'
 export RAG_EMBEDDING_DIMENSIONS='<embedding-dimensions>'
 ```
 
+Environment matrix:
+
+| Variable | API | Agent | Production rule |
+| --- | --- | --- | --- |
+| `AI_HRMS_ENV` | required | optional | `production` for public deployments |
+| `AI_HRMS_ENABLE_DEMO_SEED` | required | no | `false` in production; `true` only for local/demo seed data |
+| `AI_HRMS_AGENT_SERVICE_TOKEN` | required for real providers | required for real providers | same random value on both services |
+| `DEEPSEEK_API_KEY` | no | required for `AI_CHAT_PROVIDER=deepseek` | never commit or package `.env` |
+| `OPENAI_COMPATIBLE_EMBEDDING_API_KEY` | no | required for real embeddings | never commit or package `.env` |
+| `OPENAI_COMPATIBLE_EMBEDDING_BASE_URL` | metadata only | required URL | must be an `http(s)` URL, not an API key |
+| `OPENAI_COMPATIBLE_EMBEDDING_MODEL` | metadata only | required model name | must be a model name, not an API key |
+| `RAG_EMBEDDING_DIMENSIONS` | required | required | must match provider output exactly |
+
 DeepSeek chat uses an OpenAI-compatible Chat Completions API. RAG retrieval is
 vector-first through PostgreSQL/pgvector; embeddings are configured separately
 with `AI_EMBEDDING_PROVIDER` and `OPENAI_COMPATIBLE_EMBEDDING_*`. The Go API
 keeps authorization, scope filtering, and audit; the agent only receives scoped
 chunks/citations and provider calls.
+
+Visual Copilot in the DeepSeek setup is text-only: it uses DOM hints, route
+context, verified business-object references, scope checks, and audit records.
+Screenshots are not sent to DeepSeek, and the demo does not claim image OCR or
+pixel-level vision understanding.
 
 The P2 workflow demo is available through Go at
 `POST /api/agent/workflows/langgraph/demo`, which proxies the Python LangGraph
@@ -278,6 +339,17 @@ login page. The demo mode keeps the existing Go API path available when
 `VITE_DEMO_MODE` is unset or `false`, but uses deterministic frontend data for
 the full AI-HRMS review path.
 
+Pre-submission secret checklist:
+
+- Do not commit or package `.env`, `infra/.env`, `apps/api/.env`,
+  `apps/agent/.env`, or `apps/web/.env`.
+- Run a secret scan before committing; only `.env.example` files should contain
+  placeholders.
+- Rotate any key that was pasted into the wrong variable or displayed in a
+  terminal/session log.
+- Keep public deployments HTTPS-only; HTTP origins are for localhost or private
+  development tunnels only.
+
 Optional agent service.
 
 Linux/WSL:
@@ -296,7 +368,10 @@ uv sync
 uv run ai-hrms-agent
 ```
 
-## Seed Account
+## Local Demo Seed Account
+
+Only available when `AI_HRMS_ENABLE_DEMO_SEED=true`. Do not enable or use this
+account in production.
 
 | Mobile | Password | Role |
 | --- | --- | --- |
@@ -318,6 +393,7 @@ Linux/WSL:
 ./harness/database/check.sh
 ./harness/api/check.sh
 ./harness/frontend/check.sh
+./harness/browser/check.sh
 ./harness/agent/check.sh
 ```
 
@@ -327,6 +403,7 @@ Windows PowerShell:
 .\harness\database\check.ps1
 .\harness\api\check.ps1
 .\harness\frontend\check.ps1
+.\harness\browser\check.ps1
 .\harness\agent\check.ps1
 ```
 
@@ -337,11 +414,16 @@ go test ./...
 go vet ./...
 npm run web:check
 npm run web:build
+npm run browser:check
 ```
 
 `harness/api` and `harness/e2e` expect the API to already be running unless you
 use the top-level `npm run check`, which starts and stops a temporary API
 process.
+
+`harness/browser` expects real and demo web servers to be running. It uses the
+local Playwright package and Playwright-managed Chromium cache; a system Chrome
+or Chromium binary is optional.
 
 ## Project Indexes
 

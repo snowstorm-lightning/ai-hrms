@@ -34,7 +34,7 @@ const demoTour = [
   { title: "Command Dashboard", path: "/app/dashboard", summary: "统一入口：组织数据、AI 指挥、知识、成长、Agent 和审计。" },
   { title: "AI Command Center", path: "/app/ai-command", summary: "生成结构化 HR 建议，展示 riskLevel、confidence、evidence。" },
   { title: "Knowledge Hub", path: "/app/knowledge", summary: "查看 RAG 资料的来源、可信等级、敏感级别和引用。" },
-  { title: "Co-Growth OS", path: "/co-growth", summary: "员工学习 AI 原理，把真实工作转成 mission 并复盘。" },
+  { title: "Co-Growth OS", path: "/co-growth", summary: "员工学习 AI 原理，把模拟工作转成 mission 并复盘。" },
   { title: "Agent Run Center", path: "/app/agents", summary: "预览 Agent run、工具调用和人工确认状态。" },
   { title: "Audit & Evidence", path: "/app/audit", summary: "追踪 AI 建议、人工确认、证据和高风险阻断。" },
 ];
@@ -58,7 +58,7 @@ const highlightEntries = [
 
 const personaValue: Record<Persona, string[]> = {
   HR: ["查看组织趋势和高风险待确认事项", "用证据支持制度解释与学习计划", "把 AI 建议写入审计而不是直接执行"],
-  员工: ["获得与真实工作绑定的 AI 学习 mission", "记录 prompt、AI 输出、人工修改和验证", "把成长证据沉淀到 portfolio"],
+  员工: ["获得与模拟工作绑定的 AI 学习 mission", "记录 prompt、AI 输出、人工修改和验证", "把成长证据沉淀到 portfolio"],
   导师: ["复核员工复盘和高风险学习建议", "给出人工确认与纠偏意见", "把带教动作纳入证据链"],
   管理者: ["查看团队能力趋势而不是个人排名", "理解 Agent run 的范围和风险", "确认 AI 协作过程是否可复用为 workflow"],
 };
@@ -152,7 +152,12 @@ export function DashboardPage() {
 
   const runCommandPreview = async () => {
     if (!demoMode) {
-      setCommandPreview("真实模式下 Dashboard 只生成导航预览；请进入 AI Command Center，由 Go 权限、scope 和审计边界处理 Agent run。");
+      setCommandPreview("真实模式下将进入 AI Command Center，由 Go 权限、scope、RAG 和审计边界处理建议生成。");
+      navigate("/app/ai-command");
+      return;
+    }
+    if (/统计|数量|状态|列表|查|查询|引用|资料/.test(command) && !/计划|workflow|Agent|调度|生成/.test(command)) {
+      setCommandPreview("该问题由程序化查询或受控 RAG 检索处理，不创建 Agent run；需要自然语言生成或跨模块行动时再升级到 Agent。");
       return;
     }
     try {
@@ -166,7 +171,7 @@ export function DashboardPage() {
 
   return (
     <div className="ai-dashboard" data-vc-page="dashboard">
-      <section className="ai-dashboard-hero" data-vc-kind="ai-hrms-command-dashboard">
+      <section className="ai-dashboard-hero" data-vc-kind="ai-hrms-command-dashboard" data-vc-label="AI-HRMS Command Dashboard hero">
         <div className="hero-copy">
           <Tag color="blue">Human-Agent Symbiotic HR Operating System</Tag>
           <Typography.Title level={1}>AI-HRMS｜人机共生的人力资源智能操作系统</Typography.Title>
@@ -176,7 +181,7 @@ export function DashboardPage() {
           <Input.Search
             size="large"
             value={command}
-            enterButton="生成预览"
+            enterButton={demoMode ? "生成预览" : "进入 AI 指挥中心"}
             onChange={(event) => setCommand(event.target.value)}
             onSearch={runCommandPreview}
             placeholder="问组织、查知识、生成计划、预览动作、调度 Agent"
@@ -188,7 +193,7 @@ export function DashboardPage() {
           ) : null}
           <CollaborationWorkflow />
         </div>
-        <aside className="hero-trust-panel">
+        <aside className="hero-trust-panel" data-vc-kind="trust-layer-snapshot" data-vc-label="Trust Layer Snapshot">
           <Typography.Title level={4}>Trust Layer Snapshot</Typography.Title>
           <TrustMetaBar riskLevel={highRiskCount ? "high" : "medium"} confidence={87} evidenceCount={ragDocuments.length + auditEvents.length} humanReviewRequired={highRiskCount > 0} toolPreview auditStatus="active" />
           <Alert

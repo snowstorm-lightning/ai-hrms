@@ -37,23 +37,23 @@ export function LearningPage() {
 
   return (
     <div data-vc-page="learning">
-      <PageTitle title="Learning Layer" description="AI-HRMS 的学习层：入职计划、课程进度、AI 建议和 Co-Growth 成长证据共同服务于人机共生成长。" />
+      <PageTitle title="Learning Layer" description="AI-HRMS 的学习层：入职计划、课程进度、AI 建议和 Co-Growth 成长证据共同服务于人机共生成长；当前数据为企鹅科技集团虚构样本组织。" />
       <InlineError message={error} onRetry={reload} />
       <Card className="section-card learning-cogrowth-entry" data-vc-kind="co-growth-entry-card">
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} md={16}>
             <Typography.Title level={4}>进入 Co-Growth OS｜AI-HRMS 成长引擎</Typography.Title>
             <Typography.Paragraph type="secondary">
-              学习不只是课程，而是“AI 原理 + 工作 mission + 复盘 + 证据 + 审计”。在不牺牲交付的前提下，把本周真实任务转化成可验证的 AI 实战成长路径。
+              学习不只是课程，而是“AI 原理 + 工作 mission + 复盘 + 证据 + 审计”。在企鹅科技集团的虚构样本数据中，把林晨的模拟入职任务转化成可验证的 AI 实战成长路径。
             </Typography.Paragraph>
           </Col>
           <Col xs={24} md={8}>
             <Space wrap>
               <Button type="primary" onClick={() => navigate("/co-growth")} data-vc-action="learning.open_co_growth">
-                进入共进学习舱
+                进入 Co-Growth OS
               </Button>
               <Button onClick={() => navigate("/co-growth")} data-vc-action="learning.generate_ai_path">
-                AI 生成学习路径
+                查看规则推荐路径
               </Button>
             </Space>
           </Col>
@@ -111,7 +111,7 @@ export function LearningPage() {
           )) : (
             <div className="reference-row">
               <Typography.Text strong>示例：把本周工作任务转化为 AI 实战 mission</Typography.Text>
-              <Typography.Text type="secondary">进入共进学习舱后可看到包含风险等级、证据来源、置信度和人工确认点的建议。</Typography.Text>
+              <Typography.Text type="secondary">进入 Co-Growth OS 后可看到包含风险等级、证据来源、置信度和人工确认点的建议。</Typography.Text>
             </div>
           )}
         </div>

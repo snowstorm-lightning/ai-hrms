@@ -61,7 +61,7 @@ export function generateDeterministicCoachSuggestion(prompt: string, workload: W
   if (workload === "high") {
     return {
       title: "将工作任务降级为 5-10 分钟微学习",
-      summary: "当前工作负荷高，建议只把一个真实交付任务改造成轻量 AI 练习，延后深度实验，避免牺牲交付。",
+      summary: "当前工作负荷高，建议只把一个模拟交付任务改造成轻量 AI 练习，延后深度实验，避免牺牲交付。",
       riskLevel: "medium",
       confidence: 87,
       estimatedMinutes: 8,
@@ -74,14 +74,14 @@ export function generateDeterministicCoachSuggestion(prompt: string, workload: W
 
   return {
     title: "生成本周 AI 学习实战任务",
-    summary: "把本周真实工作任务改造成一个不超过 30 分钟的 mission：先补上下文，再让 AI 产出草稿，最后人工验证并沉淀证据。",
+    summary: "把本周模拟工作任务改造成一个不超过 30 分钟的 mission：先补上下文，再让 AI 产出草稿，最后人工验证并沉淀证据。",
     riskLevel: "low",
     confidence: 90,
     estimatedMinutes: 25,
     impactOnWork: "positive",
     humanReviewRequired: false,
     evidenceRefs: ["context-quality", "critical-judgment"],
-    suggestedActions: ["选择一项真实工作", "写清验收标准", "完成后记录 AI 输出、人工修改和验证方式"],
+    suggestedActions: ["选择一项模拟工作", "写清验收标准", "完成后记录 AI 输出、人工修改和验证方式"],
   };
 }
 

@@ -11,8 +11,13 @@
     "docker:up": "docker compose --env-file infra/.env -f infra/compose.yaml up -d --build",
     "docker:down": "docker compose --env-file infra/.env -f infra/compose.yaml down",
     "docker:logs": "docker compose --env-file infra/.env -f infra/compose.yaml logs -f",
+    "browser:check": "node harness/browser/check.mjs",
     "web:dev": "npm --workspace apps/web run dev",
     "web:build": "npm --workspace apps/web run build",
     "web:check": "npm --workspace apps/web run check"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "playwright": "^1.60.0"
   }
 }

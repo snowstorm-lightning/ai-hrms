@@ -6,6 +6,8 @@ AI-HRMS｜人机共生的人力资源智能操作系统
 
 This assignment submission presents the full AI-HRMS product. Co-Growth OS is one strong module inside AI-HRMS: the growth engine for AI literacy, work missions, reflection, and evidence.
 
+Demo company note: AI-HRMS is the product being demonstrated. `企鹅互联网科技有限公司` is a fictional seeded demo company dataset and business dataset only; it is not Tencent, is not affiliated with Tencent, and does not represent real company data.
+
 ## Demo Mode
 
 Use deterministic frontend demo data:
@@ -21,6 +23,19 @@ http://127.0.0.1:5173/login
 ```
 
 The demo login button enters the AI-HRMS dashboard. Direct links such as `/app/dashboard` and `/co-growth` are supported after demo login.
+
+All company names, employees, policies, citations, audit events, and HR scenarios in demo mode are simulated data for the AI-HRMS product walkthrough.
+
+Real-mode seeded local login, only when `AI_HRMS_ENABLE_DEMO_SEED=true`:
+
+```text
+mobile: 123
+password: password
+```
+
+When `AI_HRMS_ENABLE_DEMO_SEED=false`, create the first production admin with
+the `bootstrap-admin` one-shot service described in `README.md`; the seed login
+above will not exist.
 
 ## Build
 
@@ -38,6 +53,7 @@ For deployable mode, start PostgreSQL, the Go API, the Python agent boundary, an
 
 ```bash
 AGENT_BASE_URL=http://127.0.0.1:8090
+AI_HRMS_AGENT_SERVICE_TOKEN=<openssl-rand-hex-32>
 AI_CHAT_PROVIDER=deepseek
 DEEPSEEK_API_KEY=<local-secret>
 AI_EMBEDDING_PROVIDER=openai-compatible
@@ -48,6 +64,13 @@ RAG_EMBEDDING_DIMENSIONS=<embedding-dimensions>
 ```
 
 The Go API keeps RBAC, scope filtering, audit logging, and high-risk gates. The Python agent receives scoped text only and calls DeepSeek/OpenAI-compatible providers. RAG vectors are stored in PostgreSQL/pgvector.
+
+Security defaults:
+
+- `AI_HRMS_AGENT_SERVICE_TOKEN` is required whenever chat or embedding providers are not `fake`; generate it with `openssl rand -hex 32` and use the same value for API and agent.
+- The demo `RAG_EMBEDDING_DIMENSIONS=8` is only for fake embeddings. Real providers must use the actual embedding model dimension before ingesting documents.
+- External embeddings are blocked for internal/restricted documents or text that appears to contain personal or high-impact HR data.
+- URL ingestion rejects localhost, private, link-local, multicast, and redirect targets that resolve to non-public addresses.
 
 P2 extras are included as code paths: `/api/agent/workflows/langgraph/demo` proxies a Python LangGraph workflow demo through Go, and the Dashboard uses `@ant-design/charts` for operating signals.
 
@@ -60,6 +83,8 @@ P2 extras are included as code paths: `/api/agent/workflows/langgraph/demo` prox
 5. `/co-growth`: show human-AI co-growth missions and evidence.
 6. `/app/agents`: show agent run control, tool preview, and human confirmation.
 7. `/app/audit`: show the trust and evidence layer.
+
+For a 3-minute review, introduce `企鹅互联网科技有限公司` only as the sample company dataset so the audience does not read the walkthrough as Tencent or any other real company's HR data.
 
 ## Core Highlights
 
@@ -74,13 +99,15 @@ P2 extras are included as code paths: `/api/agent/workflows/langgraph/demo` prox
 ## Reviewer Notes
 
 - Demo AI outputs are deterministic mock responses for public demo stability and privacy.
+- Demo company data is fictional company data for AI-HRMS; it is not Tencent or real HR data.
 - Real mode has provider adapters for DeepSeek chat plus OpenAI-compatible embeddings through the Python agent boundary.
 - High-risk HR scenarios are preview-only and require human review.
 - The demo does not automate promotion, termination, pay, performance, or hiring decisions.
 - Production architecture keeps Go responsible for authorization, scope, execution, and audit.
+- Visual Copilot does not perform image understanding in the DeepSeek text-provider setup. It explains selections through DOM hints, verified business object references, route context, scope checks, and audit records. Screenshots are not sent to DeepSeek; pixel-level image explanation requires a future vision-capable OpenAI-compatible provider.
 
 ## Known Boundaries
 
 - Public assignment demo is optimized for `VITE_DEMO_MODE=true`.
 - Real mode requires configured provider keys and a compatible embedding model/dimension.
-- Visual Copilot is demonstrated as a governed selection and preview layer.
+- Visual Copilot is demonstrated as a governed selection and preview layer, not as a screenshot OCR or image-understanding model.

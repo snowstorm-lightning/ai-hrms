@@ -23,13 +23,25 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DOCKER_DATABASE_URL:?DOCKER_DATABASE_URL is required}
+      AI_HRMS_ENV: ${AI_HRMS_ENV:-production}
+      AI_HRMS_ENABLE_DEMO_SEED: ${AI_HRMS_ENABLE_DEMO_SEED:-false}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       API_PORT: 8080
       CORS_ALLOWED_ORIGINS: ${DOCKER_CORS_ALLOWED_ORIGINS:?DOCKER_CORS_ALLOWED_ORIGINS is required}
       AI_HRMS_INGEST_ROOT: ${DOCKER_AI_HRMS_INGEST_ROOT:-}
+      AI_HRMS_ENABLE_AGENT_URL_CONNECTOR: ${AI_HRMS_ENABLE_AGENT_URL_CONNECTOR:-false}
       AGENT_BASE_URL: ${AGENT_BASE_URL:-http://agent:8090}
       AGENT_TIMEOUT_SECONDS: ${AGENT_TIMEOUT_SECONDS:-30}
       AI_HRMS_AGENT_SERVICE_TOKEN: ${AI_HRMS_AGENT_SERVICE_TOKEN:-}
+      AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-fake}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_CHAT_MODEL: ${DEEPSEEK_CHAT_MODEL:-deepseek-v4-flash}
+      DEEPSEEK_REASONING_EFFORT: ${DEEPSEEK_REASONING_EFFORT:-high}
+      DEEPSEEK_TIMEOUT_SECONDS: ${DEEPSEEK_TIMEOUT_SECONDS:-30}
+      AI_EMBEDDING_PROVIDER: ${AI_EMBEDDING_PROVIDER:-fake}
+      OPENAI_COMPATIBLE_EMBEDDING_BASE_URL: ${OPENAI_COMPATIBLE_EMBEDDING_BASE_URL:-}
+      OPENAI_COMPATIBLE_EMBEDDING_MODEL: ${OPENAI_COMPATIBLE_EMBEDDING_MODEL:-}
+      RAG_EMBEDDING_DIMENSIONS: ${RAG_EMBEDDING_DIMENSIONS:-8}
     ports:
       - target: 8080
         published: "${API_PORT:-8020}"
@@ -39,6 +51,22 @@ services:
       postgres:
         condition: service_healthy
       agent:
+        condition: service_healthy
+
+  bootstrap-admin:
+    profiles: ["bootstrap"]
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: "no"
+    entrypoint: ["ai-hrms-admin", "bootstrap-admin"]
+    environment:
+      DATABASE_URL: ${DOCKER_DATABASE_URL:?DOCKER_DATABASE_URL is required}
+      AI_HRMS_ENV: ${AI_HRMS_ENV:-production}
+      AI_HRMS_ENABLE_DEMO_SEED: ${AI_HRMS_ENABLE_DEMO_SEED:-false}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+    depends_on:
+      postgres:
         condition: service_healthy
 
   web:
@@ -65,6 +93,7 @@ services:
     restart: unless-stopped
     environment:
       AI_HRMS_INGEST_ROOT: ${DOCKER_AI_HRMS_INGEST_ROOT:-}
+      AI_HRMS_ENABLE_AGENT_URL_CONNECTOR: ${AI_HRMS_ENABLE_AGENT_URL_CONNECTOR:-false}
       AI_HRMS_AGENT_SERVICE_TOKEN: ${AI_HRMS_AGENT_SERVICE_TOKEN:-}
       AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-fake}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}

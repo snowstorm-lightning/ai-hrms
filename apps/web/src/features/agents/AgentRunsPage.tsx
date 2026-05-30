@@ -3,7 +3,7 @@ import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Timeline, 
 import { useEffect, useMemo, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
 import type { AgentRun, AgentToolPreviewResponse, AgentWorkflowDemoResult } from "../../api/types";
-import { HumanReviewBanner, TrustMetaBar } from "../../components/AiTrust";
+import { ExecutionDecisionPanel, HumanReviewBanner, TrustMetaBar, TrustPacketBar } from "../../components/AiTrust";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
 
@@ -41,7 +41,9 @@ export function AgentRunsPage() {
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<AgentToolPreviewResponse | null>(null);
   const [workflowPreview, setWorkflowPreview] = useState<AgentWorkflowDemoResult | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [form] = Form.useForm();
+  const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
 
   const reload = async () => {
     setLoading(true);
@@ -83,7 +85,7 @@ export function AgentRunsPage() {
           <Form
             form={form}
             layout="vertical"
-            initialValues={{ runType: "onboarding_planner", riskLevel: "medium", prompt: "为新员工生成 30 天成长计划，并引用入职指南。" }}
+            initialValues={{ runType: "onboarding_planner", riskLevel: "medium", prompt: "为企鹅科技新人林晨生成 30 天成长计划，并引用入职指南。" }}
             onFinish={async (values) => {
               setCreating(true);
               setError("");
@@ -129,13 +131,16 @@ export function AgentRunsPage() {
       </section>
 
       {preview ? (
-        <Alert
-          className="section-card"
-          showIcon
-          type={preview.accepted ? "success" : "warning"}
-          title={preview.message}
-          description={`requiredRisk=${preview.requiredRisk} · resultPreview=${JSON.stringify(preview.resultPreview)}`}
-        />
+        <Card className="section-card" title="Tool Preview Result">
+          <Alert
+            showIcon
+            type={preview.accepted ? "success" : "warning"}
+            title={preview.message}
+            description={`requiredRisk=${preview.requiredRisk} · executionMode=${String(preview.resultPreview.executionMode ?? "deterministic")}`}
+          />
+          <TrustPacketBar packet={preview.trustPacket} />
+          <ExecutionDecisionPanel decision={preview.executionDecision} />
+        </Card>
       ) : null}
 
       {workflowPreview ? (
@@ -143,7 +148,7 @@ export function AgentRunsPage() {
           className="section-card"
           showIcon
           type={workflowPreview.risk_level === "high" ? "warning" : "success"}
-          title={`LangGraph workflow: ${workflowPreview.audit_status}`}
+          title={`Workflow preview: ${workflowPreview.audit_status}`}
           description={workflowPreview.steps.map((step) => `${step.name}=${step.status}`).join(" · ")}
         />
       ) : null}
@@ -169,7 +174,7 @@ export function AgentRunsPage() {
             />
             <div className="agent-context-box">
               <Typography.Text strong>Delegated context</Typography.Text>
-              <span>roles=group_hr, scope=global, allowedTools=rag_search / learning_recommend / audit_read</span>
+              <span>companyDataset=fictional_demo_company, personas=许安宁/林晨/周雨桐/顾明远, allowedTools=rag_search / learning_recommend / audit_read</span>
             </div>
             <Timeline
               items={[
@@ -187,19 +192,41 @@ export function AgentRunsPage() {
             <Space wrap>
               <Button
                 size="small"
-                onClick={async () => setPreview(await api.previewAgentTool({ runId: run.id, toolName: run.riskLevel === "high" ? "people_decision_execute" : "learning_recommend", arguments: { runType: run.runType } }))}
+                loading={actionLoading === `${run.id}:tool`}
+                onClick={async () => {
+                  setActionLoading(`${run.id}:tool`);
+                  setError("");
+                  try {
+                    setPreview(await api.previewAgentTool({ runId: run.id, toolName: run.riskLevel === "high" ? "people_decision_execute" : "learning_recommend", arguments: { runType: run.runType } }));
+                  } catch (err) {
+                    setError(getErrorMessage(err, "工具调用预览失败"));
+                  } finally {
+                    setActionLoading(null);
+                  }
+                }}
               >
                 预览工具调用
               </Button>
-              <Button size="small" icon={<CheckCircleOutlined />} onClick={() => message.info("Demo：已生成请求人工确认反馈。")}>
+              <Button size="small" icon={<CheckCircleOutlined />} onClick={() => message.info(demoMode ? "Demo：已生成请求人工确认反馈。" : "已生成请求人工确认反馈。")}>
                 请求人工确认
               </Button>
               <Button
                 size="small"
                 icon={<ApiOutlined />}
-                onClick={async () => setWorkflowPreview(await api.langGraphWorkflowDemo({ goal: run.summary, context: [`runType=${run.runType}`, `riskLevel=${run.riskLevel}`] }))}
+                loading={actionLoading === `${run.id}:workflow`}
+                onClick={async () => {
+                  setActionLoading(`${run.id}:workflow`);
+                  setError("");
+                  try {
+                    setWorkflowPreview(await api.langGraphWorkflowDemo({ goal: run.summary, context: [`runType=${run.runType}`, `riskLevel=${run.riskLevel}`] }));
+                  } catch (err) {
+                    setError(getErrorMessage(err, "Workflow 预览失败"));
+                  } finally {
+                    setActionLoading(null);
+                  }
+                }}
               >
-                LangGraph 演示
+                Workflow 预览
               </Button>
             </Space>
           </article>

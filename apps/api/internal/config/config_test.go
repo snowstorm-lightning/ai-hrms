@@ -33,6 +33,8 @@ func TestLoadAllowedOriginsFromCSV(t *testing.T) {
 }
 
 func TestLoadAIConfigDefaults(t *testing.T) {
+	t.Setenv("AI_HRMS_ENV", "")
+	t.Setenv("AI_HRMS_ENABLE_DEMO_SEED", "")
 	t.Setenv("AI_CHAT_PROVIDER", "")
 	t.Setenv("DEEPSEEK_BASE_URL", "")
 	t.Setenv("DEEPSEEK_CHAT_MODEL", "")
@@ -66,6 +68,9 @@ func TestLoadAIConfigDefaults(t *testing.T) {
 	if cfg.AI.AgentBaseURL != "" || cfg.AI.AgentTimeoutSeconds != "30" {
 		t.Fatalf("unexpected agent boundary defaults")
 	}
+	if !cfg.EnableDemoSeed {
+		t.Fatalf("development defaults should enable demo seed")
+	}
 }
 
 func TestLoadAIConfigFromEnv(t *testing.T) {
@@ -94,5 +99,46 @@ func TestLoadAIConfigFromEnv(t *testing.T) {
 	}
 	if cfg.AI.AgentBaseURL != "http://agent:8090" || cfg.AI.AgentTimeoutSeconds != "12" {
 		t.Fatalf("agent boundary env was not loaded")
+	}
+}
+
+func TestValidateRejectsDefaultJWTOutsideDevelopment(t *testing.T) {
+	cfg := Load()
+	cfg.Environment = "staging"
+	cfg.JWTSecret = "dev-secret-change-me"
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatalf("expected default JWT secret to be rejected outside development")
+	}
+}
+
+func TestValidateAllowsDefaultJWTInDevelopment(t *testing.T) {
+	cfg := Load()
+	cfg.Environment = "development"
+	cfg.JWTSecret = "dev-secret-change-me"
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected development default JWT secret to be allowed, got %v", err)
+	}
+}
+
+func TestValidateRejectsShortJWTOutsideDevelopment(t *testing.T) {
+	cfg := Load()
+	cfg.Environment = "production"
+	cfg.JWTSecret = "short-secret"
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatalf("expected short JWT secret to be rejected outside development")
+	}
+}
+
+func TestValidateRejectsDemoSeedInProduction(t *testing.T) {
+	cfg := Load()
+	cfg.Environment = "production"
+	cfg.JWTSecret = "0123456789abcdef0123456789abcdef"
+	cfg.EnableDemoSeed = true
+
+	if err := cfg.Validate(); err == nil {
+		t.Fatalf("expected demo seed to be rejected in production")
 	}
 }
