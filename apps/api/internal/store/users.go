@@ -174,7 +174,7 @@ func (s *Store) BootstrapAdmin(ctx context.Context, mobile, username, password s
 			request_id, source, risk_level, old_value_summary, new_value_summary
 		)
 		VALUES (NULL, 'security.bootstrap_admin.created', 'user', $1, 'global',
-			'bootstrap-admin', 'cli', 'medium', '{}'::jsonb, jsonb_build_object('mobile', $2, 'role', 'group_admin'))
+			'bootstrap-admin', 'cli', 'medium', '{}'::jsonb, jsonb_build_object('mobile', $2::text, 'role', 'group_admin'))
 	`, user.ID, user.Mobile); err != nil {
 		return nil, err
 	}
