@@ -48,7 +48,7 @@ Add these GitHub repository variables:
 ```text
 TCR_REGISTRY=ccr.ccs.tencentyun.com
 TCR_NAMESPACE=<your-tcr-namespace>
-DEPLOY_PATH=/opt/ai-hrms
+DEPLOY_PATH=/opt/projects/ai-hrms
 DEPLOY_BRANCH=<your-default-branch>
 DEPLOY_PORT=22
 VITE_API_BASE_URL=/api
@@ -89,17 +89,17 @@ sudo systemctl restart docker
 docker info
 ```
 
-Clone the repository to the deploy path used by GitHub Actions:
+Create the deploy parent directory used by GitHub Actions:
 
 ```bash
-sudo mkdir -p /opt/ai-hrms
-sudo chown "$USER:$USER" /opt/ai-hrms
-git clone <your-repo-url> /opt/ai-hrms
-cd /opt/ai-hrms
+sudo mkdir -p /opt/projects
+sudo chown "$USER:$USER" /opt/projects
 ```
 
-For a private repository, configure a deploy key or another read-only Git
-credential on the CVM so `git pull --ff-only` works during deployment.
+The deploy workflow syncs the repository files to `DEPLOY_PATH` over SSH, so
+the CVM does not need a GitHub deploy key or a pre-existing clone. The workflow
+does not upload local env files; create `infra/.env` on the server after the
+first sync or create the directory and env file manually before the first run.
 
 Log in to TCR once on the CVM:
 
@@ -145,7 +145,7 @@ docker push ccr.ccs.tencentyun.com/<namespace>/llama-cpp:server
 Create `infra/.env` on the CVM:
 
 ```bash
-cd /opt/ai-hrms
+cd /opt/projects/ai-hrms
 cp infra/.env.example infra/.env
 ```
 
@@ -194,7 +194,7 @@ After the GitHub workflow has pushed images, run this once on the server if you
 want to deploy manually before enabling automatic deploy:
 
 ```bash
-cd /opt/ai-hrms
+cd /opt/projects/ai-hrms
 IMAGE_TAG=latest ./infra/deploy.sh
 ```
 
@@ -222,7 +222,7 @@ When `AI_HRMS_ENABLE_DEMO_SEED=false`, create the first production admin before
 opening the site to users:
 
 ```bash
-cd /opt/ai-hrms
+cd /opt/projects/ai-hrms
 read -rsp 'Bootstrap admin password: ' BOOTSTRAP_ADMIN_PASSWORD; echo
 printf '%s' "$BOOTSTRAP_ADMIN_PASSWORD" | docker compose --env-file infra/.env -f infra/compose.prod.yaml run --rm -T bootstrap-admin \
   --mobile '+8613800000000' \
@@ -250,6 +250,6 @@ curl -I https://<your-domain>
 Set `IMAGE_TAG` to an older pushed commit SHA and redeploy:
 
 ```bash
-cd /opt/ai-hrms
+cd /opt/projects/ai-hrms
 IMAGE_TAG=<previous-sha> ./infra/deploy.sh
 ```

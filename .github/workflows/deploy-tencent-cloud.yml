@@ -96,6 +96,9 @@ jobs:
       DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH || github.ref_name }}
 
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Validate SSH settings
         run: |
           test -n "$DEPLOY_HOST"
@@ -112,13 +115,27 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
+      - name: Sync deployment files
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='.env' \
+            --exclude='infra/.env' \
+            --exclude='node_modules' \
+            --exclude='apps/web/node_modules' \
+            --exclude='apps/web/dist' \
+            --exclude='apps/agent/.venv' \
+            --exclude='.uv-cache' \
+            -czf - . | ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p \"$DEPLOY_PATH\" && tar -xzf - -C \"$DEPLOY_PATH\""
+
       - name: Deploy over SSH
         run: |
           ssh -i ~/.ssh/deploy_key -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "bash -se" <<REMOTE
           cd "$DEPLOY_PATH"
-          git fetch origin "$DEPLOY_BRANCH"
-          git checkout "$DEPLOY_BRANCH"
-          git pull --ff-only origin "$DEPLOY_BRANCH"
+          if [[ ! -f infra/.env ]]; then
+            echo "Missing $DEPLOY_PATH/infra/.env. Create it from infra/.env.example on the server and fill production values."
+            exit 1
+          fi
           export TCR_REGISTRY="$TCR_REGISTRY"
           export TCR_NAMESPACE="$TCR_NAMESPACE"
           export IMAGE_TAG="$IMAGE_TAG"
