@@ -19,6 +19,8 @@ $env:DOCKER_CORS_ALLOWED_ORIGINS = if ($env:DOCKER_CORS_ALLOWED_ORIGINS) { $env:
 $pgPort = if ($env:POSTGRES_PORT) { $env:POSTGRES_PORT } else { "55432" }
 $env:DATABASE_URL = if ($env:HARNESS_DATABASE_URL) { $env:HARNESS_DATABASE_URL } else { "postgres://ai_hrms:$pgPassword@localhost:$pgPort/ai_hrms?sslmode=disable" }
 if ($env:AI_HRMS_HARNESS_REAL_AI -ne "true") {
+  $env:AGENT_BASE_URL = ""
+  $env:AI_HRMS_AGENT_SERVICE_TOKEN = ""
   $env:DEEPSEEK_API_KEY = ""
   $env:OPENAI_COMPATIBLE_EMBEDDING_API_KEY = ""
   $env:AI_CHAT_PROVIDER = "fake"
