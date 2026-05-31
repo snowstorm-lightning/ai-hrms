@@ -167,13 +167,34 @@ func TestPreviewForToolNeverAcceptsWriteAsExecuted(t *testing.T) {
 	}
 }
 
-func TestVisualHarnessDoesNotClaimLLMForSynchronousExplain(t *testing.T) {
+func TestVisualHarnessMarksLLMAsScopedCandidateForExplain(t *testing.T) {
 	decision := decideVisualHarness(domain.VisualContextRequest{Instruction: "解释这个 Agent run 的风险"})
-	if decision.ExecutionMode != executionRetrievalOnly {
-		t.Fatalf("visual explain mode = %q, want retrieval_only", decision.ExecutionMode)
+	if decision.ExecutionMode != executionLLMExplain {
+		t.Fatalf("visual explain mode = %q, want llm_explain", decision.ExecutionMode)
 	}
-	if decision.UseLLM || decision.UseAgent {
-		t.Fatalf("visual synchronous explain should not claim LLM/Agent use: %+v", decision)
+	if !decision.UseLLM || decision.UseAgent {
+		t.Fatalf("visual explain should be an LLM candidate, not an Agent run: %+v", decision)
+	}
+	if !containsAny(strings.Join(decision.RoutedBy, ","), []string{"visual.llm.candidate"}) {
+		t.Fatalf("visual explain should record scoped LLM candidate route: %+v", decision.RoutedBy)
+	}
+}
+
+func TestUnsafeExternalProviderTextBlocksWorkforceIdentifiers(t *testing.T) {
+	blocked := []string{
+		"为企鹅互联网科技有限公司的平台研发新人林晨生成 30 天成长计划",
+		"给导师生成下周带教计划",
+		"查询员工编号 PG005 的业务内容",
+	}
+	for _, value := range blocked {
+		if !unsafeExternalProviderText(value) {
+			t.Fatalf("unsafeExternalProviderText(%q) = false, want true", value)
+		}
+	}
+
+	allowedPolicyText := "解释新员工 7 天内必须完成哪些事项，并给出引用来源"
+	if unsafeExternalProviderText(allowedPolicyText) {
+		t.Fatalf("unsafeExternalProviderText(%q) = true, want false", allowedPolicyText)
 	}
 }
 

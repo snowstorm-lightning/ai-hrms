@@ -11,10 +11,14 @@ import (
 )
 
 var (
-	emailLikePattern   = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
-	mobileLikePattern  = regexp.MustCompile(`\b1[3-9]\d{9}\b`)
-	idLikePattern      = regexp.MustCompile(`\b\d{15}(\d{2}[0-9Xx])?\b`)
-	visualSpacePattern = regexp.MustCompile(`\s+`)
+	emailLikePattern       = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
+	mobileLikePattern      = regexp.MustCompile(`\b1[3-9]\d{9}\b`)
+	idLikePattern          = regexp.MustCompile(`\b\d{15}(\d{2}[0-9Xx])?\b`)
+	longNumberPattern      = regexp.MustCompile(`\b\d{12,19}\b`)
+	employeeNoPattern      = regexp.MustCompile(`(?i)\b(PG|EMP|E)[-_]?\d{3,}\b`)
+	demoPersonPattern      = regexp.MustCompile(`林晨|周雨桐|许安宁|顾明远|沈知衡|陈向南|罗启明|许海川`)
+	workforcePromptPattern = regexp.MustCompile(`(?i)(为|给|针对|面向)[^，。；\n]{0,32}(员工|新人|导师|候选人|面试者|HRBP|employee|candidate|mentor)`)
+	visualSpacePattern     = regexp.MustCompile(`\s+`)
 )
 
 const (
@@ -396,6 +400,10 @@ func decideVisualHarness(req domain.VisualContextRequest) domain.HarnessDecision
 		decision.HumanReviewRequired = true
 		decision.Reason = "当前 Visual Copilot 同步接口不直接运行 Agent；复杂请求会生成升级建议，由 Agent Run Center 执行受限 run。"
 		decision.RoutedBy = append(decision.RoutedBy, "visual.agent.upgrade.blocked")
+	} else if decision.ExecutionMode == executionLLMExplain && decision.UseLLM {
+		decision.Intent = "visual_scoped_explanation"
+		decision.Reason = "页面解释先由后端 Context Resolver 裁剪上下文；只有存在可外发的受控 citation 时才升级到 LLM。"
+		decision.RoutedBy = append(decision.RoutedBy, "visual.llm.candidate")
 	} else if decision.ExecutionMode != executionActionPreview && decision.ExecutionMode != executionHumanReviewRequired {
 		decision.Intent = "visual_selection_explain"
 		decision.ExecutionMode = executionRetrievalOnly

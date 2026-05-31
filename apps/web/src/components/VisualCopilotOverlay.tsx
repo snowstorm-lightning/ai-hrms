@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { api, getErrorMessage } from "../api/client";
-import type { AIChatResponse, BusinessRef, ScreenRegion, VisualCopilotResponse } from "../api/types";
+import type { BusinessRef, ScreenRegion, VisualCopilotResponse } from "../api/types";
 import { ContextPacketPanel, ExecutionDecisionPanel, TrustPacketBar } from "./AiTrust";
 
 type DraftRect = ScreenRegion["rect"] | null;
@@ -13,7 +13,7 @@ type PanelRect = { x: number; y: number; width: number; height: number };
 type RailPosition = { x: number; y: number };
 type CopilotTurn =
   | { id: string; kind: "selection"; question: string; route: string; createdAt: string; regions: ScreenRegion[]; response: VisualCopilotResponse }
-  | { id: string; kind: "page_chat"; question: string; route: string; createdAt: string; response: AIChatResponse };
+  | { id: string; kind: "page_chat"; question: string; route: string; createdAt: string; response: VisualCopilotResponse };
 type ScrollTarget = Window | HTMLElement;
 type ScrollSnapshot = { target: ScrollTarget; scrollLeft: number; scrollTop: number };
 const visualLayoutStorageKey = "ai-hrms.visual-copilot.layout.v1";
@@ -254,8 +254,19 @@ export function VisualCopilotOverlay() {
         setInstruction("");
         message.success("Visual Copilot 解释已生成");
       } else {
-        const prompt = buildPageChatPrompt(requested, location.pathname);
-        const chat = await api.aiChat(prompt);
+        const pageRegion = pageChatRegion();
+        const chat = await api.visualSuggestions({
+          route: location.pathname,
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            scrollX: window.scrollX,
+            scrollY: window.scrollY,
+          },
+          dom: pageChatDomSnapshot(location.pathname, pageRegion),
+          regions: [pageRegion],
+          instruction: requested,
+        });
         const turn: CopilotTurn = {
           id: nextID(),
           kind: "page_chat",
@@ -554,7 +565,10 @@ function SelectionTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kin
 }
 
 function PageChatTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kind: "page_chat" }>; current: boolean }) {
-  const trust = turn.response.trustPacket;
+  const response = turn.response;
+  const decision = response.executionDecision ?? response.result.executionDecision;
+  const packet = response.contextPacket ?? response.result.contextPacket;
+  const trust = response.trustPacket ?? response.result.trustPacket;
   return (
     <article className={current ? "visual-page-chat is-current" : "visual-page-chat"} data-vc-kind={current ? "visual-page-chat" : undefined}>
       <div className="visual-turn-meta">
@@ -562,24 +576,31 @@ function PageChatTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kind
         <Typography.Text type="secondary">{formatTurnTime(turn.createdAt)}</Typography.Text>
         <Typography.Text className="visual-chat-question">{turn.question}</Typography.Text>
       </div>
-      <Typography.Paragraph>{turn.response.message}</Typography.Paragraph>
+      <div className="visual-response-header">
+        <CheckCircleOutlined />
+        <div>
+          <Typography.Text strong>{response.result.title || "页面上下文回答已生成"}</Typography.Text>
+          <Typography.Text type="secondary">{response.result.preview}</Typography.Text>
+        </div>
+      </div>
+      <Typography.Paragraph>{response.result.explanation || response.result.preview}</Typography.Paragraph>
       <Space wrap>
         <TrustPacketBar packet={trust} />
-        <Tag color={riskColor(turn.response.riskLevel)}>risk={turn.response.riskLevel ?? "low"}</Tag>
-        <Tag>confidence={Math.round((turn.response.confidence ?? 0.72) * 100)}%</Tag>
-        <Tag color={turn.response.provider === "deepseek" ? "purple" : "default"}>{turn.response.provider ?? "program"}/{turn.response.model ?? "routing"}</Tag>
-        {turn.response.humanReviewRequired ? <Tag color="red">humanReviewRequired=true</Tag> : null}
+        <Tag color={riskColor(response.result.riskLevel)}>risk={response.result.riskLevel ?? "low"}</Tag>
+        <Tag>confidence={Math.round((response.result.confidence ?? response.event.confidence ?? 0.72) * 100)}%</Tag>
+        <Tag color={response.result.provider === "deepseek" ? "purple" : "default"}>{response.result.provider || "program"}/{response.result.model || "routing"}</Tag>
+        {(trust?.humanReviewRequired || decision?.humanReviewRequired) ? <Tag color="red">humanReviewRequired=true</Tag> : null}
       </Space>
-      {turn.response.contextPacket?.boundary ? (
+      {packet?.boundary ? (
         <Alert
           className="visual-response-boundary"
           type="info"
           showIcon
-          title={turn.response.contextPacket.boundary}
+          title={packet.boundary}
         />
       ) : null}
-      <ExecutionDecisionPanel decision={turn.response.executionDecision} />
-      <ContextPacketPanel packet={turn.response.contextPacket} />
+      <ExecutionDecisionPanel decision={decision} />
+      <ContextPacketPanel packet={packet} />
     </article>
   );
 }
@@ -1038,15 +1059,35 @@ function domSnapshot(regions: ScreenRegion[]) {
     .map(({ box: _box, selectedArea: _selectedArea, specificity: _specificity, ...node }) => node);
 }
 
-function buildPageChatPrompt(question: string, route: string) {
-  const context = pageContextSummary(route);
-  return [
-    "你是 AI-HRMS 的页面助理。请根据当前页面、用户角色和已加载的页面上下文回答，不要编造数据库外事实。",
-    "回答先给结论，再说明依据。若用户没有圈选具体对象，不要替用户选择对象；需要具体人员/资料/事件时，请要求用户圈选或打开详情。",
-    "如用户要求修改数据，只能说明预览、人工确认、权限复核和审计边界。",
-    context,
-    `用户问题：${question}`,
-  ].join("\n");
+function pageChatRegion(): ScreenRegion {
+  return {
+    id: nextID(),
+    mode: "rect",
+    rect: {
+      x: window.scrollX,
+      y: window.scrollY,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      dpr: window.devicePixelRatio || 1,
+    },
+    businessRefs: [],
+  };
+}
+
+function pageChatDomSnapshot(route: string, region: ScreenRegion) {
+  return [{
+    kind: "page_context",
+    label: routePageLabel(route),
+    text: pageContextSummary(route),
+    tag: "page",
+    visible: true,
+    rect: {
+      x: region.rect.x,
+      y: region.rect.y,
+      width: region.rect.width,
+      height: region.rect.height,
+    },
+  }];
 }
 
 function pageContextSummary(route: string) {
@@ -1056,7 +1097,6 @@ function pageContextSummary(route: string) {
     .filter((element) => element.offsetParent !== null);
   const pageMarkers = dedupe(elements.map((element) => element.dataset.vcPage || "").filter(Boolean));
   const objectCounts: Record<string, number> = {};
-  const objectSamples: Record<string, string[]> = {};
   const modules: string[] = [];
   const actions: string[] = [];
   const overlays: string[] = [];
@@ -1064,16 +1104,12 @@ function pageContextSummary(route: string) {
     const objectType = element.dataset.vcObjectType;
     if (objectType) {
       objectCounts[objectType] = (objectCounts[objectType] || 0) + 1;
-      const label = element.dataset.vcLabel || compactLabel(element);
-      if (label) {
-        objectSamples[objectType] = dedupe([...(objectSamples[objectType] || []), compactVisualText(label, 36)]).slice(0, 5);
-      }
     }
     const kind = element.dataset.vcKind;
     if (kind && !objectType) {
       modules.push(kind);
       if (/drawer|editor|modal|form/i.test(kind)) {
-        overlays.push(compactVisualText(element.dataset.vcLabel || compactLabel(element), 50));
+        overlays.push(compactVisualText(kind, 50));
       }
     }
     if (element.dataset.vcAction) {
@@ -1083,14 +1119,11 @@ function pageContextSummary(route: string) {
   const objectLine = Object.keys(objectCounts).length
     ? Object.entries(objectCounts).map(([type, count]) => `${type}=${count}`).join(", ")
     : "无具名业务对象";
-  const sampleLine = Object.entries(objectSamples)
-    .map(([type, labels]) => `${type}: ${labels.join("、")}`)
-    .join("；");
   return [
     `当前页面：${route}`,
     `页面类型：${pageMarkers[0] || routePageLabel(route)}`,
     `可见业务对象统计：${objectLine}`,
-    sampleLine ? `可见对象示例：${sampleLine}` : "可见对象示例：未采集到具名对象标签",
+    "可见对象示例：未随页面问答发送；需要解释具体员工、资料、事件或组织时，请先圈选对象，让后端按 scope 解析。",
     modules.length ? `页面模块：${dedupe(modules).slice(0, 8).join("、")}` : "页面模块：未标记",
     actions.length ? `可用操作：${dedupe(actions).slice(0, 8).join("、")}` : "可用操作：未标记",
     overlays.length ? `当前打开浮层：${dedupe(overlays).slice(0, 3).join("、")}` : "当前打开浮层：无",

@@ -33,7 +33,7 @@ const promptLibrary = [
 ];
 
 function buildResult(chat: AIChatResponse, run: AgentRun, fallbackRiskLevel: string): CommandResult {
-  const riskLevel = chat.riskLevel || fallbackRiskLevel;
+  const riskLevel = maxRiskLevel(chat.riskLevel || "low", fallbackRiskLevel);
   const humanReviewRequired = Boolean(chat.humanReviewRequired ?? riskLevel !== "low");
   return {
     answer: chat.message,
@@ -76,7 +76,7 @@ export function AiCommandCenterPage() {
     setError("");
     try {
       const chat = await api.aiChat(prompt);
-      const effectiveRiskLevel = chat.riskLevel || riskLevel;
+      const effectiveRiskLevel = maxRiskLevel(chat.riskLevel || "low", riskLevel);
       const shouldCreateRun = ["single_agent", "multi_agent", "action_preview", "human_review_required"].includes(chat.executionDecision?.executionMode ?? "");
       const createdRun = shouldCreateRun
         ? await api.createAgentRun({ runType: "command_center", prompt, riskLevel: effectiveRiskLevel })
@@ -237,4 +237,9 @@ export function AiCommandCenterPage() {
       ) : null}
     </div>
   );
+}
+
+function maxRiskLevel(left: string, right: string) {
+  const rank: Record<string, number> = { low: 1, medium: 2, high: 3 };
+  return (rank[right] ?? 1) > (rank[left] ?? 1) ? right : left;
 }

@@ -1,4 +1,4 @@
-import { Button, Select, Space, Table, Tag } from "antd";
+import { Button, Select, Space, Table, Tag, message } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
@@ -87,6 +87,7 @@ export function AttendancePage() {
           try {
             await api.checkin(employeeId);
             await reload();
+            message.success("签到已记录，考勤信号已刷新");
           } catch (err) {
             setError(getErrorMessage(err, "签到失败"));
           } finally {
@@ -101,6 +102,7 @@ export function AttendancePage() {
             setError("");
             try {
               await api.exportAttendance();
+              message.success("CSV 导出已生成");
             } catch (err) {
               setError(getErrorMessage(err, "考勤导出失败"));
             } finally {
@@ -143,6 +145,7 @@ export function AttendancePage() {
                 try {
                   await api.checkout(row.id);
                   await reload();
+                  message.success("签退已记录，考勤信号已刷新");
                 } catch (err) {
                   setError(getErrorMessage(err, "签退失败"));
                 } finally {

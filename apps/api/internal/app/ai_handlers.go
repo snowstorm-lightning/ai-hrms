@@ -1132,7 +1132,10 @@ func unsafeExternalProviderText(value string) bool {
 	if emailLikePattern.MatchString(value) || mobileLikePattern.MatchString(value) || idLikePattern.MatchString(value) {
 		return true
 	}
-	if regexp.MustCompile(`\b\d{12,19}\b`).MatchString(value) {
+	if longNumberPattern.MatchString(value) {
+		return true
+	}
+	if employeeNoPattern.MatchString(value) || demoPersonPattern.MatchString(value) || workforcePromptPattern.MatchString(value) {
 		return true
 	}
 	risk, _ := classifyAIRisk(value)
