@@ -200,7 +200,8 @@ docker compose --env-file infra/.env -f infra/compose.yaml down -v
 docker compose --env-file infra/.env -f infra/compose.yaml up -d --build
 ```
 
-Nginx reverse proxy steps are in `docs/deploy-nginx.md`.
+Nginx reverse proxy steps are in `docs/deploy-nginx.md`. Tencent Cloud CVM +
+TCR CI/CD steps are in `docs/deploy-tencent-cloud.md`.
 
 ## Start Natively
 

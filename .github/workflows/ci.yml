@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  project-check:
+    name: Project harness
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: go.work.sum
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Node and Python tools
+        run: |
+          npm ci
+          python -m pip install --upgrade pip uv
+
+      - name: Create CI compose env
+        run: |
+          cat > infra/.env <<'ENV'
+          DOCKER_BIND_IP=127.0.0.1
+          API_PORT=8020
+          WEB_PORT=8021
+          POSTGRES_PORT=55432
+          AGENT_PORT=8090
+          EMBEDDING_PORT=8082
+          POSTGRES_PASSWORD=ai_hrms_ci
+          DOCKER_DATABASE_URL=postgres://ai_hrms:ai_hrms_ci@postgres:5432/ai_hrms?sslmode=disable
+          JWT_SECRET=ci-secret-change-me
+          AI_HRMS_ENV=test
+          AI_HRMS_ENABLE_DEMO_SEED=true
+          VITE_API_BASE_URL=/api
+          VITE_DEMO_MODE=false
+          DOCKER_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+          AGENT_BASE_URL=http://agent:8090
+          AGENT_TIMEOUT_SECONDS=30
+          AI_CHAT_PROVIDER=fake
+          AI_EMBEDDING_PROVIDER=fake
+          RAG_EMBEDDING_DIMENSIONS=8
+          ENV
+
+      - name: Start PostgreSQL
+        run: |
+          docker compose --env-file infra/.env -f infra/compose.yaml -f infra/compose.dev.yaml up -d postgres
+          until docker compose --env-file infra/.env -f infra/compose.yaml -f infra/compose.dev.yaml exec -T postgres pg_isready -U ai_hrms -d ai_hrms; do
+            sleep 1
+          done
+
+      - name: Run full project check
+        run: npm run check
+
+      - name: Stop CI services
+        if: always()
+        run: docker compose --env-file infra/.env -f infra/compose.yaml -f infra/compose.dev.yaml down -v

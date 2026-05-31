@@ -29,3 +29,7 @@ docker compose --env-file infra/.env -f infra/compose.yaml -f infra/compose.dev.
 
 Redis is intentionally not included until a concrete cache, queue, rate-limit,
 or fanout use case appears.
+
+`compose.prod.yaml` runs the same stack from prebuilt images pushed to a
+container registry. For Tencent Cloud CVM + TCR deployment, see
+`docs/deploy-tencent-cloud.md`.
