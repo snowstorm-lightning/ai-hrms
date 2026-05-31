@@ -1,5 +1,5 @@
 import { Button, Form, Input, Modal, Select, Space, Switch, Table, Tag } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
 import type { LegalEntity, OrgUnit, Role, RoleBinding, User } from "../../api/types";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
@@ -63,18 +63,25 @@ export function UsersPage() {
   };
 
   return (
-    <>
-      <PageTitle title="用户管理" description="维护登录账号、启停状态和基础角色视图。" />
+    <main data-vc-page="accounts-and-roles" data-vc-kind="accounts-role-page">
+      <PageTitle title="账号与角色治理" description="维护登录账号、角色绑定和 scope，是 Agent tool preview、RAG 检索和审计授权的权限底座。" />
       <InlineError message={error} onRetry={() => reload()} />
       <Space className="toolbar">
-        <Button type="primary" onClick={() => setEditing({ enableState: 1 })}>新增用户</Button>
+        <Button type="primary" data-vc-action="user.create" onClick={() => setEditing({ enableState: 1 })}>新增用户</Button>
       </Space>
       <Table
+        data-vc-kind="user-table"
         rowKey="id"
         loading={loading}
         dataSource={items}
         pagination={{ total, current: page, onChange: reload }}
         locale={{ emptyText: <EmptyBlock description="暂无用户" /> }}
+        onRow={(row) => ({
+          "data-vc-kind": "table-row",
+          "data-vc-object-type": "user",
+          "data-vc-object-id": row.id,
+          "data-vc-label": row.username,
+        } as HTMLAttributes<HTMLElement>)}
         columns={[
           { title: "用户名", dataIndex: "username" },
           { title: "手机号", dataIndex: "mobile" },
@@ -84,14 +91,14 @@ export function UsersPage() {
             title: "操作",
             render: (_, record) => (
               <Space>
-                <Button onClick={() => setEditing(record)}>编辑</Button>
-                <Button onClick={() => openRoleEditor(record)}>权限</Button>
+                <Button data-vc-action="user.edit" onClick={() => setEditing(record)}>编辑</Button>
+                <Button data-vc-action="user.role_bindings.edit" onClick={() => openRoleEditor(record)}>权限</Button>
               </Space>
             ),
           },
         ]}
       />
-      <Modal title={editing?.id ? "编辑用户" : "新增用户"} open={!!editing} onCancel={() => setEditing(null)} onOk={() => form.submit()} confirmLoading={saving}>
+      <Modal title={editing?.id ? "编辑用户" : "新增用户"} open={!!editing} onCancel={() => setEditing(null)} onOk={() => form.submit()} confirmLoading={saving} data-vc-kind="user-editor" data-vc-object-type={editing?.id ? "user" : undefined} data-vc-object-id={editing?.id} data-vc-label={editing?.username}>
         <Form
           form={form}
           layout="vertical"
@@ -115,9 +122,9 @@ export function UsersPage() {
             }
           }}
         >
-          <Form.Item name="username" label="用户名" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="mobile" label="手机号" rules={[{ required: true }]}><Input disabled={!!editing?.id} /></Form.Item>
-          {!editing?.id ? <Form.Item name="password" label="初始密码"><Input.Password placeholder="默认 password" /></Form.Item> : null}
+          <Form.Item name="username" label="用户名" rules={[{ required: true }]}><Input data-vc-field="user.username" /></Form.Item>
+          <Form.Item name="mobile" label="手机号" rules={[{ required: true }]}><Input data-vc-field="user.mobile" disabled={!!editing?.id} /></Form.Item>
+          {!editing?.id ? <Form.Item name="password" label="初始密码"><Input.Password data-vc-field="user.initial_password" placeholder="默认 password" /></Form.Item> : null}
           <Form.Item name="enableState" label="启用" valuePropName="checked" getValueProps={(value) => ({ checked: value === 1 })} normalize={(value) => value ? 1 : 0}>
             <Switch />
           </Form.Item>
@@ -130,6 +137,10 @@ export function UsersPage() {
         onOk={() => roleForm.submit()}
         confirmLoading={roleLoading || roleSaving}
         width={860}
+        data-vc-kind="role-binding-editor"
+        data-vc-object-type={roleEditing ? "user" : undefined}
+        data-vc-object-id={roleEditing?.id}
+        data-vc-label={roleEditing?.username}
       >
         <Form
           form={roleForm}
@@ -201,6 +212,6 @@ export function UsersPage() {
           </Form.List>
         </Form>
       </Modal>
-    </>
+    </main>
   );
 }

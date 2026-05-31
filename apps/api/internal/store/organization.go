@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"ai-hrms/apps/api/internal/domain"
@@ -112,4 +113,29 @@ func (s *Store) UpdateOrgUnit(ctx context.Context, id string, item domain.OrgUni
 		RETURNING id::text, parent_id::text, legal_entity_id::text, code, name, type, manager_name, status, created_at
 	`, id, item.ParentID, item.LegalEntityID, item.Code, item.Name, item.Type, item.ManagerName, item.Status).Scan(&saved.ID, &saved.ParentID, &saved.LegalEntityID, &saved.Code, &saved.Name, &saved.Type, &saved.ManagerName, &saved.Status, &saved.CreatedAt)
 	return &saved, notFound(err)
+}
+
+func (s *Store) DeleteOrgUnit(ctx context.Context, id string) error {
+	var blockers int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT
+		  (SELECT count(*) FROM org_units WHERE parent_id = $1) +
+		  (SELECT count(*) FROM employee_assignments WHERE org_unit_id = $1) +
+		  (SELECT count(*) FROM messages WHERE org_unit_id = $1) +
+		  (SELECT count(*) FROM user_role_bindings WHERE scope_type = 'org_unit' AND scope_id = $1) +
+		  (SELECT count(*) FROM rag_document_scopes WHERE scope_type = 'org_unit' AND scope_id = $1)
+	`, id).Scan(&blockers); err != nil {
+		return err
+	}
+	if blockers > 0 {
+		return errors.New("组织单元仍被子组织、员工任职、消息、角色 scope 或 RAG scope 引用，请先迁移引用或改为 inactive")
+	}
+	tag, err := s.pool.Exec(ctx, `DELETE FROM org_units WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

@@ -19,6 +19,7 @@ const LearningPage = lazy(() => import("../features/learning/LearningPage").then
 const CoGrowthPage = lazy(() => import("../features/co-growth/CoGrowthPage").then((module) => ({ default: module.CoGrowthPage })));
 const AgentRunsPage = lazy(() => import("../features/agents/AgentRunsPage").then((module) => ({ default: module.AgentRunsPage })));
 const AuditPage = lazy(() => import("../features/audit/AuditPage").then((module) => ({ default: module.AuditPage })));
+const HelpPage = lazy(() => import("../features/help/HelpPage").then((module) => ({ default: module.HelpPage })));
 
 function RequireAuth() {
   const { user, loading } = useAuth();
@@ -66,6 +67,7 @@ export function AppRouter() {
                   <Route path="co-growth" element={<Navigate to="/co-growth" replace />} />
                   <Route path="agents" element={<AgentRunsPage />} />
                   <Route path="audit" element={<AuditPage />} />
+                  <Route path="help" element={<HelpPage />} />
                 </Route>
               </Route>
             </Route>

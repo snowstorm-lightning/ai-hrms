@@ -24,7 +24,7 @@ type CommandResult = {
 
 const promptLibrary = [
   { label: "解释制度并给引用", value: "解释新员工 7 天内必须完成哪些事项，并给出引用来源。", riskLevel: "low" },
-  { label: "生成新人 30 天成长计划", value: "为企鹅科技平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。", riskLevel: "medium" },
+  { label: "生成新人 30 天成长计划", value: "为企鹅互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。", riskLevel: "medium" },
   { label: "检查高风险建议", value: "检查一条面试建议是否涉及隐私、公平性或自动化录用风险。", riskLevel: "high" },
   { label: "生成下周带教计划", value: "为 HR 和导师生成下周带教计划，并标注哪些步骤需要人工确认。", riskLevel: "medium" },
   { label: "拆成 Agent workflow", value: "把新人学习推荐任务拆成 Agent workflow：检索、生成、检查、人工确认、审计。", riskLevel: "medium" },
@@ -65,7 +65,7 @@ function buildResult(chat: AIChatResponse, run: AgentRun, fallbackRiskLevel: str
 }
 
 export function AiCommandCenterPage() {
-  const [prompt, setPrompt] = useState("为企鹅科技平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。");
+  const [prompt, setPrompt] = useState("为企鹅互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。");
   const [riskLevel, setRiskLevel] = useState("medium");
   const [result, setResult] = useState<CommandResult | null>(null);
   const [loading, setLoading] = useState(false);

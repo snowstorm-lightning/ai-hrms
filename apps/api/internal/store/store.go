@@ -435,13 +435,24 @@ func whereIn(column string, ids []string, start int) (string, []any) {
 	if len(ids) == 0 {
 		return "", nil
 	}
-	holders := make([]string, len(ids))
+	holders := placeholderList(start, len(ids))
 	args := make([]any, len(ids))
 	for i, id := range ids {
-		holders[i] = "$" + itoa(start+i)
 		args[i] = id
 	}
 	return column + " IN (" + strings.Join(holders, ",") + ")", args
+}
+
+func holders(start, count int) string {
+	return strings.Join(placeholderList(start, count), ",")
+}
+
+func placeholderList(start, count int) []string {
+	holders := make([]string, count)
+	for i := range holders {
+		holders[i] = "$" + itoa(start+i)
+	}
+	return holders
 }
 
 func itoa(value int) string {

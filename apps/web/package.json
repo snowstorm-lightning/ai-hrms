@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "dev:real": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "dev:demo": "node scripts/dev-demo.mjs",
     "build": "tsc -b && vite build",
     "check": "tsc -b --pretty false"
   },

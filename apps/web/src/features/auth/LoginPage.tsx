@@ -87,6 +87,8 @@ export function LoginPage() {
                 className="demo-login-button"
                 type="primary"
                 block
+                loading={submitting}
+                disabled={submitting}
                 onClick={async () => {
                   setError("");
                   setSubmitting(true);

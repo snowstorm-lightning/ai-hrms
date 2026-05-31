@@ -16,9 +16,24 @@ func (s *Store) BusinessRefVisible(ctx context.Context, scope Scope, actor rbac.
 	if ref.ID == "" || ref.Type == "" {
 		return false, nil
 	}
+	if capability := visualBusinessRefCapability(ref.Type); capability != "" && !actor.HasCapability(capability) {
+		return false, nil
+	}
 	switch ref.Type {
-	case "employee", "user":
+	case "employee":
 		_, err := s.GetEmployee(ctx, scope, ref.ID)
+		if err == nil {
+			return true, nil
+		}
+		if err == ErrNotFound {
+			return false, nil
+		}
+		return false, err
+	case "user":
+		if !actor.IsGlobal() {
+			return false, nil
+		}
+		_, err := s.GetUser(ctx, ref.ID)
 		if err == nil {
 			return true, nil
 		}
@@ -57,6 +72,21 @@ func (s *Store) BusinessRefVisible(ctx context.Context, scope Scope, actor rbac.
 			return false, nil
 		}
 		return false, err
+	case "attendance":
+		items, _, err := s.ListAttendance(ctx, scope, 1, 500)
+		if err != nil {
+			return false, err
+		}
+		for _, item := range items {
+			if item.ID == ref.ID {
+				return true, nil
+			}
+		}
+		return false, nil
+	case "message":
+		return s.messageVisible(ctx, scope, ref.ID)
+	case "learning_signal", "learning_mission", "learning_principle", "growth_evidence", "workflow_node":
+		return strings.TrimSpace(ref.Label) != "", nil
 	case "learning":
 		items, _, err := s.ListLearningCourses(ctx, scope, 1, 100)
 		if err != nil {
@@ -113,9 +143,70 @@ func containsString(values []string, target string) bool {
 	return false
 }
 
+func legalEntityBusinessProfile(item domain.LegalEntity) string {
+	value := strings.ToLower(item.Code + " " + item.Name + " " + item.LegalName)
+	switch {
+	case strings.Contains(value, "enterprise") || strings.Contains(value, "企业服务"):
+		return "面向企业客户的协作方案、交付实施、客户成功和培训支持"
+	case strings.Contains(value, "collab") || strings.Contains(value, "协同"):
+		return "协同办公、产品研发和跨团队工作流平台"
+	case strings.Contains(value, "risk") || strings.Contains(value, "风控"):
+		return "内容安全、风控策略、AI 治理和审计能力"
+	case strings.Contains(value, "growth") || strings.Contains(value, "增长"):
+		return "增长算法、用户运营和数据驱动的业务实验"
+	case strings.Contains(value, "group") || strings.Contains(value, "集团"):
+		return "集团总部与 AI 平台底座，承载统一 HR、知识治理和 Agent 协作规范"
+	default:
+		return "模拟互联网科技公司下的业务或职能法人，用于权限 scope、合同边界和审计归属"
+	}
+}
+
+func orgUnitBusinessProfile(item domain.OrgUnit) string {
+	value := strings.ToLower(item.Code + " " + item.Name + " " + item.Type)
+	switch {
+	case strings.Contains(value, "group-hr") || strings.Contains(value, "人力资源"):
+		return "集团 HR 共享能力、组织制度、人才发展和人机协作治理"
+	case strings.Contains(value, "ai-platform") || strings.Contains(value, "平台工程"):
+		return "AI 平台底座、Agent 工程能力、内部工具链和安全工程实践"
+	case strings.Contains(value, "ai-gov") || strings.Contains(value, "安全与治理"):
+		return "AI 安全评审、风险策略、审计规范和人审流程"
+	case strings.Contains(value, "collab") || strings.Contains(value, "协同"):
+		return "协同办公产品研发、跨团队流程和工作流平台"
+	case strings.Contains(value, "enterprise") || strings.Contains(value, "企业服务"):
+		return "企业客户交付、客户成功、实施支持和培训服务"
+	case strings.Contains(value, "growth") || strings.Contains(value, "增长"):
+		return "增长策略、用户运营、实验分析和数据驱动迭代"
+	case strings.Contains(value, "risk") || strings.Contains(value, "风险"):
+		return "内容安全、风控策略、审计证据和 AI 治理能力"
+	default:
+		return "模拟公司中的组织职责单元，用于限定人员归属、资料可见性、Agent 授权和审计范围"
+	}
+}
+
+func coGrowthVisualSummary(objectType, label string) string {
+	label = valueOrDefault(label, "Co-Growth 对象")
+	switch objectType {
+	case "learning_signal":
+		return fmt.Sprintf("成长信号「%s」来自 Co-Growth Engine，只用于学习辅导、证据充分度和团队趋势分析，不作为个人惩罚或任用依据。", label)
+	case "learning_mission":
+		return fmt.Sprintf("学习 mission「%s」把 AI 原理学习嵌入模拟工作任务；输出需要人工复盘并沉淀成长证据。", label)
+	case "learning_principle":
+		return fmt.Sprintf("AI 原理卡「%s」用于解释模型能力、限制和验证方式，适合进入学习路径和 work journal。", label)
+	case "growth_evidence":
+		return fmt.Sprintf("成长证据「%s」用于记录 prompt、上下文、AI 输出、人类修订、验证和复盘；证据可审计但不等于绩效裁决。", label)
+	case "workflow_node":
+		return fmt.Sprintf("Workflow 节点「%s」描述 Agent 协作步骤、输入输出和工具边界；高风险步骤必须 human-in-the-loop。", label)
+	default:
+		return fmt.Sprintf("Co-Growth 对象「%s」属于 AI-HRMS 成长引擎上下文，解释必须保留学习、证据和治理边界。", label)
+	}
+}
+
 func (s *Store) ResolveBusinessRefs(ctx context.Context, scope Scope, actor rbac.Principal, refs []domain.BusinessRef) ([]domain.ContextItem, error) {
 	items := make([]domain.ContextItem, 0, len(refs))
 	for _, ref := range refs {
+		if capability := visualBusinessRefCapability(ref.Type); capability != "" && !actor.HasCapability(capability) {
+			continue
+		}
 		item, ok, err := s.resolveBusinessRef(ctx, scope, actor, ref)
 		if err != nil {
 			return nil, err
@@ -125,6 +216,25 @@ func (s *Store) ResolveBusinessRefs(ctx context.Context, scope Scope, actor rbac
 		}
 	}
 	return items, nil
+}
+
+func visualBusinessRefCapability(refType string) string {
+	switch refType {
+	case "employee", "user", "legal_entity", "org_unit":
+		return "employee.read"
+	case "rag_document":
+		return "rag.search"
+	case "learning":
+		return "learning.view"
+	case "learning_signal", "learning_mission", "learning_principle", "growth_evidence", "workflow_node":
+		return "learning.view"
+	case "agent_run":
+		return "agent.execute_read"
+	case "audit_event":
+		return "audit.read"
+	default:
+		return ""
+	}
 }
 
 func (s *Store) resolveBusinessRef(ctx context.Context, scope Scope, actor rbac.Principal, ref domain.BusinessRef) (domain.ContextItem, bool, error) {
@@ -140,7 +250,7 @@ func (s *Store) resolveBusinessRef(ctx context.Context, scope Scope, actor rbac.
 		Provenance: ref.Type + "/" + ref.ID,
 	}
 	switch ref.Type {
-	case "employee", "user":
+	case "employee":
 		employee, err := s.GetEmployee(ctx, scope, ref.ID)
 		if err != nil {
 			if err == ErrNotFound {
@@ -149,16 +259,83 @@ func (s *Store) resolveBusinessRef(ctx context.Context, scope Scope, actor rbac.
 			return base, false, err
 		}
 		position := "未绑定主岗位"
-		orgUnit := ""
+		orgUnitName := ""
+		orgUnitProfile := ""
+		legalEntityName := ""
+		legalEntityProfile := ""
 		if employee.PrimaryAssignment != nil {
-			position = employee.PrimaryAssignment.PositionTitle
+			if strings.TrimSpace(employee.PrimaryAssignment.PositionTitle) != "" {
+				position = employee.PrimaryAssignment.PositionTitle
+			}
 			if employee.PrimaryAssignment.OrgUnitName != nil {
-				orgUnit = *employee.PrimaryAssignment.OrgUnitName
+				orgUnitName = *employee.PrimaryAssignment.OrgUnitName
+			}
+			if employee.PrimaryAssignment.LegalEntityName != nil {
+				legalEntityName = *employee.PrimaryAssignment.LegalEntityName
+			}
+			if employee.PrimaryAssignment.LegalEntityID != nil {
+				name, profile, err := s.legalEntityBusinessContext(ctx, scope, *employee.PrimaryAssignment.LegalEntityID)
+				if err != nil {
+					return base, false, err
+				}
+				if legalEntityName == "" {
+					legalEntityName = name
+				}
+				legalEntityProfile = profile
+			}
+			if employee.PrimaryAssignment.OrgUnitID != nil {
+				name, profile, err := s.orgUnitBusinessContext(ctx, scope, *employee.PrimaryAssignment.OrgUnitID)
+				if err != nil {
+					return base, false, err
+				}
+				if orgUnitName == "" {
+					orgUnitName = name
+				}
+				orgUnitProfile = profile
 			}
 		}
+		if legalEntityProfile == "" && legalEntityName != "" {
+			legalEntityProfile = "按主任职法人归属确定业务边界；当前 scope 未返回更细的业务画像"
+		}
+		if orgUnitProfile == "" && orgUnitName != "" {
+			orgUnitProfile = "按主任职组织归属确定日常协作范围；当前 scope 未返回更细的组织职责画像"
+		}
 		base.Label = employee.Name
-		base.Summary = fmt.Sprintf("员工 %s，状态=%s，主岗位=%s。", employee.Name, employee.Status, position)
-		base.Metadata = map[string]any{"employeeNo": employee.EmployeeNo, "orgUnit": orgUnit}
+		base.Summary = fmt.Sprintf(
+			"员工 %s，状态=%s，主岗位=%s，主任职法人=%s，主任职组织=%s；法人业务定位=%s；组织职责=%s。",
+			employee.Name,
+			valueOrDefault(employee.Status, "unknown"),
+			position,
+			valueOrDefault(legalEntityName, "未分配"),
+			valueOrDefault(orgUnitName, "未分配"),
+			valueOrDefault(legalEntityProfile, "无法仅凭当前字段推断业务定位"),
+			valueOrDefault(orgUnitProfile, "无法仅凭当前字段推断组织职责"),
+		)
+		base.Metadata = map[string]any{
+			"employeeNo":          employee.EmployeeNo,
+			"status":              employee.Status,
+			"position":            position,
+			"legalEntity":         legalEntityName,
+			"legalEntityProfile":  legalEntityProfile,
+			"orgUnit":             orgUnitName,
+			"orgUnitProfile":      orgUnitProfile,
+			"businessExplanation": valueOrDefault(orgUnitProfile, legalEntityProfile),
+		}
+		return base, true, nil
+	case "user":
+		if !actor.IsGlobal() {
+			return base, false, nil
+		}
+		user, err := s.GetUser(ctx, ref.ID)
+		if err != nil {
+			if err == ErrNotFound {
+				return base, false, nil
+			}
+			return base, false, err
+		}
+		base.Label = user.Username
+		base.Summary = fmt.Sprintf("账号 %s，启用状态=%d，角色=%s。账号用于登录、权限绑定、RAG scope、Agent tool preview 和审计责任归属。", user.Username, user.EnableState, strings.Join(user.Roles, "、"))
+		base.Metadata = map[string]any{"roles": user.Roles, "enabled": user.EnableState == 1}
 		return base, true, nil
 	case "legal_entity":
 		items, err := s.ListLegalEntities(ctx, scope)
@@ -168,8 +345,8 @@ func (s *Store) resolveBusinessRef(ctx context.Context, scope Scope, actor rbac.
 		for _, item := range items {
 			if item.ID == ref.ID {
 				base.Label = item.Name
-				base.Summary = fmt.Sprintf("法人实体 %s，区域=%s，状态=%s。", item.Name, item.Area, item.Status)
-				base.Metadata = map[string]any{"code": item.Code}
+				base.Summary = fmt.Sprintf("法人实体 %s，区域=%s，状态=%s；业务定位=%s。", item.Name, item.Area, item.Status, legalEntityBusinessProfile(item))
+				base.Metadata = map[string]any{"code": item.Code, "businessProfile": legalEntityBusinessProfile(item)}
 				return base, true, nil
 			}
 		}
@@ -198,6 +375,38 @@ func (s *Store) resolveBusinessRef(ctx context.Context, scope Scope, actor rbac.
 		base.Summary = fmt.Sprintf("知识资料 %s，trustLevel=%s，sensitivity=%s，status=%s。", doc.Title, doc.TrustLevel, doc.Sensitivity, doc.Status)
 		base.RiskLevel = sensitivityRisk(doc.Sensitivity)
 		base.Metadata = map[string]any{"trustLevel": doc.TrustLevel, "sensitivity": doc.Sensitivity, "version": doc.Version}
+		return base, true, nil
+	case "attendance":
+		items, _, err := s.ListAttendance(ctx, scope, 1, 500)
+		if err != nil {
+			return base, false, err
+		}
+		for _, item := range items {
+			if item.ID == ref.ID {
+				base.Label = item.EmployeeName + " " + item.Day
+				base.Summary = fmt.Sprintf("考勤信号：员工=%s，组织=%s，日期=%s，状态码=%d，签到=%v，签退=%v，备注=%s。该信号只能用于流程解释、异常提示和人工复核，不能自动形成绩效或淘汰结论。", item.EmployeeName, item.OrgUnitName, item.Day, item.AttendanceStatus, item.AttendanceInTime, item.AttendanceOutTime, item.Remarks)
+				base.Metadata = map[string]any{"employeeName": item.EmployeeName, "orgUnit": item.OrgUnitName, "day": item.Day, "status": item.AttendanceStatus}
+				return base, true, nil
+			}
+		}
+	case "message":
+		items, _, err := s.ListMessages(ctx, scope, 1, 500)
+		if err != nil {
+			return base, false, err
+		}
+		for _, item := range items {
+			if item.ID == ref.ID {
+				base.Label = item.Title
+				base.Summary = fmt.Sprintf("消息证据：标题=%s，分类=%s，作者=%s，范围=%s，浏览=%d。内容只作为组织沟通上下文和审计线索，不能作为无边界训练数据。", item.Title, item.Category, item.Author, item.ScopeType, item.View)
+				base.Metadata = map[string]any{"category": item.Category, "author": item.Author, "scopeType": item.ScopeType}
+				return base, true, nil
+			}
+		}
+	case "learning_signal", "learning_mission", "learning_principle", "growth_evidence", "workflow_node":
+		base.Label = label
+		base.Source = "visual_selection.co_growth"
+		base.Summary = coGrowthVisualSummary(ref.Type, label)
+		base.Metadata = map[string]any{"coGrowthObjectType": ref.Type}
 		return base, true, nil
 	case "learning":
 		courses, _, err := s.ListLearningCourses(ctx, scope, 1, 200)
@@ -261,6 +470,40 @@ func (s *Store) resolveBusinessRef(ctx context.Context, scope Scope, actor rbac.
 		return base, true, nil
 	}
 	return base, false, nil
+}
+
+func (s *Store) legalEntityBusinessContext(ctx context.Context, scope Scope, id string) (string, string, error) {
+	items, err := s.ListLegalEntities(ctx, scope)
+	if err != nil {
+		return "", "", err
+	}
+	for _, item := range items {
+		if item.ID == id {
+			return item.Name, legalEntityBusinessProfile(item), nil
+		}
+	}
+	return "", "", nil
+}
+
+func (s *Store) orgUnitBusinessContext(ctx context.Context, scope Scope, id string) (string, string, error) {
+	items, err := s.ListOrgUnits(ctx, scope)
+	if err != nil {
+		return "", "", err
+	}
+	for _, item := range items {
+		if item.ID == id {
+			return item.Name, orgUnitBusinessProfile(item), nil
+		}
+	}
+	return "", "", nil
+}
+
+func valueOrDefault(value, fallback string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return value
 }
 
 func sensitivityRisk(sensitivity string) string {

@@ -7,13 +7,15 @@
   "scripts": {
     "check": "node harness/check.mjs",
     "check:linux": "bash harness/check.sh",
-    "check:windows": "powershell -ExecutionPolicy Bypass -File harness/check.ps1",
+    "check:windows": "node harness/check.mjs",
     "docker:up": "docker compose --env-file infra/.env -f infra/compose.yaml up -d --build",
     "docker:down": "docker compose --env-file infra/.env -f infra/compose.yaml down",
     "docker:logs": "docker compose --env-file infra/.env -f infra/compose.yaml logs -f",
     "browser:check": "node harness/browser/check.mjs",
     "embedding:check": "node harness/embedding/check.mjs",
     "web:dev": "npm --workspace apps/web run dev",
+    "web:dev:real": "npm --workspace apps/web run dev:real",
+    "web:dev:demo": "npm --workspace apps/web run dev:demo",
     "web:build": "npm --workspace apps/web run build",
     "web:check": "npm --workspace apps/web run check"
   },

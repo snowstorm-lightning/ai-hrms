@@ -2,14 +2,25 @@ $ErrorActionPreference = "Stop"
 
 $root = Resolve-Path "$PSScriptRoot/../.."
 $env:UV_CACHE_DIR = Join-Path $root ".uv-cache"
+$env:AI_HRMS_AGENT_SERVICE_TOKEN = ""
+$env:DEEPSEEK_API_KEY = ""
+$env:OPENAI_COMPATIBLE_EMBEDDING_API_KEY = ""
+$env:AI_CHAT_PROVIDER = "fake"
+$env:AI_EMBEDDING_PROVIDER = "fake"
 
 Push-Location "$root/apps/agent"
 try {
   uv run python -c "from ai_hrms_agent import create_app; app = create_app(); assert app.title == 'AI-HRMS Agent'"
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-  $env:AI_CHAT_PROVIDER = "fake"
-  $env:AI_EMBEDDING_PROVIDER = "fake"
   uv run python -c "from fastapi.testclient import TestClient; from ai_hrms_agent import create_app; c=TestClient(create_app()); r=c.post('/chat/preview', json={'message':'hello','citations':[{'title':'policy','snippet':'evidence'}]}); assert r.status_code == 200 and r.json()['provider'] == 'fake'; e=c.post('/embeddings', json={'texts':['hello']}); assert e.status_code == 200 and e.json()['dimensions'] == 8"
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  uv run python -c "from ai_hrms_agent.providers import ChatRequest, ProviderCallError, _remote_base_url, _validate_external_chat_request; _validate_external_chat_request(ChatRequest(message='解释制度', citations=[{'title':'公开制度','snippet':'流程说明','trustLevel':'official','sensitivity':'normal'}])); assert not _remote_base_url('http://127.0.0.1:8082/v1'); assert _remote_base_url('https://example.com/v1'); blocked=False;`ntry:`n    _validate_external_chat_request(ChatRequest(message='hello', citations=[{'title':'内部','snippet':'secret','trustLevel':'internal','sensitivity':'internal'}]))`nexcept ProviderCallError:`n    blocked=True`nassert blocked"
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  uv run python -c "from ai_hrms_agent.providers import ChatRequest, ProviderCallError, _unsafe_external_text, _validate_external_chat_request; assert not _unsafe_external_text('解释晋升制度并给引用'); assert not _unsafe_external_text('解释奖金制度并给引用'); assert _unsafe_external_text('判断这个员工是否晋升并给出结论'); assert _unsafe_external_text('判断这个员工是否调岗离职并调整 compensation bonus'); blocked=False;`ntry:`n    _validate_external_chat_request(ChatRequest(message='解释制度', citations=[{'title':'未知可信度','snippet':'流程说明','trustLevel':'vendor-beta','sensitivity':'normal'}]))`nexcept ProviderCallError:`n    blocked=True`nassert blocked"
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  uv run python -c "from ai_hrms_agent.providers import AIProviderSettings, OpenAICompatibleEmbeddingProvider, ProviderConfigurationError; base=dict(chat_provider='fake', deepseek_api_key='', deepseek_base_url='https://api.deepseek.com', deepseek_chat_model='fake', deepseek_reasoning_effort='high', deepseek_timeout_seconds=1.0, embedding_provider='local-openai-compatible', embedding_api_key='local-no-auth', embedding_base_url='http://127.0.0.1:8082/v1', embedding_model='Qwen3-Embedding-0.6B-Q8_0', embedding_dimensions=1024); OpenAICompatibleEmbeddingProvider(AIProviderSettings(**base)); bad=base.copy(); bad['embedding_base_url']='sk-misplaced-key-value-1234567890'; blocked=False;`ntry:`n    OpenAICompatibleEmbeddingProvider(AIProviderSettings(**bad))`nexcept ProviderConfigurationError as exc:`n    blocked='base URL looks like an API key' in str(exc)`nassert blocked`nbad=base.copy(); bad['embedding_model']='sk-misplaced-key-value-1234567890'; blocked=False`ntry:`n    OpenAICompatibleEmbeddingProvider(AIProviderSettings(**bad))`nexcept ProviderConfigurationError as exc:`n    blocked='model looks like an API key' in str(exc)`nassert blocked"
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  uv run python -c "from fastapi.testclient import TestClient; from ai_hrms_agent import create_app; c=TestClient(create_app()); assert c.post('/chat/preview', json={'message':'x'*7000,'citations':[]}).status_code == 422; assert c.post('/chat/preview', json={'message':'hello','citations':[{'title':'long','snippet':'x'*2100}]}).status_code == 413; assert c.post('/embeddings', json={'texts':['x'*9000]}).status_code == 413"
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   uv run python -c "from ai_hrms_agent.workflows import run_hr_workflow; r=run_hr_workflow('generate onboarding plan', ['policy']); assert r['audit_status'] == 'preview_logged'; b=run_hr_workflow('hire candidate', []); assert b['risk_level'] == 'high' and b['audit_status'] == 'blocked_pending_human_review'"
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

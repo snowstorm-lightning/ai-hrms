@@ -36,6 +36,7 @@ export function KnowledgePage() {
   const [query, setQuery] = useState("新人 30 天成长计划需要引用哪些资料？");
   const [result, setResult] = useState<RAGSearchResult | null>(null);
   const [editing, setEditing] = useState(false);
+  const [savingDocument, setSavingDocument] = useState(false);
   const [ingesting, setIngesting] = useState(false);
   const [ingestOpen, setIngestOpen] = useState(false);
   const [ingestJob, setIngestJob] = useState<RAGIngestJob | null>(null);
@@ -120,12 +121,12 @@ export function KnowledgePage() {
               title="RAG 回答必须暴露资料治理状态和检索路径"
               description="检索先按 status、trustLevel、sensitivity、scope 过滤，再用 PostgreSQL lexical + pgvector candidates 做 RRF 融合。reranker 暂不启用，保留为后续受控阶段。"
             />
-            <Space.Compact style={{ width: "100%" }}>
+            <div className="knowledge-search-row">
               <Input data-vc-field="rag.query" aria-label="RAG search query" value={query} onChange={(event) => setQuery(event.target.value)} onPressEnter={search} />
               <Button data-vc-action="rag.search" type="primary" loading={searching} onClick={search}>RAG Search</Button>
               <Button data-vc-action="rag.document.create" onClick={() => setEditing(true)}>新增资料</Button>
               <Button data-vc-action="rag.ingest" onClick={() => setIngestOpen(true)}>Ingest</Button>
-            </Space.Compact>
+            </div>
             {result ? (
               <div className="result-panel">
                 <TrustMetaBar riskLevel={result.riskLevel ?? "unknown"} confidence={result.confidence === undefined ? 0 : Math.round(result.confidence * 100)} evidenceCount={result.citations.length} humanReviewRequired={result.humanReviewRequired ?? true} auditStatus={result.auditStatus ?? "metadata_missing"} />
@@ -276,12 +277,13 @@ export function KnowledgePage() {
         ]}
       />
 
-      <Modal title="新增治理型知识资料" open={editing} onCancel={() => setEditing(false)} onOk={() => form.submit()} width={760}>
+      <Modal title="新增治理型知识资料" open={editing} onCancel={() => setEditing(false)} onOk={() => form.submit()} confirmLoading={savingDocument} width={760}>
         <Form
           form={form}
           layout="vertical"
           initialValues={{ status: "published", trustLevel: "reviewed", sensitivity: "normal" }}
           onFinish={async (values) => {
+            setSavingDocument(true);
             try {
               await api.createRAGDocument({
                 ...values,
@@ -293,6 +295,8 @@ export function KnowledgePage() {
               message.success(demoMode ? "Demo 已保存资料，并生成可审计的治理元数据。" : "已保存资料，并生成可审计的治理元数据。");
             } catch (err) {
               setError(getErrorMessage(err, "资料创建失败"));
+            } finally {
+              setSavingDocument(false);
             }
           }}
         >

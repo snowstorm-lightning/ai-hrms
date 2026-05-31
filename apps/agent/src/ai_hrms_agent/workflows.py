@@ -11,6 +11,9 @@ class WorkflowState(TypedDict):
     risk_level: str
     human_review_required: bool
     audit_status: str
+    demo_only: bool
+    execution_mode: str
+    boundary: str
     steps: list[dict[str, str]]
 
 
@@ -57,6 +60,9 @@ def run_hr_workflow(goal: str, context: list[str] | None = None) -> WorkflowStat
             "risk_level": "medium",
             "human_review_required": True,
             "audit_status": "draft",
+            "demo_only": True,
+            "execution_mode": "preview_only",
+            "boundary": "LangGraph demo only: no HR data is written, no tool is executed, and human review is required before any real workflow run.",
             "steps": [{"name": "goal", "status": "received"}],
         }
     )

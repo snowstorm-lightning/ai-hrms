@@ -12,12 +12,30 @@
 | Learning | Learning as AI-HRMS layer and Co-Growth entry | Mostly LMS table | Fixed: positioning updated; Co-Growth entry remains as module path |
 | Demo Mode | No backend dependency on core path; no console errors | Partial mock risk | Fixed for core and common side paths; browser pass shows 0 `/api` requests |
 | Docs | AI-HRMS is submission subject | Co-Growth-first docs remained | Fixed: assignment, script, README, demo guide, module appendix |
-| Demo Company Boundary | AI-HRMS is product; demo company dataset is fictional data | Company naming could be confused with real enterprise data | Mitigated: docs state `企鹅互联网科技有限公司` is simulated company data, not Tencent or real HR data; seeded business lines use neutral fictional names |
+| Demo Company Boundary | AI-HRMS is product; demo company dataset is fictional data | Company naming could be confused with real enterprise data | Mitigated: runtime copy states `企鹅互联网科技有限公司（虚构样本组织）`; legacy 006 seed text is corrected by append-only migration 012 |
 | P2 Real AI/RAG | DeepSeek-compatible provider plumbing and pgvector RAG foundation are deployable without leaking keys | Provider config existed but no real boundary or vector retrieval | Fixed: Python agent provider adapters, Go agentbridge, pgvector configurable embeddings, `.env` ignored |
 | P2 Workflow/Charts | LangGraph demo and charting are real code paths, not static claims | Optional P2 items could look unfinished | Fixed: Python LangGraph workflow endpoint and Dashboard `@ant-design/charts` operating signals |
 | Browser Harness | Playwright/Chromium status and route smoke checks are reproducible | Browser review was manual and temporary artifacts could leak | Fixed: `harness/browser` verifies package/cache/system Chromium status, route smoke, Visual Copilot, and demo backend isolation |
+| Browser Mobile Depth | Mobile Visual Copilot should exercise interaction, not just open/close | Mobile suite only checked FAB visibility and panel close | Fixed: mobile suites now drag panel, collapse to rail, drag rail, expand, and verify input focus |
 | Migration Integrity | Published migrations are immutable; new demo data is append-only | `002/004` had been rewritten for Penguin data and could checksum-fail old databases | Fixed: restored `002/004`, locked checksums in tests, kept Penguin data in `006`, and added narrow repair for known pre-release seed checksums |
 | Production Bootstrap | Production with demo seed disabled still has a first-admin path | `AI_HRMS_ENABLE_DEMO_SEED=false` left no login user | Fixed: `ai-hrms-admin bootstrap-admin` one-shot CLI, Docker Compose bootstrap profile, and system roles migration |
+| Repository Narrative | Agent-facing docs must not pull work back to traditional HRMS reproduction | `AGENT.md` and product constraints still said single-company HRMS/reproduction | Fixed: AI-HRMS operating-system positioning is now primary; source project is historical reference only |
+| RAG Scope Safety | Published knowledge must have explicit scope and safe embedding routing | Empty scopes could become global published documents | Fixed: unscoped docs are quarantined to draft/internal, 010 migration repairs existing rows, and store tests cover fail-closed normalization |
+| Browser Harness Depth | Visual Copilot should be exercised, not only opened | Harness only opened/closed panel and used broad text matching | Fixed: harness now submits a selection, asserts no-image boundary with stable markers, clears selection, and blocks demo `/api` requests before side effects |
+| Visual Copilot Ergonomics | Panel should be movable, resizable, and collapsible without blocking work | Fixed panels and side-switch controls made selection confusing and blocked modal input | Fixed: draggable/resizable panel, movable narrow rail, no side-switch button, modal input regression covered by harness |
+| Visual Copilot Free Layout | User-adjusted panel/rail position should stay under user control | Selection completion still snapped the panel to a fixed left/right edge and rail only moved vertically | Fixed: panel layout persists, selection no longer edge-snaps the panel, rail moves freely in X/Y, long-page capture auto-scroll is reset safely |
+| Visual Scroll Semantics | Selected boxes should continue to point at the selected business object after scrolling | Business-object selections could look stale after internal container or horizontal table scroll | Fixed: region boxes resync to their current `data-vc-object-*` DOM element on window/container/visual viewport scroll and resize |
+| RAG/LLM Cost Routing | Simple structured queries should not call DeepSeek or Agent | AI chat could spend model calls on list/status questions and action-like prompts | Fixed: deterministic SQL routes for status/list queries, tool-preview short circuit for actions, weak RAG candidate filtering plus topic guards before LLM |
+| Visual LLM Cost Boundary | Page selection should not call DeepSeek unless the router explicitly chooses LLM generation | Open-ended selection text could previously upgrade deterministic Visual explanation into an LLM call | Fixed: Visual sync selections stay DOM/Postgres/RAG deterministic; explicit LLM explain requires `UseLLM=true`, `executionMode=llm_explain`, scoped citations, and external safety gates |
+| Visual Privacy Boundary | RAG/LLM context must not leak employee or org-manager details to external providers | Selection labels and summaries could be reused in RAG query or LLM prompt | Fixed: employee/user labels are redacted to object-type hints for RAG; Visual LLM prompt skips employee, org-unit manager, Agent run, and audit-event details |
+| AI Capability Boundary | AI surfaces must not bypass module RBAC | Chat SQL and Visual business refs could read objects using only AI feature capability | Fixed: per-intent chat capability checks and per-business-ref Visual capability checks |
+| RAG Role Scope | Role-scoped knowledge must not leak across legal/entity or org boundaries | Role scopes with `scope_id IS NULL` could match any non-global user with the same role code | Fixed: non-global role RAG visibility now requires a concrete legal/entity or org scope match; covered by store unit test |
+| Visual Action Boundary | LLM narrative must not change preview/human-review semantics | Successful DeepSeek explanation could overwrite a Visual action route as `llm_explain` | Fixed: Visual action intents preserve `action_preview` and human review even when LLM narration succeeds |
+| API Contract | OpenAPI must remain the contract source for implemented routes | `/api/capabilities` existed in Go and web client but not in OpenAPI | Fixed: documented `/capabilities`, `Capability`, and `CapabilityListEnvelope` |
+| Agent Provider Boundary | Python agent must fail closed even if called directly | Go had stronger external-provider gates than Python agent direct endpoints | Fixed: DeepSeek chat requires scoped safe citations; remote embedding rejects PII/high-impact text; local embedding remains allowed |
+| Agent Cost Boundary | Direct agent preview endpoints should not allow unbounded prompt/citation payloads | Citation snippets could be long enough to create high-cost DeepSeek calls | Fixed: `/chat/preview` rejects snippets over 2,000 chars and aggregate citation payloads over 9,000 chars before provider calls |
+| Harness Isolation | Local checks should not pass against old services or wrong database ports | Infra `.env` production ports or empty local secrets could make harness hit an existing API, wrong Postgres, or fail Compose interpolation | Fixed: harness uses isolated `HARNESS_API_PORT`, refuses occupied ports, defaults local DB checks to `55432`, and supplies local-only defaults for required Compose interpolation |
+| README Verification | Startup and harness docs must match real prerequisites | Native `DATABASE_URL` example could diverge from `infra/.env`; `npm run check` was described as all local harnesses | Fixed: native examples derive database URL from `infra/.env`; browser and embedding checks are documented as standalone with service prerequisites |
 
 ## Ruthless Review Round 1
 
@@ -57,6 +75,25 @@
 - API harness still carried old `Average`/`simon` labels: fixed to use `陈向南`/`林晨` and current scoped-role expectations.
 - Production deployment lacked first-admin bootstrap: fixed with password-stdin CLI and docs; the seed `123/password` account is now explicitly local demo only.
 
+## Ruthless Review Round 3
+
+- Product constraints and `AGENT.md` still framed the project as a `../saas_hrms` reproduction: fixed so future agents treat traditional HR screens as governed data-layer surfaces inside AI-HRMS.
+- RAG document creation and ingestion could publish a no-scope document globally: fixed with fail-closed normalization, migration `010_rag_scope_fail_closed.sql`, and unit tests.
+- Store-level chunk insertion could mix real and fallback embeddings when provider output was incomplete: fixed by rejecting partial or mixed provider/model/dimension batches before writing chunks.
+- `/ai/chat` could drop retrieval-level `humanReviewRequired`: fixed by merging retrieval risk/HITL into the execution decision before LLM or deterministic response.
+- Visual Copilot was tested too shallowly: fixed browser harness to perform a real region selection, submit an explanation, assert the text-only/no-image boundary, clear state, and close.
+- Demo browser suite only detected backend calls after they happened: fixed by aborting backend/API routes in demo mode so accidental side effects become immediate test failures.
+- Tablet navigation and mobile Copilot ergonomics were weak: fixed by aligning app-shell breakpoint with Ant Design `lg`, adding Copilot selection mode, and improving responsive Knowledge/Agent controls.
+- Traditional pages still read like an admin backend: fixed page titles for users, employees, attendance, messages, org units, and legal entities to explain their role in scope, evidence, Agent preview, and audit.
+- Legacy migration `006_penguin_company_seed.sql` still contains older seed names to preserve applied migration immutability; runtime data is corrected by append-only migration `012_demo_company_naming.sql`.
+- Second-round backend review found embedding could run before final RAG scope normalization: fixed by normalizing in the handler before embedding, rejecting invalid scope fields, adding migration `011_rag_scope_constraint_tightening.sql`, and aligning OpenAPI rebuild status to `201`.
+- Fourth-round Visual Copilot review found residual fixed-edge behavior: fixed by removing automatic panel edge snapping after selection, persisting layout preferences, enabling free X/Y rail movement, and adding safe capture reset for edge auto-scroll.
+- Fourth-round RAG/LLM review found role-scope leakage risk: fixed by removing unscoped role document visibility for non-global principals and requiring scoped role documents to match resolved legal/entity or org IDs.
+- Fourth-round RAG/LLM review found Visual action preview metadata could be softened by LLM success: fixed so action endpoints preserve preview/human-review semantics.
+- Fourth-round delivery review found Python agent direct-call boundary was thinner than Go: fixed with agent-side DeepSeek citation safety and remote embedding text gates.
+- Fourth-round delivery review found README startup/check ambiguity: fixed native database URL examples and clarified core versus standalone harnesses.
+- Fourth-round browser review found the demo marker depended on responsive visible text: fixed with a stable `data-suite-mode` marker and reran desktop/mobile real+demo browser checks successfully.
+
 ## Scoring Snapshot
 
 | Surface | Function | Visual | Copy | Demo Risk | Status |
@@ -69,3 +106,5 @@
 | Agent Runs | 5 | 4 | 5 | Low | Passed |
 | Audit | 5 | 4 | 5 | Low | Horizontal overflow fixed after browser review |
 | Visual Copilot | 4 | 4 | 5 | Medium | No image understanding; DOM/business refs only |
+| Help / Onboarding | 5 | 4 | 5 | Low | New user guide exists; admin guide hidden unless `group_admin` |
+| Org Unit Operations | 5 | 4 | 4 | Low | Delete is reference-checked and audited; inactive remains safer for referenced units |

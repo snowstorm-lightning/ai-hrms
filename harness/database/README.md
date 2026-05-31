@@ -5,15 +5,24 @@ Validates PostgreSQL migrations and seed data.
 Prerequisite:
 
 ```bash
-docker compose -f infra/compose.yaml up -d postgres
-until docker compose -f infra/compose.yaml exec -T postgres pg_isready -U ai_hrms -d ai_hrms; do sleep 1; done
+docker compose --env-file infra/.env -f infra/compose.yaml -f infra/compose.dev.yaml up -d postgres
+until docker compose --env-file infra/.env -f infra/compose.yaml -f infra/compose.dev.yaml exec -T postgres pg_isready -U ai_hrms -d ai_hrms; do sleep 1; done
 ```
 
 Windows PowerShell:
 
 ```powershell
-docker compose -f infra/compose.yaml up -d postgres
+docker compose --env-file infra/.env -f infra/compose.yaml -f infra/compose.dev.yaml up -d postgres
+do {
+  Start-Sleep -Seconds 1
+  docker compose --env-file infra/.env -f infra/compose.yaml -f infra/compose.dev.yaml exec -T postgres pg_isready -U ai_hrms -d ai_hrms
+} until ($LASTEXITCODE -eq 0)
 ```
+
+The dev compose override publishes PostgreSQL to `127.0.0.1:${POSTGRES_PORT:-55432}`.
+The harness uses `HARNESS_DATABASE_URL` when set; otherwise it derives the URL
+from `infra/.env` values `POSTGRES_PASSWORD` and `POSTGRES_PORT` so migration
+and verification target the same database.
 
 Run on Linux/WSL:
 

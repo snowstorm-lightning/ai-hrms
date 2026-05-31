@@ -13,13 +13,13 @@ Demo company note: AI-HRMS is the product being demonstrated. `企鹅互联网�
 Use deterministic frontend demo data:
 
 ```bash
-VITE_DEMO_MODE=true npm run web:dev
+npm run web:dev:demo
 ```
 
 Open:
 
 ```text
-http://127.0.0.1:5173/login
+http://127.0.0.1:5174/login
 ```
 
 The demo login button enters the AI-HRMS dashboard. Direct links such as `/app/dashboard` and `/co-growth` are supported after demo login.
@@ -30,6 +30,9 @@ Real-mode seeded local login, only when `AI_HRMS_ENABLE_DEMO_SEED=true`:
 
 ```text
 mobile: 123
+password: password
+
+mobile: demo
 password: password
 ```
 
@@ -83,6 +86,7 @@ P2 extras are included as code paths: `/api/agent/workflows/langgraph/demo` prox
 5. `/co-growth`: show human-AI co-growth missions and evidence.
 6. `/app/agents`: show agent run control, tool preview, and human confirmation.
 7. `/app/audit`: show the trust and evidence layer.
+8. `/app/help`: show the product guide, Visual Copilot usage, and admin-only operating notes.
 
 For a 3-minute review, introduce `企鹅互联网科技有限公司` only as the sample company dataset so the audience does not read the walkthrough as Tencent or any other real company's HR data.
 

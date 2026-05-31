@@ -563,7 +563,7 @@ select {
 
 .agent-form-grid {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(160px, 0.8fr) minmax(240px, 1.6fr) auto;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
   align-items: end;
 }
@@ -600,12 +600,24 @@ select {
   margin-top: 16px;
 }
 
+.knowledge-search-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  align-items: center;
+}
+
 .visual-copilot-fab {
   position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 1001;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 990;
+  width: 48px !important;
+  min-width: 48px !important;
+  height: 48px !important;
+  pointer-events: auto;
   box-shadow: 0 10px 30px rgb(20 30 55 / 18%);
+  touch-action: manipulation;
 }
 
 .visual-copilot-fab.is-active {
@@ -615,20 +627,27 @@ select {
 .visual-copilot-layer {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 980;
+  pointer-events: none;
+  cursor: default;
+  background: transparent;
+  touch-action: auto;
+}
+
+.visual-copilot-layer.is-capturing {
+  z-index: 1200;
+  pointer-events: auto;
   cursor: crosshair;
-  background: rgb(15 23 42 / 8%);
+  background: rgb(15 23 42 / 14%);
   touch-action: none;
 }
 
 .visual-copilot-panel {
   position: fixed;
-  top: max(12px, env(safe-area-inset-top));
-  right: 20px;
+  z-index: 990;
   display: flex;
   flex-direction: column;
-  width: min(680px, calc(100vw - 40px));
-  max-height: calc(100dvh - 24px);
+  box-sizing: border-box;
   padding: 12px;
   overflow: hidden;
   border: 1px solid #d6e4ff;
@@ -636,6 +655,54 @@ select {
   background: #fff;
   box-shadow: 0 20px 50px rgb(15 23 42 / 18%);
   cursor: default;
+  pointer-events: auto;
+}
+
+.visual-copilot-rail {
+  position: fixed;
+  z-index: 990;
+  display: grid;
+  box-sizing: border-box;
+  gap: 8px;
+  align-items: center;
+  width: 56px;
+  padding: 8px 5px;
+  border: 1px solid #d6e4ff;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 36px rgb(15 23 42 / 16%);
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.visual-copilot-rail.is-capturing {
+  z-index: 1210;
+  border-color: #1677ff;
+  box-shadow: 0 0 0 3px rgb(22 119 255 / 18%), 0 14px 36px rgb(15 23 42 / 16%);
+}
+
+.visual-rail-drag-handle {
+  display: inline-grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: grab;
+  touch-action: none;
+}
+
+.visual-rail-drag-handle:active {
+  cursor: grabbing;
+}
+
+.visual-copilot-rail .ant-btn {
+  width: 44px !important;
+  min-width: 44px !important;
+  height: 44px !important;
 }
 
 .visual-copilot-panel-header {
@@ -648,10 +715,43 @@ select {
   border-bottom: 1px solid #eef2f7;
 }
 
-.visual-copilot-panel-header > div {
+.visual-copilot-panel-header button {
+  flex-shrink: 0;
+}
+
+.visual-panel-title-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
+}
+
+.visual-panel-title-row > div {
   display: grid;
   gap: 2px;
   min-width: 0;
+}
+
+.visual-panel-drag-handle {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #d9e3f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: grab;
+  touch-action: none;
+}
+
+.visual-panel-drag-handle:active {
+  cursor: grabbing;
+}
+
+.visual-copilot-panel-header .ant-space {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .visual-copilot-toolbar {
@@ -665,8 +765,65 @@ select {
   background: #fff;
 }
 
+.visual-copilot-body {
+  display: grid;
+  gap: 10px;
+  min-height: 0;
+  padding-right: 4px;
+  overflow: auto;
+}
+
+.visual-panel-resize-handle {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.visual-panel-resize-handle:focus-visible,
+.visual-panel-resize-handle:hover {
+  outline: 2px solid rgb(22 119 255 / 34%);
+  outline-offset: -2px;
+}
+
+.visual-panel-resize-handle::after {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 11px;
+  height: 11px;
+  border-right: 2px solid #94a3b8;
+  border-bottom: 2px solid #94a3b8;
+  content: "";
+}
+
 .visual-copilot-panel .ant-input {
   width: 100%;
+}
+
+.visual-selection-list {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0 0;
+}
+
+.visual-selection-list .ant-tag {
+  max-width: 100%;
+  margin-inline-end: 0;
+  cursor: pointer;
+}
+
+.visual-copilot-hint {
+  margin-top: 10px;
+  padding: 8px 10px;
 }
 
 .visual-region {
@@ -674,6 +831,7 @@ select {
   border: 2px solid #1677ff;
   border-radius: 6px;
   background: rgb(22 119 255 / 10%);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 72%);
   pointer-events: none;
 }
 
@@ -700,10 +858,25 @@ select {
   display: grid;
   gap: 10px;
   min-height: 0;
-  margin: 12px 0 0;
-  padding-right: 4px;
-  overflow: auto;
   color: #374151;
+}
+
+.visual-response.is-current,
+.visual-page-chat.is-current {
+  margin-top: 4px;
+}
+
+.visual-turn-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.visual-turn-meta .visual-chat-question {
+  flex: 1 1 220px;
+  min-width: 0;
 }
 
 .visual-response-header {
@@ -741,6 +914,144 @@ select {
 
 .visual-response-boundary {
   padding: 8px 10px;
+}
+
+.visual-page-chat {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.visual-chat-turn {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.visual-chat-question {
+  color: #1d4ed8;
+  overflow-wrap: anywhere;
+}
+
+.visual-history-collapse {
+  border-color: #e2e8f0;
+  background: #fff;
+}
+
+.visual-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.visual-history-list .visual-response,
+.visual-history-list .visual-page-chat {
+  margin: 0;
+}
+
+.visual-history-list .ant-collapse {
+  background: transparent;
+}
+
+.help-page {
+  display: grid;
+  gap: 18px;
+}
+
+.guide-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+  gap: 18px;
+  align-items: center;
+  padding: 24px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+}
+
+.guide-hero h2 {
+  margin-top: 0 !important;
+}
+
+.guide-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.guide-flow-node {
+  display: grid;
+  gap: 8px;
+  min-height: 92px;
+  align-content: center;
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.guide-flow-node span {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: #1677ff;
+  color: #fff;
+  font-weight: 700;
+}
+
+.guide-card,
+.role-guide-card {
+  border-radius: 8px;
+}
+
+.role-guide-card .ant-card-body {
+  display: grid;
+  gap: 8px;
+  min-height: 160px;
+}
+
+.role-guide-icon {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1677ff;
+  font-size: 20px;
+}
+
+.admin-guide {
+  border-color: #fed7aa;
+}
+
+.admin-guide-step {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+  padding: 10px;
+  border: 1px solid #f1f5f9;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.harness-decision-collapse,
+.context-packet-collapse {
+  border-radius: 8px;
+  background: #fff;
+}
+
+.harness-decision-collapse .ant-collapse-content-box,
+.context-packet-collapse .ant-collapse-content-box {
+  padding: 8px !important;
 }
 
 .reference-list,
@@ -843,7 +1154,17 @@ select {
   border-bottom: 1px solid #f0f2f5;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
+  .agent-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-submit-item {
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 991.98px) {
   .login-page {
     grid-template-columns: 1fr;
     padding: 24px;
@@ -918,10 +1239,19 @@ select {
   }
 
   .visual-copilot-panel {
-    top: max(10px, env(safe-area-inset-top));
-    right: 10px;
-    width: calc(100vw - 20px);
-    max-height: calc(100dvh - 20px);
+    box-sizing: border-box;
+  }
+
+  .visual-copilot-rail {
+    width: 56px;
+  }
+
+  .visual-copilot-fab {
+    right: max(14px, env(safe-area-inset-right));
+    bottom: max(14px, env(safe-area-inset-bottom));
+    width: 52px !important;
+    min-width: 52px !important;
+    height: 52px !important;
   }
 
   .visual-copilot-toolbar {
@@ -933,6 +1263,21 @@ select {
   }
 
   .visual-copilot-panel .ant-input {
+    width: 100%;
+  }
+
+  .guide-hero,
+  .guide-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .knowledge-search-row,
+  .agent-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .knowledge-search-row .ant-btn,
+  .agent-form-grid .ant-btn {
     width: 100%;
   }
 

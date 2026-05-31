@@ -85,7 +85,7 @@ export function AgentRunsPage() {
           <Form
             form={form}
             layout="vertical"
-            initialValues={{ runType: "onboarding_planner", riskLevel: "medium", prompt: "为企鹅科技新人林晨生成 30 天成长计划，并引用入职指南。" }}
+            initialValues={{ runType: "onboarding_planner", riskLevel: "medium", prompt: "为企鹅互联网科技有限公司（虚构样本组织）新人林晨生成 30 天成长计划，并引用入职指南。" }}
             onFinish={async (values) => {
               setCreating(true);
               setError("");
@@ -148,8 +148,8 @@ export function AgentRunsPage() {
           className="section-card"
           showIcon
           type={workflowPreview.risk_level === "high" ? "warning" : "success"}
-          title={`Workflow preview: ${workflowPreview.audit_status}`}
-          description={workflowPreview.steps.map((step) => `${step.name}=${step.status}`).join(" · ")}
+          title={`Workflow preview: ${workflowPreview.audit_status}${workflowPreview.demo_only ? " · demo only" : ""}`}
+          description={`${workflowPreview.boundary ?? "Preview-only workflow. Human review is required before execution."} ${workflowPreview.steps.map((step) => `${step.name}=${step.status}`).join(" · ")}`}
         />
       ) : null}
 

@@ -2,9 +2,12 @@ package httpx
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strconv"
 )
+
+const MaxJSONBodyBytes int64 = 1 << 20
 
 type Envelope struct {
 	Success bool   `json:"success"`
@@ -38,7 +41,7 @@ func Write(w http.ResponseWriter, status int, payload Envelope) {
 
 func Decode(r *http.Request, target any) error {
 	defer r.Body.Close()
-	return json.NewDecoder(r.Body).Decode(target)
+	return json.NewDecoder(io.LimitReader(r.Body, MaxJSONBodyBytes+1)).Decode(target)
 }
 
 func PageParams(r *http.Request) (int, int) {

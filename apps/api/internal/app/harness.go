@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	emailLikePattern  = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
-	mobileLikePattern = regexp.MustCompile(`\b1[3-9]\d{9}\b`)
-	idLikePattern     = regexp.MustCompile(`\b\d{15}(\d{2}[0-9Xx])?\b`)
+	emailLikePattern   = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
+	mobileLikePattern  = regexp.MustCompile(`\b1[3-9]\d{9}\b`)
+	idLikePattern      = regexp.MustCompile(`\b\d{15}(\d{2}[0-9Xx])?\b`)
+	visualSpacePattern = regexp.MustCompile(`\s+`)
 )
 
 const (
@@ -47,6 +48,9 @@ func decidePromptHarness(message string) domain.HarnessDecision {
 	retrieval := containsAny(lower, []string{"制度", "引用", "资料", "知识", "policy", "citation", "knowledge", "rag"})
 	deterministic := containsAny(lower, []string{"数量", "列表", "状态", "查看", "打开", "count", "list", "status", "show"})
 	employeeStatusLookup := containsAny(lower, []string{"员工数量", "员工状态", "员工统计", "employee count", "employee status", "headcount"})
+	legalEntityLookup := deterministic && containsAny(lower, []string{"法人", "公司", "legal entity", "company"})
+	orgUnitLookup := deterministic && containsAny(lower, []string{"组织", "部门", "scope", "org unit", "department"})
+	agentRunLookup := deterministic && containsAny(lower, []string{"agent run", "智能体运行", "agent 运行", "运行中心", "工具调用", "tool call"})
 
 	switch {
 	case employeeStatusLookup:
@@ -58,12 +62,39 @@ func decidePromptHarness(message string) domain.HarnessDecision {
 			Reason:              "员工数量和状态属于结构化 HRMS 查询，由 SQL 按权限 scope 确定性返回，不调用 LLM 或 Agent。",
 			RoutedBy:            append(routedBy, "program.sql.employee_status"),
 		}
+	case legalEntityLookup:
+		return domain.HarnessDecision{
+			Intent:              "legal_entity_lookup",
+			ExecutionMode:       executionDeterministic,
+			RiskLevel:           "low",
+			HumanReviewRequired: false,
+			Reason:              "法人实体、公司列表和状态属于结构化 HRMS 查询，由 SQL 按权限 scope 返回，不调用 LLM、embedding 或 Agent。",
+			RoutedBy:            append(routedBy, "program.sql.legal_entities"),
+		}
+	case orgUnitLookup:
+		return domain.HarnessDecision{
+			Intent:              "org_unit_lookup",
+			ExecutionMode:       executionDeterministic,
+			RiskLevel:           "low",
+			HumanReviewRequired: false,
+			Reason:              "组织单元、部门和 scope 列表属于结构化 HRMS 查询，由 SQL 按权限 scope 返回，不调用 LLM、embedding 或 Agent。",
+			RoutedBy:            append(routedBy, "program.sql.org_units"),
+		}
+	case agentRunLookup:
+		return domain.HarnessDecision{
+			Intent:              "agent_run_lookup",
+			ExecutionMode:       executionDeterministic,
+			RiskLevel:           "low",
+			HumanReviewRequired: false,
+			Reason:              "Agent run 状态和最近运行记录属于结构化运行台查询，由 SQL 读取审计化状态，不调用 LLM 或新的 Agent run。",
+			RoutedBy:            append(routedBy, "program.sql.agent_runs"),
+		}
 	case action:
 		return domain.HarnessDecision{
 			Intent:              "action_request",
 			ExecutionMode:       executionActionPreview,
 			RiskLevel:           maxRisk(riskLevel, "medium"),
-			UseLLM:              flexible,
+			UseLLM:              false,
 			HumanReviewRequired: true,
 			Reason:              "用户意图包含动作请求，先生成工具预览；真实执行只能由后端白名单工具在人确认后完成。",
 			RoutedBy:            append(routedBy, "tool.preview.required"),
@@ -194,6 +225,7 @@ func visualContextPacket(req domain.VisualContextRequest, decision domain.Harnes
 		if label == "" {
 			label = ref.Type + ":" + ref.ID
 		}
+		label = compactVisualText(label, 40)
 		items = append(items, domain.ContextItem{
 			Type:       ref.Type,
 			ID:         ref.ID,
@@ -251,7 +283,8 @@ func domContextItems(req domain.VisualContextRequest) []domain.ContextItem {
 		if label == "" {
 			label = kind
 		}
-		summary := text
+		label = compactVisualText(label, 40)
+		summary := compactVisualText(text, 72)
 		if summary == "" {
 			summary = fmt.Sprintf("页面模块 kind=%s，位于当前圈选区域内。", kind)
 		}
@@ -313,6 +346,21 @@ func stringValue(value any) string {
 		return ""
 	}
 	return strings.TrimSpace(fmt.Sprint(value))
+}
+
+func compactVisualText(value string, limit int) string {
+	value = strings.TrimSpace(visualSpacePattern.ReplaceAllString(value, " "))
+	if limit <= 0 {
+		return value
+	}
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	if limit <= 1 {
+		return "…"
+	}
+	return string(runes[:limit-1]) + "…"
 }
 
 func boolValue(value any) bool {
@@ -411,7 +459,15 @@ type toolCatalogSpec struct {
 
 func toolSpec(tool string) toolCatalogSpec {
 	switch tool {
-	case "list_employees", "get_employee", "list_attendance", "rag_search", "audit_read", "visual.resolve_selection":
+	case "list_employees", "get_employee", "list_attendance":
+		return toolCatalogSpec{purpose: "只读检索结构化员工或考勤数据", riskLevel: "low", capability: "employee.read", reversible: true}
+	case "rag_search":
+		return toolCatalogSpec{purpose: "只读检索 scoped RAG 引用", riskLevel: "low", capability: "rag.search", reversible: true}
+	case "audit_read":
+		return toolCatalogSpec{purpose: "只读检索审计事件", riskLevel: "low", capability: "audit.read", reversible: true}
+	case "visual.resolve_selection":
+		return toolCatalogSpec{purpose: "解析 Visual Copilot 选区业务对象", riskLevel: "low", capability: "visual_copilot.use", reversible: true}
+	case "agent_run_read":
 		return toolCatalogSpec{purpose: "只读检索结构化业务数据或 RAG 引用", riskLevel: "low", capability: "agent.execute_read", reversible: true}
 	case "learning_recommend":
 		return toolCatalogSpec{purpose: "生成学习建议草案，不直接写入员工结果", riskLevel: "low", capability: "learning.view", reversible: true}
@@ -423,6 +479,25 @@ func toolSpec(tool string) toolCatalogSpec {
 		return toolCatalogSpec{purpose: "高影响人事裁决或薪酬/录用动作", riskLevel: "high", capability: "agent.execute_write", reversible: false, blocked: true, writes: []string{"people_decisions"}}
 	default:
 		return toolCatalogSpec{purpose: "未登记工具，必须先进入人工确认", riskLevel: "high", capability: "agent.execute_write", reversible: false, blocked: true}
+	}
+}
+
+func toolNameForActionPrompt(message string) string {
+	lower := strings.ToLower(strings.TrimSpace(message))
+	switch {
+	case containsAny(lower, []string{"学习", "成长", "课程", "计划", "mission", "learning", "course", "plan"}):
+		if containsAny(lower, []string{"分配", "指派", "assign"}) {
+			return "learning.assign_plan"
+		}
+		return "learning_recommend"
+	case containsAny(lower, []string{"复核", "确认", "人工", "导师", "mentor", "review"}):
+		return "mentor.request_review"
+	case containsAny(lower, []string{"录用", "拒绝候选人", "辞退", "解雇", "裁员", "降薪", "调薪", "晋升", "hiring", "terminate", "layoff", "compensation", "promotion"}):
+		return "people_decision_execute"
+	case containsAny(lower, []string{"审计", "audit"}):
+		return "audit_read"
+	default:
+		return "unregistered.action"
 	}
 }
 
@@ -455,6 +530,13 @@ func containsAny(value string, patterns []string) bool {
 	return false
 }
 
+func tooLong(value string, maxRunes int) bool {
+	if maxRunes <= 0 {
+		return false
+	}
+	return len([]rune(strings.TrimSpace(value))) > maxRunes
+}
+
 func maxRisk(left, right string) string {
 	score := map[string]int{"low": 1, "medium": 2, "high": 3}
 	if score[right] > score[left] {
@@ -480,30 +562,169 @@ func formatCounts(counts map[string]int64) string {
 	return strings.Join(parts, "，")
 }
 
+func joinLimited(items []string, limit int) string {
+	if len(items) == 0 {
+		return "无记录"
+	}
+	if limit <= 0 || len(items) <= limit {
+		return strings.Join(items, "、")
+	}
+	return strings.Join(items[:limit], "、") + fmt.Sprintf(" 等 %d 项", len(items))
+}
+
 func visualExplanation(requested string, packet domain.ContextPacket, decision domain.HarnessDecision) string {
-	lines := []string{fmt.Sprintf("你的意图是“%s”。系统已把圈选区域解析为 %d 个上下文对象。", requested, len(packet.Items))}
-	for _, item := range packet.Items {
+	requested = compactVisualText(requested, 80)
+	sourceLine := visualExplanationBoundary(packet)
+	lines := []string{fmt.Sprintf("你的意图是“%s”。%s", requested, sourceLine)}
+	employeeItems := visualItemsByType(packet.Items, "employee", "user")
+	if len(employeeItems) > 0 {
+		lines = append(lines, visualEmployeeExplanationLines(employeeItems)...)
+	}
+	visibleItems := visualItemsExceptTypes(packet.Items, "employee", "user")
+	if len(visibleItems) > 4 {
+		visibleItems = visibleItems[:4]
+	}
+	for _, item := range visibleItems {
 		label := item.Label
 		if label == "" {
 			label = item.Type + ":" + item.ID
 		}
+		label = compactVisualText(label, 40)
+		summary := compactVisualText(item.Summary, 120)
 		switch item.Type {
+		case "legal_entity":
+			lines = append(lines, fmt.Sprintf("法人实体「%s」：%s 它主要用于确定合同主体、权限 scope、知识资料可见范围和审计责任归属。", label, summary))
+		case "org_unit":
+			lines = append(lines, fmt.Sprintf("组织单元「%s」：%s 它决定员工、RAG 资料、Agent 工具预览和审计事件的组织范围。", label, summary))
+		case "user":
+			lines = append(lines, fmt.Sprintf("账号「%s」：%s 它用于登录身份、角色绑定、权限 scope 和审计责任归属，不代表员工绩效或岗位事实。", label, summary))
+		case "attendance":
+			lines = append(lines, fmt.Sprintf("考勤信号「%s」：%s 该信号只能用于流程解释和人工复核，不得自动形成绩效、淘汰或处罚结论。", label, summary))
+		case "message":
+			lines = append(lines, fmt.Sprintf("消息证据「%s」：%s 它可作为组织沟通上下文和审计线索，但不能作为无边界训练数据。", label, summary))
 		case "dom_module":
-			lines = append(lines, fmt.Sprintf("你圈选的是页面模块「%s」：%s 来源=%s。", label, item.Summary, item.Source))
+			lines = append(lines, fmt.Sprintf("页面模块「%s」：%s", label, summary))
 		case "screen_region":
-			lines = append(lines, fmt.Sprintf("该区域没有业务 ID，但位于「%s」：%s", label, item.Summary))
+			lines = append(lines, "这个选区没有命中可验证的业务对象；建议圈选具体表格行、卡片、按钮或字段，系统才能读取数据库上下文。")
 		default:
-			lines = append(lines, fmt.Sprintf("%s：%s 来源=%s。", label, item.Summary, item.Source))
+			lines = append(lines, fmt.Sprintf("业务对象「%s」：%s", label, summary))
 		}
 	}
-	lines = append(lines, fmt.Sprintf("当前执行路由=%s，风险=%s。%s", decision.ExecutionMode, decision.RiskLevel, decision.Reason))
-	lines = append(lines, "如果你要求修改数据，系统只会生成工具预览；真实执行必须经过人工确认、权限复核和审计。")
+	shown := len(visibleItems) + minInt(len(employeeItems), 8)
+	if len(packet.Items) > shown {
+		lines = append(lines, fmt.Sprintf("另外还识别到 %d 个上下文对象；详情可展开“上下文证据”查看。", len(packet.Items)-shown))
+	}
+	if decision.RiskLevel != "low" || decision.HumanReviewRequired {
+		if decision.ExecutionMode == executionActionPreview {
+			lines = append(lines, "该请求包含动作意图，系统只生成工具预览；真实执行必须经过人工确认、权限复核和审计。")
+		} else {
+			lines = append(lines, "该解释包含中高风险上下文，系统不会自动执行动作；进入工具预览、人工确认或审计流转前仍需人工复核。")
+		}
+	}
 	return strings.Join(lines, "\n")
 }
 
+func visualEmployeeExplanationLines(items []domain.ContextItem) []string {
+	lines := []string{fmt.Sprintf("已识别 %d 名员工。以下业务内容按当前主任职法人/组织归属解释，不评价个人绩效、真实产出或任用结论。", len(items))}
+	limit := minInt(len(items), 8)
+	for _, item := range items[:limit] {
+		label := compactVisualText(item.Label, 32)
+		position := metadataString(item.Metadata, "position")
+		legalEntity := metadataString(item.Metadata, "legalEntity")
+		orgUnit := metadataString(item.Metadata, "orgUnit")
+		business := metadataString(item.Metadata, "businessExplanation")
+		if business == "" {
+			business = metadataString(item.Metadata, "legalEntityProfile")
+		}
+		if business == "" {
+			business = compactVisualText(item.Summary, 160)
+		}
+		lines = append(lines, fmt.Sprintf(
+			"%s：岗位=%s，归属=%s / %s；业务内容=%s。",
+			label,
+			valueOrUnknown(position),
+			valueOrUnknown(legalEntity),
+			valueOrUnknown(orgUnit),
+			valueOrUnknown(compactVisualText(business, 120)),
+		))
+	}
+	if len(items) > limit {
+		lines = append(lines, fmt.Sprintf("另有 %d 名员工未在正文逐条展开；可展开“上下文证据”查看完整对象。", len(items)-limit))
+	}
+	return lines
+}
+
+func visualItemsByType(items []domain.ContextItem, types ...string) []domain.ContextItem {
+	wanted := map[string]bool{}
+	for _, itemType := range types {
+		wanted[itemType] = true
+	}
+	out := make([]domain.ContextItem, 0, len(items))
+	for _, item := range items {
+		if wanted[item.Type] {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func visualItemsExceptTypes(items []domain.ContextItem, types ...string) []domain.ContextItem {
+	excluded := map[string]bool{}
+	for _, itemType := range types {
+		excluded[itemType] = true
+	}
+	out := make([]domain.ContextItem, 0, len(items))
+	for _, item := range items {
+		if !excluded[item.Type] {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func metadataString(metadata map[string]any, key string) string {
+	if metadata == nil {
+		return ""
+	}
+	value, ok := metadata[key]
+	if !ok || value == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(value))
+}
+
+func valueOrUnknown(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "<nil>" {
+		return "未返回"
+	}
+	return value
+}
+
+func minInt(left, right int) int {
+	if left < right {
+		return left
+	}
+	return right
+}
+
+func visualExplanationBoundary(packet domain.ContextPacket) string {
+	if packet.SourceCount["postgres_context"] > 0 {
+		return "系统已按当前权限从数据库读取业务对象，只解释已返回字段，不补造数据库外事实。"
+	}
+	if packet.SourceCount["business_ref"] > 0 {
+		return "系统已校验圈选区域携带的业务引用，只说明当前用户可见的对象。"
+	}
+	return "解释仅基于页面模块和选区位置；没有图片理解，也不把页面文字当作已核验业务事实。"
+}
+
 func visualSelectedSummary(regionCount int, refLabels []string, packet domain.ContextPacket) string {
+	employeeLabels := trustedVisualItemLabels(packet.Items, "employee", "user")
+	if len(employeeLabels) > 0 {
+		return fmt.Sprintf("已识别 %d 个圈选区域，关联 %d 名员工：%s。业务解释按主任职法人/组织归属生成，不代表个人绩效或真实工作产出判断。", regionCount, len(employeeLabels), strings.Join(compactVisualLabels(employeeLabels), "、"))
+	}
 	if len(refLabels) > 0 {
-		return fmt.Sprintf("已识别 %d 个圈选区域，关联业务对象：%s。", regionCount, strings.Join(refLabels, "、"))
+		return fmt.Sprintf("已识别 %d 个圈选区域，关联业务对象：%s。", regionCount, strings.Join(compactVisualLabels(refLabels), "、"))
 	}
 	moduleLabels := make([]string, 0, len(packet.Items))
 	for _, item := range packet.Items {
@@ -525,4 +746,53 @@ func visualSelectedSummary(regionCount int, refLabels []string, packet domain.Co
 		return fmt.Sprintf("已识别 %d 个圈选区域，命中页面模块：%s。解释基于 DOM 摘要、路由和选区坐标，不读取截图像素。", regionCount, strings.Join(moduleLabels, "、"))
 	}
 	return fmt.Sprintf("已识别 %d 个圈选区域，未命中具名业务对象或页面模块；系统只能基于页面路由和圈选坐标解释，不读取截图像素。", regionCount)
+}
+
+func trustedVisualItemLabels(items []domain.ContextItem, types ...string) []string {
+	wanted := map[string]bool{}
+	for _, itemType := range types {
+		wanted[itemType] = true
+	}
+	labels := make([]string, 0, len(items))
+	seen := map[string]bool{}
+	for _, item := range items {
+		if !wanted[item.Type] || item.Label == "" || item.Source != "postgres.business_ref" {
+			continue
+		}
+		key := item.Type + ":" + item.ID + ":" + item.Label
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		labels = append(labels, item.Label)
+	}
+	return labels
+}
+
+func trustedVisualLabels(items []domain.ContextItem) []string {
+	labels := make([]string, 0, len(items))
+	seen := map[string]bool{}
+	for _, item := range items {
+		if item.Label == "" || item.Source != "postgres.business_ref" {
+			continue
+		}
+		key := item.Type + ":" + item.ID + ":" + item.Label
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		labels = append(labels, item.Label)
+	}
+	return labels
+}
+
+func compactVisualLabels(labels []string) []string {
+	compacted := make([]string, 0, len(labels))
+	for _, label := range labels {
+		label = compactVisualText(label, 40)
+		if label != "" {
+			compacted = append(compacted, label)
+		}
+	}
+	return compacted
 }

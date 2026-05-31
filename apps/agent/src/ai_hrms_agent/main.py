@@ -36,13 +36,13 @@ class ToolPreviewResponse(BaseModel):
 
 
 class IngestPreviewRequest(BaseModel):
-    title: str = Field(min_length=1)
-    content: str = Field(min_length=1)
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1, max_length=80_000)
 
 
 class ChatPreviewRequest(BaseModel):
-    message: str = Field(min_length=1)
-    citations: list[dict[str, object]] = Field(default_factory=list)
+    message: str = Field(min_length=1, max_length=6_000)
+    citations: list[dict[str, object]] = Field(default_factory=list, max_length=12)
 
 
 class EmbeddingRequest(BaseModel):
@@ -50,14 +50,22 @@ class EmbeddingRequest(BaseModel):
 
 
 class WorkflowDemoRequest(BaseModel):
-    goal: str = Field(min_length=1)
-    context: list[str] = Field(default_factory=list)
+    goal: str = Field(min_length=1, max_length=2_000)
+    context: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ConnectorPreviewRequest(BaseModel):
-    source_type: str = Field(min_length=1)
-    uri: str = ""
-    content: str = ""
+    source_type: str = Field(min_length=1, max_length=60)
+    uri: str = Field(default="", max_length=2_000)
+    content: str = Field(default="", max_length=80_000)
+
+
+def _citation_payload_size(citations: list[dict[str, object]]) -> int:
+    total = 0
+    for citation in citations:
+        total += len(str(citation.get("title") or ""))
+        total += len(str(citation.get("snippet") or ""))
+    return total
 
 
 def _validate_agent_boundary() -> None:
@@ -123,6 +131,10 @@ def create_app() -> FastAPI:
 
     @app.post("/chat/preview")
     def chat_preview(request: ChatPreviewRequest) -> dict[str, object]:
+        if any(len(str(citation.get("snippet") or "")) > 2_000 for citation in request.citations):
+            raise HTTPException(status_code=413, detail="Each citation snippet must be at most 2000 characters.")
+        if _citation_payload_size(request.citations) > 9_000:
+            raise HTTPException(status_code=413, detail="Citation payload is too large for a bounded chat preview.")
         try:
             provider = build_chat_provider()
             response = provider.chat(ChatRequest(message=request.message, citations=request.citations))
@@ -140,6 +152,8 @@ def create_app() -> FastAPI:
     @app.post("/embeddings")
     def embeddings(request: EmbeddingRequest) -> dict[str, object]:
         texts = [text.strip() for text in request.texts if text.strip()]
+        if any(len(text) > 8_000 for text in texts):
+            raise HTTPException(status_code=413, detail="Each embedding text must be at most 8000 characters.")
         if not texts:
             raise HTTPException(status_code=400, detail="At least one non-empty text is required.")
         try:

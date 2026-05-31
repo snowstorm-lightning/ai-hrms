@@ -5,10 +5,10 @@ organization data, governed knowledge, learning growth, agent runs, human
 review, and audit evidence so HR teams and AI agents can work together inside
 traceable boundaries.
 
-It still preserves the practical single-company HRMS foundation for one
-corporate group with subsidiaries and organization units. The implementation
-uses a Go API, PostgreSQL/pgvector, React, Ant Design, and a separate Python
-agent boundary managed by `uv`.
+It preserves practical organization data, role/scope control, audit, and HR
+workflow records as the operating-system data layer. The implementation uses a
+Go API, PostgreSQL/pgvector, React, Ant Design, and a separate Python agent
+boundary managed by `uv`.
 
 ## Assignment Demo: AI-HRMS
 
@@ -28,10 +28,10 @@ data.
 Run the deterministic frontend demo:
 
 ```bash
-VITE_DEMO_MODE=true npm run web:dev
+npm run web:dev:demo
 ```
 
-Open `http://127.0.0.1:5173/login` and click **一键进入 AI-HRMS Demo**.
+Open `http://127.0.0.1:5174/login` and click **一键进入 AI-HRMS Demo**.
 The core demo path does not require Go, PostgreSQL, Python, external LLMs, or
 external network calls.
 
@@ -44,6 +44,7 @@ Recommended 3-minute path:
 4. `/co-growth` - Co-Growth OS as the AI-HRMS growth engine.
 5. `/app/agents` - human-agent run cards, tool preview, and confirmation.
 6. `/app/audit` - trust, audit, and evidence chain.
+7. `/app/help` - product guide for new users, including Visual Copilot and admin-only operations.
 
 When narrating this path, describe any company names, employee records, policies,
 or citations as simulated company data for the AI-HRMS product demo.
@@ -203,9 +204,16 @@ Nginx reverse proxy steps are in `docs/deploy-nginx.md`.
 
 ## Start Natively
 
-Copy `.env.example` to `.env` if you want a local reference file, but export the
-variables in the shell that starts each service. The Go API does not auto-load
-`.env`, and Vite only reads variables prefixed with `VITE_`.
+Create `infra/.env` before using the native PostgreSQL/API examples because
+they read `POSTGRES_PASSWORD` and `POSTGRES_PORT` from that file:
+
+```bash
+cp infra/.env.example infra/.env
+```
+
+You may also copy the root `.env.example` to `.env` as a local reference file,
+but export the variables in the shell that starts each service. The Go API does
+not auto-load `.env`, and Vite only reads variables prefixed with `VITE_`.
 
 Start PostgreSQL and wait for it to become healthy:
 
@@ -229,8 +237,10 @@ Start the API.
 Linux/WSL:
 
 ```bash
-cd apps/api
-export DATABASE_URL='postgres://ai_hrms:ai_hrms@localhost:55432/ai_hrms?sslmode=disable'
+set -a
+source infra/.env
+set +a
+export DATABASE_URL="postgres://ai_hrms:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT:-55432}/ai_hrms?sslmode=disable"
 export AI_HRMS_ENV='development'
 export AI_HRMS_ENABLE_DEMO_SEED=true
 export JWT_SECRET='dev-secret-change-me'
@@ -238,14 +248,16 @@ export API_PORT=8080
 export CORS_ALLOWED_ORIGINS='http://localhost:5173,http://127.0.0.1:5173'
 export AGENT_BASE_URL='http://127.0.0.1:8090'
 export AI_HRMS_AGENT_SERVICE_TOKEN='<same-token-as-agent-when-real-provider-is-enabled>'
+cd apps/api
 go run ./cmd/server
 ```
 
 Windows PowerShell:
 
 ```powershell
-Set-Location apps/api
-$env:DATABASE_URL = "postgres://ai_hrms:ai_hrms@localhost:55432/ai_hrms?sslmode=disable"
+$infra = Get-Content infra/.env | Where-Object { $_ -match "^[A-Za-z_][A-Za-z0-9_]*=" } | ConvertFrom-StringData
+$postgresPort = if ($infra.POSTGRES_PORT) { $infra.POSTGRES_PORT } else { "55432" }
+$env:DATABASE_URL = "postgres://ai_hrms:$($infra.POSTGRES_PASSWORD)@localhost:$postgresPort/ai_hrms?sslmode=disable"
 $env:AI_HRMS_ENV = "development"
 $env:AI_HRMS_ENABLE_DEMO_SEED = "true"
 $env:JWT_SECRET = "dev-secret-change-me"
@@ -253,6 +265,7 @@ $env:API_PORT = "8080"
 $env:CORS_ALLOWED_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 $env:AGENT_BASE_URL = "http://127.0.0.1:8090"
 $env:AI_HRMS_AGENT_SERVICE_TOKEN = "<same-token-as-agent-when-real-provider-is-enabled>"
+Set-Location apps/api
 go run ./cmd/server
 ```
 
@@ -283,6 +296,24 @@ export OPENAI_COMPATIBLE_EMBEDDING_API_KEY='<your-embedding-api-key>'
 export OPENAI_COMPATIBLE_EMBEDDING_BASE_URL='<embedding-base-url>'
 export OPENAI_COMPATIBLE_EMBEDDING_MODEL='<embedding-model>'
 export RAG_EMBEDDING_DIMENSIONS='<embedding-dimensions>'
+```
+
+Windows PowerShell:
+
+```powershell
+$env:AGENT_BASE_URL = "http://127.0.0.1:8090"               # Go API only
+$env:AI_HRMS_AGENT_SERVICE_TOKEN = "<openssl-rand-hex-32>" # Go API and agent
+$env:AI_CHAT_PROVIDER = "deepseek"
+$env:DEEPSEEK_API_KEY = "<your-deepseek-api-key>"           # agent only
+$env:DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+$env:DEEPSEEK_CHAT_MODEL = "deepseek-v4-flash"
+$env:DEEPSEEK_REASONING_EFFORT = "high"
+$env:DEEPSEEK_TIMEOUT_SECONDS = "30"
+$env:AI_EMBEDDING_PROVIDER = "local-openai-compatible"
+$env:OPENAI_COMPATIBLE_EMBEDDING_API_KEY = "<your-embedding-api-key>"
+$env:OPENAI_COMPATIBLE_EMBEDDING_BASE_URL = "<embedding-base-url>"
+$env:OPENAI_COMPATIBLE_EMBEDDING_MODEL = "<embedding-model>"
+$env:RAG_EMBEDDING_DIMENSIONS = "<embedding-dimensions>"
 ```
 
 Recommended local CPU embedding setup for a 4C/4GB host:
@@ -341,7 +372,9 @@ Qwen3 profile and CPU sizing notes.
 Visual Copilot in the DeepSeek setup is text-only: it uses DOM hints, route
 context, verified business-object references, scope checks, and audit records.
 Screenshots are not sent to DeepSeek, and the demo does not claim image OCR or
-pixel-level vision understanding.
+pixel-level vision understanding. The browser harness also fails if Visual
+Copilot sends `data:image`, base64 screenshots, image content types, multipart
+uploads, or a `screenshot` payload.
 
 The P2 workflow demo is available through Go at
 `POST /api/agent/workflows/langgraph/demo`, which proxies the Python LangGraph
@@ -353,7 +386,7 @@ Linux/WSL:
 
 ```bash
 npm ci
-VITE_API_BASE_URL=http://localhost:8080/api npm run web:dev
+VITE_API_BASE_URL=http://localhost:8080/api npm run web:dev:real
 ```
 
 Windows PowerShell:
@@ -361,19 +394,19 @@ Windows PowerShell:
 ```powershell
 $env:VITE_API_BASE_URL = "http://localhost:8080/api"
 npm ci
-npm run web:dev
+npm run web:dev:real
 ```
 
 Optional AI-HRMS pure frontend demo:
 
 ```bash
-VITE_DEMO_MODE=true npm run web:dev
+npm run web:dev:demo
 ```
 
-Then open `http://127.0.0.1:5173/login` and enter the AI-HRMS demo from the
-login page. The demo mode keeps the existing Go API path available when
-`VITE_DEMO_MODE` is unset or `false`, but uses deterministic frontend data for
-the full AI-HRMS review path.
+Then open `http://127.0.0.1:5174/login` and enter the AI-HRMS demo from the
+login page. Real mode uses the Go API when `VITE_DEMO_MODE` is unset or
+`false`; `npm run web:dev:demo` enables the deterministic frontend demo and
+must not send backend requests during the review path.
 
 Pre-submission secret checklist:
 
@@ -412,16 +445,17 @@ account in production.
 | Mobile | Password | Role |
 | --- | --- | --- |
 | `123` | `password` | Seeded admin user |
+| `demo` | `password` | Seeded walkthrough user for product demos |
 
 ## Verification
 
-Run all local harnesses from the repo root:
+Run the core local harnesses from the repo root. This covers database/API/frontend/agent checks that can manage their own local processes.
 
 ```bash
 npm run check
 ```
 
-Run targeted harnesses from the repo root.
+Run targeted harnesses from the repo root when the corresponding services are already running.
 
 Linux/WSL:
 
@@ -451,15 +485,33 @@ go vet ./...
 npm run web:check
 npm run web:build
 npm run browser:check
+npm run embedding:check
 ```
 
 `harness/api` and `harness/e2e` expect the API to already be running unless you
 use the top-level `npm run check`, which starts and stops a temporary API
 process.
 
-`harness/browser` expects real and demo web servers to be running. It uses the
-local Playwright package and Playwright-managed Chromium cache; a system Chrome
-or Chromium binary is optional.
+`harness/browser` expects the API plus real and demo web servers to be running.
+It uses the local Playwright package and Playwright-managed Chromium cache; a
+system Chrome or Chromium binary is optional.
+
+Useful harness environment variables:
+
+- `HARNESS_API_PORT`: temporary API port used by `npm run check` /
+  `harness/check.sh`; default `18080` so it does not collide with Docker API
+  `8020` or native API `8080`.
+- `HARNESS_DATABASE_URL`: database URL used by harness migration/check flows;
+  when unset it is derived from `infra/.env` values `POSTGRES_PASSWORD` and
+  `POSTGRES_PORT`, defaulting to password `ai_hrms` and port `55432`.
+- `AI_HRMS_HARNESS_REAL_AI=true`: opt the top-level temporary API harness into
+  real provider routing. The default top-level harness mode clears provider keys
+  and uses deterministic fake AI; the focused agent unit harness remains fake so
+  it can run without external calls.
+
+`npm run embedding:check` is intentionally standalone because it needs an
+OpenAI-compatible embedding endpoint such as the local Qwen/llama.cpp service.
+It prints provider/model/dimensions only and never prints vectors or keys.
 
 ## Project Indexes
 

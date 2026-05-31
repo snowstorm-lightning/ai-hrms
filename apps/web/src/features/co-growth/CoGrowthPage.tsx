@@ -16,6 +16,7 @@ import {
   Timeline,
   Tooltip,
   Typography,
+  message,
 } from "antd";
 import {
   ApiOutlined,
@@ -193,6 +194,11 @@ export function CoGrowthPage() {
     setCoachResult(generateDeterministicCoachSuggestion(prompt, demo.currentEmployee.currentWorkload));
   };
 
+  const selectMission = (mission: LearningMission) => {
+    setSelectedMissionId(mission.id);
+    message.info(`已选中 mission：${mission.title}`);
+  };
+
   return (
     <main className="co-growth-page" data-vc-page="co-growth" data-vc-object-type="learning-growth-system">
       <header className="co-growth-topbar">
@@ -219,13 +225,13 @@ export function CoGrowthPage() {
         className="co-growth-boundary"
         type="info"
         showIcon
-        title="Co-Growth 是 AI-HRMS 的成长引擎模块；页面数据为虚构样本组织，不是真实公司或真实员工数据。"
+        title="Co-Growth 是 AI-HRMS 的成长引擎模块；页面数据来自企鹅互联网科技有限公司（虚构样本组织），不是真实公司或真实员工数据。"
       />
 
       <section className="co-growth-console" data-vc-kind="co-growth-command-center">
         <div className="co-growth-command-panel">
           <Badge color="#16a34a" text={isCoGrowthDemoMode ? "受控演示环境" : "API mode：保持原有后端边界"} />
-          <Typography.Title level={1}>Co-Growth OS｜AI-HRMS 人机共生成长引擎</Typography.Title>
+          <Typography.Title level={1}>AI-HRMS Co-Growth Engine｜人机共生成长引擎</Typography.Title>
           <Typography.Paragraph>
             Co-Growth OS 是 AI-HRMS 的成长引擎，帮助员工学习 AI 原理、把 AI 嵌入模拟工作、复盘人机协作过程，并沉淀为可审计的成长证据。
           </Typography.Paragraph>
@@ -308,7 +314,7 @@ export function CoGrowthPage() {
                     </div>
                     <div className="literacy-map">
                       {demo.literacyMap.map((item) => (
-                        <article className="literacy-card" key={item.id} data-vc-kind="literacy-dimension" data-vc-object-id={item.id}>
+                        <article className="literacy-card" key={item.id} data-vc-kind="literacy-dimension" data-vc-object-type="learning_signal" data-vc-object-id={item.id} data-vc-label={item.title}>
                           <div className="literacy-card-top">
                             <Typography.Text strong>{item.title}</Typography.Text>
                             <Tag>{item.evidenceCount} 条证据</Tag>
@@ -399,8 +405,18 @@ export function CoGrowthPage() {
                           className={mission.id === selectedMission.id ? "mission-card selected" : "mission-card"}
                           key={mission.id}
                           data-vc-kind="learning-mission"
+                          data-vc-object-type="learning_mission"
                           data-vc-object-id={mission.id}
-                          onClick={() => setSelectedMissionId(mission.id)}
+                          data-vc-label={mission.title}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => selectMission(mission)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              selectMission(mission);
+                            }
+                          }}
                         >
                           <div className="mission-card-header">
                             <Typography.Text strong>{mission.title}</Typography.Text>
@@ -420,19 +436,23 @@ export function CoGrowthPage() {
                             <Button
                               size="small"
                               type="primary"
+                              onKeyDown={(event) => event.stopPropagation()}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 setMissionStatuses((current) => ({ ...current, [mission.id]: "in_progress" }));
+                                message.success(`已开始 mission：${mission.title}`);
                               }}
                             >
                               开始任务
                             </Button>
                             <Button
                               size="small"
+                              onKeyDown={(event) => event.stopPropagation()}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 setMissionStatuses((current) => ({ ...current, [mission.id]: "reflected" }));
                                 runCoach(`帮我复盘一次 AI 使用过程：${mission.title}`);
+                                message.success(`已生成复盘草稿：${mission.title}`);
                               }}
                             >
                               生成复盘
@@ -463,7 +483,7 @@ export function CoGrowthPage() {
                         key: card.id,
                         label: card.title.length > 14 ? `${card.title.slice(0, 14)}...` : card.title,
                         children: (
-                          <div className="principle-card" data-vc-kind="principle-card" data-vc-object-id={card.id}>
+                          <div className="principle-card" data-vc-kind="principle-card" data-vc-object-type="learning_principle" data-vc-object-id={card.id} data-vc-label={card.title}>
                             <Typography.Title level={4}>{card.title}</Typography.Title>
                             <Row gutter={[16, 16]}>
                               <Col xs={24} md={12}><InfoBlock title="5 分钟解释" text={card.fiveMinuteExplanation} /></Col>
@@ -574,7 +594,7 @@ export function CoGrowthPage() {
                         items={evidenceItems.map((item) => ({
                           color: item.riskLevel === "high" ? "red" : item.riskLevel === "medium" ? "orange" : "green",
                           content: (
-                            <div data-vc-kind="growth-evidence" data-vc-object-id={item.id}>
+                            <div data-vc-kind="growth-evidence" data-vc-object-type="growth_evidence" data-vc-object-id={item.id} data-vc-label={item.title}>
                               <Typography.Text strong>{item.title}</Typography.Text>
                               <p>{item.description}</p>
                               <Space wrap>
@@ -676,7 +696,9 @@ workflow.add_conditional_edges(
                 className={node.id === selectedNodeId ? "workflow-node active" : "workflow-node"}
                 onClick={() => setSelectedNodeId(node.id)}
                 data-vc-kind="workflow-node"
+                data-vc-object-type="workflow_node"
                 data-vc-object-id={node.id}
+                data-vc-label={node.label}
                 type="button"
               >
                 {nodeIcon(node.type)}

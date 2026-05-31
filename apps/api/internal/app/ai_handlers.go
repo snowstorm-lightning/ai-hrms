@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"ai-hrms/apps/api/internal/agentbridge"
 	"ai-hrms/apps/api/internal/domain"
 	"ai-hrms/apps/api/internal/httpx"
 	"ai-hrms/apps/api/internal/rbac"
@@ -103,14 +104,27 @@ func (s *Server) createRAGDocument(w http.ResponseWriter, r *http.Request) {
 	if !requireCapability(w, r, "rag.publish") {
 		return
 	}
+	scope, ok := s.scope(r)
+	if !ok {
+		httpx.Error(w, http.StatusInternalServerError, 5000, "解析权限失败")
+		return
+	}
 	var item domain.RAGDocument
 	if err := httpx.Decode(r, &item); err != nil {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
+	if err := store.NormalizeRAGDocumentForCreate(&item); err != nil {
+		httpx.Error(w, http.StatusBadRequest, 4001, "RAG scope 校验失败：发布资料必须携带显式、合法的 scope")
+		return
+	}
+	if err := ensureRAGDocumentScopesPublishable(item.Scopes, scope, principal(r)); err != nil {
+		httpx.Error(w, http.StatusForbidden, 4003, "RAG scope 超出当前用户可发布范围")
+		return
+	}
 	embeddings, err := s.embeddingsForDocument(r.Context(), item)
 	if err != nil {
-		s.respondErr(w, err)
+		httpx.Error(w, http.StatusBadRequest, 4001, "Embedding policy 阻断：内部、受限或含高影响 HR/个人信息的资料必须使用本地 embedding provider")
 		return
 	}
 	saved, err := s.store.CreateRAGDocumentWithEmbeddings(r.Context(), item, principal(r).UserID, embeddings)
@@ -130,8 +144,59 @@ func (s *Server) createRAGDocument(w http.ResponseWriter, r *http.Request) {
 	httpx.Created(w, saved)
 }
 
+func ensureRAGDocumentScopesPublishable(scopes []domain.RAGDocumentScope, resolvedScope store.Scope, actor rbac.Principal) error {
+	if resolvedScope.Global {
+		return nil
+	}
+	for _, docScope := range scopes {
+		switch docScope.ScopeType {
+		case "global":
+			return errors.New("non-global users cannot publish global RAG documents")
+		case "legal_entity":
+			if docScope.ScopeID == nil || !resolvedScope.LegalEntityID[strings.TrimSpace(*docScope.ScopeID)] {
+				return errors.New("legal entity scope outside publisher scope")
+			}
+		case "org_unit":
+			if docScope.ScopeID == nil || !resolvedScope.OrgUnitID[strings.TrimSpace(*docScope.ScopeID)] {
+				return errors.New("org unit scope outside publisher scope")
+			}
+		case "role":
+			if docScope.RoleCode == nil || strings.TrimSpace(*docScope.RoleCode) == "" || docScope.ScopeID == nil {
+				return errors.New("non-global role RAG scope requires role_code and scope_id")
+			}
+			if !actorHasScopedRole(actor, *docScope.RoleCode, *docScope.ScopeID) {
+				return errors.New("role scope outside publisher role bindings")
+			}
+		case "employee":
+			return errors.New("non-global users cannot publish employee-specific RAG documents")
+		default:
+			return errors.New("unsupported RAG document scope")
+		}
+	}
+	return nil
+}
+
+func actorHasScopedRole(actor rbac.Principal, roleCode, scopeID string) bool {
+	roleCode = strings.TrimSpace(roleCode)
+	scopeID = strings.TrimSpace(scopeID)
+	for _, binding := range actor.Bindings {
+		if binding.ScopeID == nil || strings.TrimSpace(*binding.ScopeID) != scopeID {
+			continue
+		}
+		if binding.RoleCode == roleCode && (binding.ScopeType == rbac.ScopeLegalEntity || binding.ScopeType == rbac.ScopeOrgUnit) {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Server) createRAGIngestJob(w http.ResponseWriter, r *http.Request) {
 	if !requireCapability(w, r, "rag.publish") {
+		return
+	}
+	scope, ok := s.scope(r)
+	if !ok {
+		httpx.Error(w, http.StatusInternalServerError, 5000, "解析权限失败")
 		return
 	}
 	var item domain.RAGIngestJob
@@ -146,9 +211,17 @@ func (s *Server) createRAGIngestJob(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if doc != nil {
+			if err := store.NormalizeRAGDocumentForCreate(doc); err != nil {
+				httpx.Error(w, http.StatusBadRequest, 4001, "RAG scope 校验失败：发布资料必须携带显式、合法的 scope")
+				return
+			}
+			if err := ensureRAGDocumentScopesPublishable(doc.Scopes, scope, principal(r)); err != nil {
+				httpx.Error(w, http.StatusForbidden, 4003, "RAG scope 超出当前用户可发布范围")
+				return
+			}
 			embeddings, err := s.embeddingsForDocument(r.Context(), *doc)
 			if err != nil {
-				s.respondErr(w, err)
+				httpx.Error(w, http.StatusBadRequest, 4001, "Embedding policy 阻断：内部、受限或含高影响 HR/个人信息的资料必须使用本地 embedding provider")
 				return
 			}
 			if len(embeddings) > 0 {
@@ -160,6 +233,16 @@ func (s *Server) createRAGIngestJob(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			item.DocumentID = &savedDoc.ID
+		}
+	} else {
+		doc, err := s.store.GetRAGDocument(r.Context(), scope, principal(r), *item.DocumentID)
+		if err != nil {
+			s.respondErr(w, err)
+			return
+		}
+		if err := ensureRAGDocumentScopesPublishable(doc.Scopes, scope, principal(r)); err != nil {
+			httpx.Error(w, http.StatusForbidden, 4003, "RAG scope 超出当前用户可发布范围")
+			return
 		}
 	}
 	saved, err := s.store.CreateRAGIngestJob(r.Context(), item, principal(r).UserID)
@@ -193,12 +276,20 @@ func (s *Server) rebuildRAGDocument(w http.ResponseWriter, r *http.Request) {
 		s.respondErr(w, err)
 		return
 	}
+	if err := ensureRAGDocumentScopesPublishable(doc.Scopes, scope, principal(r)); err != nil {
+		httpx.Error(w, http.StatusForbidden, 4003, "RAG scope 超出当前用户可发布范围")
+		return
+	}
 	embeddings, err := s.embeddingsForDocument(r.Context(), *doc)
 	if err != nil {
-		s.respondErr(w, err)
+		httpx.Error(w, http.StatusBadRequest, 4001, "Embedding policy 阻断：内部、受限或含高影响 HR/个人信息的资料必须使用本地 embedding provider")
 		return
 	}
 	expectedChunks := len(store.PrepareRAGChunks(doc.Content, doc.Title))
+	if expectedChunks == 0 {
+		httpx.Error(w, http.StatusBadRequest, 4001, "RAG 文档没有可重建的 chunk")
+		return
+	}
 	if expectedChunks > 0 && len(embeddings) == 0 {
 		httpx.Error(w, http.StatusBadGateway, 5001, "Embedding provider 未返回向量，已保留旧 chunk/embedding；请先修复 provider 或改用本地 embedding 后再重建")
 		return
@@ -287,14 +378,15 @@ func (s *Server) materializeRAGDocument(ctx context.Context, job domain.RAGInges
 	}
 	sensitivity := materializedRAGSensitivity(title + "\n" + content)
 	scopes := job.Scopes
+	status := "published"
 	if len(scopes) == 0 {
-		scopes = []domain.RAGDocumentScope{{ScopeType: "global", IncludeDescendants: true}}
+		status = "draft"
 	}
 	return &domain.RAGDocument{
 		SourceID:    sourceID,
 		Title:       title,
 		Version:     "v1",
-		Status:      "published",
+		Status:      status,
 		TrustLevel:  "internal",
 		Sensitivity: sensitivity,
 		Content:     content,
@@ -328,6 +420,10 @@ func (s *Server) searchRAG(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
+	if tooLong(req.Query, 800) {
+		httpx.Error(w, http.StatusBadRequest, 4001, "RAG query 过长，请缩短问题并避免粘贴大段原文")
+		return
+	}
 	result, err := s.searchRAGResult(r.Context(), scope, principal(r), req)
 	if err != nil {
 		s.respondErr(w, err)
@@ -350,7 +446,14 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
+	if tooLong(req.Message, 2000) {
+		httpx.Error(w, http.StatusBadRequest, 4001, "AI Command prompt 过长，请缩短问题并通过知识库 ingestion 提供长文档")
+		return
+	}
 	decision := decidePromptHarness(req.Message)
+	if !requireAIChatDecisionCapability(w, r, decision.Intent) {
+		return
+	}
 	if decision.Intent == "employee_status_lookup" {
 		total, counts, err := s.store.EmployeeStatusCounts(r.Context(), scope)
 		if err != nil {
@@ -398,6 +501,49 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if decision.Intent == "legal_entity_lookup" {
+		items, err := s.store.ListLegalEntities(r.Context(), scope)
+		if err != nil {
+			s.respondErr(w, err)
+			return
+		}
+		labels := make([]string, 0, len(items))
+		for _, item := range items {
+			labels = append(labels, fmt.Sprintf("%s（%s，%s）", item.Name, item.Area, item.Status))
+		}
+		s.respondDeterministicAIChat(w, r, decision, req.Message, "legal_entities", "法人实体与公司 scope", fmt.Sprintf("当前权限范围内共有 %d 个法人实体：%s。该结果由 SQL 直接读取，没有调用 DeepSeek、embedding 或 Agent。", len(items), joinLimited(labels, 6)), map[string]any{"total": len(items), "items": labels})
+		return
+	}
+	if decision.Intent == "org_unit_lookup" {
+		items, err := s.store.ListOrgUnits(r.Context(), scope)
+		if err != nil {
+			s.respondErr(w, err)
+			return
+		}
+		labels := make([]string, 0, len(items))
+		typeCounts := map[string]int64{}
+		for _, item := range items {
+			labels = append(labels, fmt.Sprintf("%s（%s，负责人=%s）", item.Name, item.Type, item.ManagerName))
+			typeCounts[item.Type]++
+		}
+		s.respondDeterministicAIChat(w, r, decision, req.Message, "org_units", "组织单元与 scope 图谱", fmt.Sprintf("当前权限范围内共有 %d 个组织单元。类型分布：%s。示例：%s。该结果由 SQL 直接读取，没有调用 DeepSeek、embedding 或 Agent。", len(items), formatCounts(typeCounts), joinLimited(labels, 6)), map[string]any{"total": len(items), "typeCounts": typeCounts, "items": labels})
+		return
+	}
+	if decision.Intent == "agent_run_lookup" {
+		runs, total, err := s.store.ListAgentRuns(r.Context(), principal(r).UserID, 1, 5)
+		if err != nil {
+			s.respondErr(w, err)
+			return
+		}
+		labels := make([]string, 0, len(runs))
+		statusCounts := map[string]int64{}
+		for _, run := range runs {
+			statusCounts[run.Status]++
+			labels = append(labels, fmt.Sprintf("%s（status=%s，risk=%s）", run.RunType, run.Status, run.RiskLevel))
+		}
+		s.respondDeterministicAIChat(w, r, decision, req.Message, "agent_runs", "Agent run 状态", fmt.Sprintf("当前用户共有 %d 条 Agent run。最近记录：%s。状态分布：%s。该结果由 SQL 直接读取，没有调用 DeepSeek、embedding 或新的 Agent run。", total, joinLimited(labels, 5), formatCounts(statusCounts)), map[string]any{"total": total, "statusCounts": statusCounts, "recent": labels})
+		return
+	}
 	if decision.ExecutionMode == executionHumanReviewRequired {
 		contextPacket := domain.ContextPacket{
 			Intent:      decision.Intent,
@@ -432,6 +578,10 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if decision.ExecutionMode == executionActionPreview {
+		s.respondAIChatActionPreview(w, r, decision, req.Message)
+		return
+	}
 	result, err := s.searchRAGResult(r.Context(), scope, principal(r), domain.RAGSearchRequest{Query: req.Message, Limit: 5})
 	if err != nil {
 		s.respondErr(w, err)
@@ -464,12 +614,20 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	decision.RiskLevel = maxRisk(decision.RiskLevel, result.RiskLevel)
+	if result.HumanReviewRequired {
+		decision.HumanReviewRequired = true
+		decision.RoutedBy = append(decision.RoutedBy, "retrieval.human_review_required")
+	}
 	if decision.UseLLM && s.externalChatProvider(r.Context()) && !externalChatAllowed(req.Message, result.Citations) {
 		decision.RoutedBy = append(decision.RoutedBy, "llm.external_safety_fallback")
 		decision.UseLLM = false
 	}
+	llmFallback := false
 	if decision.UseLLM && s.agent != nil && s.agent.Enabled() {
-		response, err := s.agent.Chat(r.Context(), req.Message, result.Citations)
+		chatCtx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		response, err := s.agent.Chat(chatCtx, req.Message, result.Citations)
+		cancel()
 		if err == nil {
 			if highImpactOutputViolation(response.Message) {
 				decision.RiskLevel = "high"
@@ -540,6 +698,7 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		}
 		decision.RoutedBy = append(decision.RoutedBy, "llm.unavailable.fallback")
 		decision.UseLLM = false
+		llmFallback = true
 	}
 	trust := buildTrustPacket(decision, result.Confidence, result.Citations, "deterministic_preview_logged", nil)
 	auditStatus := "deterministic_preview_logged"
@@ -554,6 +713,9 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 	summary["actionExecuted"] = false
 	summary["useLlm"] = decision.UseLLM
 	summary["useAgent"] = decision.UseAgent
+	if llmFallback {
+		summary["fallbackMode"] = "deterministic_rag_after_llm_unavailable"
+	}
 	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
 		ActorUserID:     principal(r).UserID,
 		EventType:       "ai.chat.preview",
@@ -563,8 +725,14 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		RiskLevel:       decision.RiskLevel,
 		NewValueSummary: summary,
 	})
+	message := result.Answer
+	if llmFallback {
+		message = "DeepSeek 当前未在时限内返回，AI-HRMS 已降级为基于 scoped RAG citation 的确定性回答：\n\n" + result.Answer
+		auditStatus = "llm_unavailable_rag_fallback_logged"
+		trust.AuditStatus = auditStatus
+	}
 	httpx.OK(w, domain.AIChatResponse{
-		Message:             result.Answer,
+		Message:             message,
 		Citations:           result.Citations,
 		Provider:            result.Provider,
 		Model:               result.Model,
@@ -576,6 +744,116 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		ContextPacket:       &contextPacket,
 		TrustPacket:         &trust,
 	})
+}
+
+func (s *Server) respondDeterministicAIChat(w http.ResponseWriter, r *http.Request, decision domain.HarnessDecision, prompt, objectType, label, message string, metadata map[string]any) {
+	item := domain.ContextItem{
+		Type:       objectType,
+		Label:      label,
+		Summary:    message,
+		Source:     "postgres.sql",
+		Provenance: objectType,
+		Metadata:   metadata,
+	}
+	contextPacket := domain.ContextPacket{
+		Intent:      decision.Intent,
+		Subject:     objectType,
+		Items:       []domain.ContextItem{item},
+		SourceCount: map[string]int{"postgres.sql": 1},
+		Staleness:   "live_database",
+		Boundary:    "该结果由 SQL 直接读取，不调用 DeepSeek、embedding 或 Agent；适合低成本、高确定性的结构化查询。",
+	}
+	trust := buildTrustPacket(decision, 0.99, nil, "program_sql_logged", nil)
+	summary := promptAuditSummary(prompt, decision)
+	for key, value := range metadata {
+		summary[key] = value
+	}
+	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+		ActorUserID:     principal(r).UserID,
+		EventType:       "ai.command.deterministic_query",
+		ObjectType:      objectType,
+		ObjectID:        "program_sql",
+		RequestID:       requestID(r),
+		RiskLevel:       "low",
+		NewValueSummary: summary,
+	})
+	httpx.OK(w, domain.AIChatResponse{
+		Message:             message,
+		Confidence:          trust.Confidence,
+		RiskLevel:           "low",
+		HumanReviewRequired: false,
+		AuditStatus:         "program_sql_logged",
+		ExecutionDecision:   &decision,
+		ContextPacket:       &contextPacket,
+		TrustPacket:         &trust,
+	})
+}
+
+func (s *Server) respondAIChatActionPreview(w http.ResponseWriter, r *http.Request, decision domain.HarnessDecision, prompt string) {
+	toolName := toolNameForActionPrompt(prompt)
+	toolPreview := previewForTool(toolName, map[string]any{"promptPreview": redactPromptPreview(prompt)}, principal(r).HasCapability("agent.execute_write"))
+	decision.UseLLM = false
+	decision.UseAgent = false
+	decision.RiskLevel = maxRisk(decision.RiskLevel, toolPreview.RiskLevel)
+	decision.HumanReviewRequired = true
+	decision.RoutedBy = append(decision.RoutedBy, "tool.preview.ai_chat")
+	contextPacket := domain.ContextPacket{
+		Intent:      decision.Intent,
+		Subject:     toolName,
+		Items:       []domain.ContextItem{{Type: "tool_preview", Label: toolName, Summary: toolPreview.Purpose, Source: "go.tool_registry", Provenance: "tool_catalog", RiskLevel: toolPreview.RiskLevel}},
+		SourceCount: map[string]int{"tool_registry": 1},
+		Staleness:   "live_registry",
+		Boundary:    "动作类请求只生成工具预览，不调用 DeepSeek，不执行写操作；真实执行必须经过权限复核、参数校验、人工确认和审计。",
+	}
+	trust := buildTrustPacket(decision, 0.9, nil, "tool_preview_logged", &toolPreview)
+	summary := promptAuditSummary(prompt, decision)
+	summary["toolName"] = toolPreview.ToolName
+	summary["previewOnly"] = toolPreview.PreviewOnly
+	summary["requiredCapability"] = toolPreview.RequiredCapability
+	summary["writes"] = toolPreview.Writes
+	summary["actionExecuted"] = false
+	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+		ActorUserID:     principal(r).UserID,
+		EventType:       "ai.chat.tool_preview",
+		ObjectType:      "tool_preview",
+		ObjectID:        toolPreview.ToolName,
+		RequestID:       requestID(r),
+		RiskLevel:       toolPreview.RiskLevel,
+		NewValueSummary: summary,
+	})
+	message := fmt.Sprintf("已生成工具预览：%s。该请求没有执行任何写操作；需要人工确认、权限复核和审计记录后才能继续。", toolPreview.Purpose)
+	if toolPreview.Decision == "blocked" {
+		message = fmt.Sprintf("该动作已被阻断：%s。系统不会通过 AI 自动执行高风险人事动作。", toolPreview.Purpose)
+	}
+	httpx.OK(w, domain.AIChatResponse{
+		Message:             message,
+		Confidence:          trust.Confidence,
+		RiskLevel:           decision.RiskLevel,
+		HumanReviewRequired: true,
+		AuditStatus:         "tool_preview_logged",
+		ExecutionDecision:   &decision,
+		ContextPacket:       &contextPacket,
+		TrustPacket:         &trust,
+	})
+}
+
+func requireAIChatDecisionCapability(w http.ResponseWriter, r *http.Request, intent string) bool {
+	capability := aiChatIntentCapability(intent)
+	if capability == "" {
+		return true
+	}
+	return requireCapability(w, r, capability)
+}
+
+func aiChatIntentCapability(intent string) string {
+	switch intent {
+	case "employee_status_lookup", "legal_entity_lookup", "org_unit_lookup":
+		return "employee.read"
+	case "agent_run_lookup":
+		return "agent.execute_read"
+	default:
+		return ""
+	}
 }
 
 func (s *Server) aiProviderStatus(w http.ResponseWriter, r *http.Request) {
@@ -594,7 +872,7 @@ func (s *Server) aiProviderStatus(w http.ResponseWriter, r *http.Request) {
 		"embeddingKeyConfigured":  false,
 	}
 	if s.agent != nil && s.agent.Enabled() {
-		if agentStatus, err := s.agent.Config(r.Context()); err == nil {
+		if agentStatus, err := s.cachedAgentConfig(r.Context()); err == nil {
 			status["agentBoundaryStatus"] = "ok"
 			status["chatProvider"] = safeProviderStatusValue(agentStatus.ChatProvider)
 			status["chatModel"] = safeProviderStatusValue(agentStatus.DeepSeekChatModel)
@@ -613,11 +891,14 @@ func (s *Server) aiProviderStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) embeddingsForDocument(ctx context.Context, doc domain.RAGDocument) ([]domain.RAGEmbeddingInput, error) {
 	if s.agent == nil || !s.agent.Enabled() {
+		if s.embeddingProviderConfigured(ctx) {
+			return nil, errors.New("embedding provider is configured but the agent boundary is unavailable")
+		}
 		return nil, nil
 	}
 	if s.externalEmbeddingProvider(ctx) {
 		if err := validateExternalEmbeddingDocument(doc); err != nil {
-			return nil, nil
+			return nil, err
 		}
 	}
 	chunks := store.PrepareRAGChunks(doc.Content, doc.Title)
@@ -626,10 +907,13 @@ func (s *Server) embeddingsForDocument(ctx context.Context, doc domain.RAGDocume
 	}
 	response, err := s.agent.Embed(ctx, chunks)
 	if err != nil {
-		// Keep knowledge authoring available when the embedding provider is
-		// temporarily unavailable or misconfigured; lexical RAG remains usable
-		// and vectors can be regenerated by a later ingest run.
+		if s.embeddingProviderConfigured(ctx) {
+			return nil, fmt.Errorf("embedding provider failed: %w", err)
+		}
 		return nil, nil
+	}
+	if len(response.Embeddings) != len(chunks) {
+		return nil, fmt.Errorf("embedding response count mismatch: got %d embeddings for %d chunks", len(response.Embeddings), len(chunks))
 	}
 	inputs := make([]domain.RAGEmbeddingInput, 0, len(response.Embeddings))
 	for i, vector := range response.Embeddings {
@@ -646,6 +930,19 @@ func (s *Server) embeddingsForDocument(ctx context.Context, doc domain.RAGDocume
 		})
 	}
 	return inputs, nil
+}
+
+func (s *Server) embeddingProviderConfigured(ctx context.Context) bool {
+	if providerConfiguredForRouting(s.cfg.AI.EmbeddingProvider) {
+		return true
+	}
+	if s.agent != nil && s.agent.Enabled() {
+		if agentStatus, err := s.cachedAgentConfig(ctx); err == nil {
+			return providerConfiguredForRouting(agentStatus.EmbeddingProvider)
+		}
+		return true
+	}
+	return false
 }
 
 func (s *Server) searchRAGResult(ctx context.Context, scope store.Scope, actor rbac.Principal, req domain.RAGSearchRequest) (*domain.RAGSearchResult, error) {
@@ -671,9 +968,6 @@ func (s *Server) searchRAGResult(ctx context.Context, scope store.Scope, actor r
 		return nil, err
 	}
 	if result.RefusalReason == "no_citation" {
-		if result.Provider == "hybrid-rrf" {
-			return result, nil
-		}
 		return s.store.SearchRAG(ctx, scope, actor, req)
 	}
 	return result, nil
@@ -681,11 +975,11 @@ func (s *Server) searchRAGResult(ctx context.Context, scope store.Scope, actor r
 
 func (s *Server) externalEmbeddingProvider(ctx context.Context) bool {
 	if providerConfiguredForRouting(s.cfg.AI.EmbeddingProvider) {
-		return !localEmbeddingProvider(s.cfg.AI.EmbeddingProvider)
+		return !localEmbeddingProvider(s.cfg.AI.EmbeddingProvider, s.cfg.AI.OpenAICompatibleEmbeddingBaseURL)
 	}
 	if s.agent != nil && s.agent.Enabled() {
-		if agentStatus, err := s.agent.Config(ctx); err == nil {
-			return providerConfiguredForRouting(agentStatus.EmbeddingProvider) && !localEmbeddingProvider(agentStatus.EmbeddingProvider)
+		if agentStatus, err := s.cachedAgentConfig(ctx); err == nil {
+			return providerConfiguredForRouting(agentStatus.EmbeddingProvider) && !localEmbeddingProvider(agentStatus.EmbeddingProvider, s.cfg.AI.OpenAICompatibleEmbeddingBaseURL)
 		}
 		return true
 	}
@@ -697,7 +991,7 @@ func (s *Server) externalChatProvider(ctx context.Context) bool {
 		return true
 	}
 	if s.agent != nil && s.agent.Enabled() {
-		if agentStatus, err := s.agent.Config(ctx); err == nil {
+		if agentStatus, err := s.cachedAgentConfig(ctx); err == nil {
 			return providerConfiguredForRouting(agentStatus.ChatProvider)
 		}
 		return true
@@ -705,15 +999,55 @@ func (s *Server) externalChatProvider(ctx context.Context) bool {
 	return false
 }
 
+func (s *Server) cachedAgentConfig(ctx context.Context) (*agentbridge.ProviderConfig, error) {
+	if s.agent == nil || !s.agent.Enabled() {
+		return nil, errors.New("agent boundary is not configured")
+	}
+	now := time.Now()
+	s.agentConfigMu.Lock()
+	defer s.agentConfigMu.Unlock()
+	if s.agentConfig != nil && now.Sub(s.agentConfigFetched) < 30*time.Second {
+		return s.agentConfig, nil
+	}
+	configCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	status, err := s.agent.Config(configCtx)
+	if err != nil {
+		return nil, err
+	}
+	s.agentConfig = status
+	s.agentConfigFetched = now
+	return status, nil
+}
+
 func providerConfiguredForRouting(provider string) bool {
 	value := strings.ToLower(strings.TrimSpace(provider))
 	return value != "" && value != "fake"
 }
 
-func localEmbeddingProvider(provider string) bool {
+func localEmbeddingProvider(provider, baseURL string) bool {
 	value := strings.ToLower(strings.TrimSpace(provider))
 	value = strings.ReplaceAll(value, "_", "-")
-	return value == "local-openai-compatible" || value == "local-cpu"
+	if value == "local-openai-compatible" || value == "local-cpu" {
+		return true
+	}
+	if value == "openai-compatible" {
+		return localProviderURL(baseURL)
+	}
+	return false
+}
+
+func localProviderURL(rawURL string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || parsed.Scheme == "" {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && (ip.IsLoopback() || ip.IsPrivate())
 }
 
 func safeProviderStatusValue(value string) string {
@@ -751,7 +1085,7 @@ func citationSafeForExternalProvider(citation domain.RAGCitation) bool {
 	if trustLevel == "" {
 		trustLevel = "internal"
 	}
-	if trustLevel == "internal" || trustLevel == "restricted" {
+	if !externalTrustLevelAllowed(trustLevel) {
 		return false
 	}
 	sensitivity := strings.ToLower(strings.TrimSpace(citation.Sensitivity))
@@ -769,7 +1103,7 @@ func validateExternalEmbeddingDocument(doc domain.RAGDocument) error {
 	if trustLevel == "" {
 		trustLevel = "internal"
 	}
-	if trustLevel == "internal" || trustLevel == "restricted" {
+	if !externalTrustLevelAllowed(trustLevel) {
 		return errors.New("external embedding is disabled for internal or restricted knowledge; redact it or use a local/fake embedding provider")
 	}
 	sensitivity := strings.ToLower(strings.TrimSpace(doc.Sensitivity))
@@ -785,6 +1119,15 @@ func validateExternalEmbeddingDocument(doc domain.RAGDocument) error {
 	return nil
 }
 
+func externalTrustLevelAllowed(trustLevel string) bool {
+	switch strings.ToLower(strings.TrimSpace(trustLevel)) {
+	case "official", "public", "reviewed", "approved", "trusted":
+		return true
+	default:
+		return false
+	}
+}
+
 func unsafeExternalProviderText(value string) bool {
 	if emailLikePattern.MatchString(value) || mobileLikePattern.MatchString(value) || idLikePattern.MatchString(value) {
 		return true
@@ -798,6 +1141,8 @@ func unsafeExternalProviderText(value string) bool {
 
 func classifyAIRisk(message string) (string, string) {
 	lower := strings.ToLower(message)
+	policyExplain := containsAny(lower, []string{"制度", "政策", "流程", "规范", "说明", "引用", "解释", "查询", "查看", "怎么", "如何", "policy", "guideline", "process", "explain", "citation"})
+	individualDecision := containsAny(lower, []string{"名单", "这个员工", "该员工", "某员工", "这个候选人", "该候选人", "候选人是否", "判断是否", "决定是否", "给出结论", "给出裁决", "排名", "rank employees", "which employee", "this candidate"})
 	highRiskPatterns := []string{
 		"录用", "拒绝候选人", "辞退", "解雇", "淘汰", "降薪", "调薪", "晋升", "绩效评级",
 		"裁员", "末位淘汰", "pip", "绩效排名", "排名员工", "奖金", "年终奖", "调岗", "离职",
@@ -807,6 +1152,9 @@ func classifyAIRisk(message string) (string, string) {
 	}
 	for _, pattern := range highRiskPatterns {
 		if strings.Contains(lower, strings.ToLower(pattern)) {
+			if policyExplain && !individualDecision {
+				return "medium", ""
+			}
 			return "high", "high_impact_hr_decision"
 		}
 	}
@@ -841,6 +1189,219 @@ func citationIDs(citations []domain.RAGCitation) []string {
 		ids = append(ids, citation.DocumentID+":"+citation.ChunkID)
 	}
 	return ids
+}
+
+func visualRAGQuery(requested, route string, packet domain.ContextPacket) string {
+	parts := []string{routeSummary(route), "用户问题：" + requested}
+	if labels := visualExternalQueryLabels(packet, 6); len(labels) > 0 {
+		parts = append(parts, "选区对象："+strings.Join(labels, "、"))
+	}
+	var focus []string
+	for _, item := range packet.Items {
+		switch item.Type {
+		case "rag_document":
+			focus = append(focus, "知识资料治理、引用可信度、RAG scope")
+		case "agent_run":
+			focus = append(focus, "Agent run、工具预览、人工确认")
+		case "audit_event":
+			focus = append(focus, "审计证据、风险事件、human review")
+		case "learning":
+			focus = append(focus, "学习成长、Co-Growth mission、成长证据")
+		case "legal_entity", "org_unit":
+			focus = append(focus, "法人/组织 scope 与可见性边界")
+		}
+	}
+	if len(focus) == 0 {
+		focus = append(focus, "AI-HRMS 业务上下文、知识治理和审计边界")
+	}
+	parts = append(parts, "检索重点："+strings.Join(dedupeStrings(focus), "；"))
+	return strings.Join(parts, "\n")
+}
+
+func visualShouldSearchRAG(requested string, packet domain.ContextPacket) bool {
+	lower := strings.ToLower(strings.TrimSpace(requested))
+	if containsAny(lower, []string{
+		"引用", "资料", "知识", "制度", "政策", "规范", "手册", "证据", "审计", "agent", "智能体", "rag",
+		"citation", "knowledge", "policy", "guideline", "evidence", "audit",
+	}) {
+		return true
+	}
+	for _, item := range packet.Items {
+		switch item.Type {
+		case "rag_document", "agent_run", "audit_event", "learning":
+			return true
+		}
+	}
+	if packet.SourceCount["postgres_context"] > 0 {
+		return false
+	}
+	return len(packet.Items) == 0
+}
+
+func visualLLMMessage(requested, route string, packet domain.ContextPacket) string {
+	lines := []string{
+		"任务：为 Visual Copilot 生成用户可读的业务解释。",
+		"用户问题：" + requested,
+		"页面：" + routeSummary(route),
+		"要求：只基于下方 scoped context 和 citations 回答；不要描述内部路由字段、DOM 坐标、executionMode；不要声称做了图片识别；如涉及修改数据，只能说明预览和人工确认边界。",
+	}
+	if len(packet.Items) > 0 {
+		lines = append(lines, "Scoped context:")
+		count := 0
+		for _, item := range packet.Items {
+			if count >= 6 {
+				break
+			}
+			if !visualContextItemCanLeaveBoundary(item) || unsafeExternalProviderText(item.Label+"\n"+item.Summary) {
+				continue
+			}
+			lines = append(lines, fmt.Sprintf("- %s「%s」：%s", item.Type, compactVisualText(item.Label, 60), compactVisualText(item.Summary, 180)))
+			count++
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func dedupeStrings(values []string) []string {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	return out
+}
+
+func visualShouldUseLLM(requested string, decision domain.HarnessDecision, packet domain.ContextPacket, citations []domain.RAGCitation) bool {
+	if !decision.UseLLM || decision.ExecutionMode != executionLLMExplain {
+		return false
+	}
+	if decision.ExecutionMode == executionActionPreview || decision.ExecutionMode == executionHumanReviewRequired || decision.UseAgent || decision.UseMultiAgent {
+		return false
+	}
+	if len(citations) == 0 {
+		return false
+	}
+	lower := strings.ToLower(strings.TrimSpace(requested))
+	openEnded := containsAny(lower, []string{
+		"解释", "说明", "总结", "分析", "为什么", "如何", "怎么", "业务", "影响", "边界", "建议",
+		"explain", "summarize", "analyze", "why", "how", "business", "impact", "boundary",
+	})
+	simpleLookup := containsAny(lower, []string{"这是什么", "哪个按钮", "哪个字段", "打开", "查看", "列表", "状态", "what is this", "which button", "show", "list", "status"})
+	hasTrustedContext := packet.SourceCount["rag_citation"] > 0
+	return openEnded && !simpleLookup && hasTrustedContext
+}
+
+func visualContextLabels(packet domain.ContextPacket, limit int) []string {
+	labels := make([]string, 0, limit)
+	seen := map[string]bool{}
+	for _, item := range packet.Items {
+		label := compactVisualText(item.Label, 40)
+		if label == "" || seen[label] {
+			continue
+		}
+		seen[label] = true
+		labels = append(labels, label)
+		if len(labels) >= limit {
+			break
+		}
+	}
+	return labels
+}
+
+func visualExternalQueryLabels(packet domain.ContextPacket, limit int) []string {
+	labels := make([]string, 0, limit)
+	seen := map[string]bool{}
+	for _, item := range packet.Items {
+		label := ""
+		switch item.Type {
+		case "employee", "user":
+			label = "员工对象（已按 scope 校验）"
+		case "agent_run":
+			label = "Agent run 记录"
+		case "audit_event":
+			label = "审计事件"
+		default:
+			label = compactVisualText(item.Label, 40)
+		}
+		if label == "" || unsafeExternalProviderText(label) || seen[label] {
+			continue
+		}
+		seen[label] = true
+		labels = append(labels, label)
+		if len(labels) >= limit {
+			break
+		}
+	}
+	return labels
+}
+
+func visualContextCitations(packet domain.ContextPacket) []domain.RAGCitation {
+	citations := make([]domain.RAGCitation, 0, len(packet.Items))
+	for _, item := range packet.Items {
+		if !visualContextItemCanLeaveBoundary(item) {
+			continue
+		}
+		title := compactVisualText(item.Label, 80)
+		snippet := compactVisualText(item.Summary, 240)
+		if title == "" || snippet == "" || unsafeExternalProviderText(title+"\n"+snippet) {
+			continue
+		}
+		chunkID := item.ID
+		if chunkID == "" {
+			chunkID = item.Type
+		}
+		trustLevel := "official"
+		sensitivity := "normal"
+		if item.Type == "rag_document" {
+			trustLevel = strings.ToLower(strings.TrimSpace(fmt.Sprint(item.Metadata["trustLevel"])))
+			sensitivity = strings.ToLower(strings.TrimSpace(fmt.Sprint(item.Metadata["sensitivity"])))
+			if trustLevel == "" || trustLevel == "<nil>" {
+				trustLevel = "internal"
+			}
+			if sensitivity == "" || sensitivity == "<nil>" {
+				sensitivity = "internal"
+			}
+		}
+		citation := domain.RAGCitation{
+			DocumentID:  "visual-context:" + item.Type,
+			ChunkID:     chunkID,
+			Title:       "已校验业务对象：" + title,
+			Snippet:     snippet,
+			TrustLevel:  trustLevel,
+			Sensitivity: sensitivity,
+			Score:       0.76,
+		}
+		if !citationSafeForExternalProvider(citation) {
+			continue
+		}
+		citations = append(citations, citation)
+	}
+	return citations
+}
+
+func visualContextItemCanLeaveBoundary(item domain.ContextItem) bool {
+	switch item.Type {
+	case "legal_entity", "rag_document", "learning":
+		return item.Source == "postgres.business_ref" || item.Source == "visual_selection.dom_ref"
+	default:
+		return false
+	}
+}
+
+func visualPreview(packet domain.ContextPacket, decision domain.HarnessDecision) string {
+	labels := visualContextLabels(packet, 3)
+	if len(labels) == 0 {
+		return "未命中可验证业务对象；已按页面模块生成有限解释。"
+	}
+	if decision.UseLLM {
+		return "已基于受控业务上下文和可用引用生成解释：" + strings.Join(labels, "、")
+	}
+	return "已基于可验证业务上下文生成解释：" + strings.Join(labels, "、")
 }
 
 func (s *Server) listLearningCourses(w http.ResponseWriter, r *http.Request) {
@@ -949,7 +1510,7 @@ func (s *Server) listAgentRuns(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) createAgentRun(w http.ResponseWriter, r *http.Request) {
-	if !requireCapability(w, r, "agent.execute_read") {
+	if !requireCapability(w, r, "agent.execute_write") {
 		return
 	}
 	var req struct {
@@ -959,6 +1520,10 @@ func (s *Server) createAgentRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := httpx.Decode(r, &req); err != nil {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
+		return
+	}
+	if tooLong(req.Prompt, 1200) || tooLong(req.RunType, 120) {
+		httpx.Error(w, http.StatusBadRequest, 4001, "Agent run prompt 过长，请缩短目标并只传递必要上下文")
 		return
 	}
 	decision := decidePromptHarness(req.RunType + " " + req.Prompt)
@@ -1012,6 +1577,10 @@ func (s *Server) langgraphWorkflowDemo(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
+	if tooLong(req.Goal, 1200) || len(req.Context) > 12 {
+		httpx.Error(w, http.StatusBadRequest, 4001, "Workflow preview 请求过大")
+		return
+	}
 	if s.agent == nil || !s.agent.Enabled() {
 		httpx.Error(w, http.StatusServiceUnavailable, 5001, "Agent boundary is not configured")
 		return
@@ -1021,10 +1590,17 @@ func (s *Server) langgraphWorkflowDemo(w http.ResponseWriter, r *http.Request) {
 		s.respondErr(w, err)
 		return
 	}
+	result["demo_only"] = true
+	result["execution_mode"] = "preview_only"
+	if _, ok := result["boundary"]; !ok {
+		result["boundary"] = "LangGraph demo only: no HR data is written, no tool is executed, and human review is required before any real workflow run."
+	}
 	decision := decidePromptHarness(req.Goal)
 	summary := promptAuditSummary(req.Goal, decision)
 	summary["auditStatus"] = result["audit_status"]
 	summary["steps"] = result["steps"]
+	summary["demoOnly"] = result["demo_only"]
+	summary["executionMode"] = result["execution_mode"]
 	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
 		ActorUserID:     principal(r).UserID,
 		EventType:       "agent.workflow.preview",
@@ -1046,12 +1622,41 @@ func (s *Server) previewAgentTool(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "请求格式错误")
 		return
 	}
+	if tooLong(req.ToolName, 120) || len(req.Arguments) > 20 {
+		httpx.Error(w, http.StatusBadRequest, 4001, "工具预览请求过大")
+		return
+	}
 	if strings.TrimSpace(req.UserID) != "" {
 		httpx.Error(w, http.StatusBadRequest, 4001, "Agent 工具不接受裸 userId")
 		return
 	}
+	if req.RunID != nil {
+		owned, err := s.store.AgentRunOwnedBy(r.Context(), *req.RunID, principal(r).UserID)
+		if err != nil {
+			s.respondErr(w, err)
+			return
+		}
+		if !owned {
+			httpx.Error(w, http.StatusForbidden, 4003, "Agent run 不属于当前用户")
+			return
+		}
+	}
 	toolPreview := previewForTool(req.ToolName, req.Arguments, principal(r).HasCapability("agent.execute_write"))
 	accepted := toolPreview.Accepted
+	if req.RunID == nil {
+		accepted = false
+		toolPreview.Accepted = false
+		toolPreview.PreviewOnly = true
+		toolPreview.Decision = "detached_preview_only"
+		toolPreview.Reason = "未绑定当前用户的 Agent run，系统只返回 detached preview，不记录为可执行工具调用。"
+	}
+	if toolPreview.RequiredCapability != "" && !principal(r).HasCapability(toolPreview.RequiredCapability) {
+		accepted = false
+		toolPreview.Accepted = false
+		toolPreview.PreviewOnly = true
+		toolPreview.Decision = "missing_required_capability"
+		toolPreview.Reason = "当前用户缺少该工具要求的模块 capability，只能查看被拒绝的预览。"
+	}
 	message := "工具已进入预览，执行前仍由 Go 重新校验权限。"
 	if !accepted {
 		message = "该工具需要写执行权限或二次确认。"
@@ -1110,7 +1715,8 @@ func fetchRAGURL(ctx context.Context, rawURL string) (string, error) {
 		return "", err
 	}
 	client := &http.Client{
-		Timeout: 8 * time.Second,
+		Transport: ragHTTPTransport(),
+		Timeout:   8 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 3 {
 				return errors.New("url source redirected too many times")
@@ -1142,6 +1748,24 @@ func fetchRAGURL(ctx context.Context, rawURL string) (string, error) {
 	return text, nil
 }
 
+func ragHTTPTransport() *http.Transport {
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	return &http.Transport{
+		Proxy: nil,
+		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(address)
+			if err != nil {
+				return nil, err
+			}
+			ip, err := resolvePublicRAGHost(ctx, host)
+			if err != nil {
+				return nil, err
+			}
+			return dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+		},
+	}
+}
+
 func validatePublicRAGURL(ctx context.Context, parsed *url.URL) error {
 	host := parsed.Hostname()
 	if host == "" {
@@ -1150,24 +1774,29 @@ func validatePublicRAGURL(ctx context.Context, parsed *url.URL) error {
 	if strings.EqualFold(host, "localhost") || strings.HasSuffix(strings.ToLower(host), ".localhost") {
 		return errors.New("url source cannot target localhost")
 	}
+	_, err := resolvePublicRAGHost(ctx, host)
+	return err
+}
+
+func resolvePublicRAGHost(ctx context.Context, host string) (net.IP, error) {
 	if ip := net.ParseIP(host); ip != nil {
 		if blockedRAGIP(ip) {
-			return errors.New("url source cannot target private, loopback, link-local, or multicast addresses")
+			return nil, errors.New("url source cannot target private, loopback, link-local, or multicast addresses")
 		}
-		return nil
+		return ip, nil
 	}
 	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	addresses, err := net.DefaultResolver.LookupIPAddr(lookupCtx, host)
 	if err != nil || len(addresses) == 0 {
-		return errors.New("url source host could not be resolved")
+		return nil, errors.New("url source host could not be resolved")
 	}
 	for _, address := range addresses {
 		if blockedRAGIP(address.IP) {
-			return errors.New("url source resolved to a private, loopback, link-local, or multicast address")
+			return nil, errors.New("url source resolved to a private, loopback, link-local, or multicast address")
 		}
 	}
-	return nil
+	return addresses[0].IP, nil
 }
 
 func blockedRAGIP(ip net.IP) bool {
@@ -1194,25 +1823,32 @@ func readRAGLocalSource(uri string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	rootReal, err := filepath.EvalSymlinks(rootAbs)
+	if err != nil {
+		return "", err
+	}
 	targetAbs, err := filepath.Abs(uri)
 	if err != nil {
 		return "", err
 	}
-	rel, err := filepath.Rel(rootAbs, targetAbs)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	targetReal, err := filepath.EvalSymlinks(targetAbs)
+	if err != nil {
+		return "", err
+	}
+	if !pathInsideRoot(rootReal, targetReal) {
 		return "", errors.New("directory source is outside AI_HRMS_INGEST_ROOT")
 	}
 
 	var builder strings.Builder
-	info, err := os.Stat(targetAbs)
+	info, err := os.Stat(targetReal)
 	if err != nil {
 		return "", err
 	}
 	if !info.IsDir() {
-		return readOneRAGFile(targetAbs)
+		return readOneRAGFile(targetReal)
 	}
 	count := 0
-	err = filepath.WalkDir(targetAbs, func(path string, entry os.DirEntry, walkErr error) error {
+	err = filepath.WalkDir(targetReal, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -1222,7 +1858,14 @@ func readRAGLocalSource(uri string) (string, error) {
 		if count >= 20 || !isRAGTextFile(path) {
 			return nil
 		}
-		content, err := readOneRAGFile(path)
+		pathReal, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return err
+		}
+		if !pathInsideRoot(rootReal, pathReal) {
+			return errors.New("directory source contains symlink outside AI_HRMS_INGEST_ROOT")
+		}
+		content, err := readOneRAGFile(pathReal)
 		if err != nil {
 			return err
 		}
@@ -1240,6 +1883,11 @@ func readRAGLocalSource(uri string) (string, error) {
 		return "", errors.New("directory source contained no readable text files")
 	}
 	return builder.String(), nil
+}
+
+func pathInsideRoot(root, target string) bool {
+	rel, err := filepath.Rel(root, target)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func readOneRAGFile(path string) (string, error) {
@@ -1301,6 +1949,10 @@ func (s *Server) visualActionExecute(w http.ResponseWriter, r *http.Request) {
 	s.handleVisual(w, r, "blocked_preview", "action_execute_blocked", 0.88)
 }
 
+func visualActionIntent(intent string) bool {
+	return intent == "action_preview" || intent == "action_execute" || intent == "action_execute_blocked"
+}
+
 func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, intent string, confidence float64) {
 	if !requireCapability(w, r, "visual_copilot.use") {
 		return
@@ -1357,15 +2009,9 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 		}
 	}
 	refs := make([]domain.BusinessRef, 0)
-	refLabels := make([]string, 0)
 	for _, region := range req.Regions {
 		for _, ref := range region.BusinessRefs {
 			refs = append(refs, ref)
-			if ref.Label != "" {
-				refLabels = append(refLabels, ref.Label)
-			} else if ref.Type != "" || ref.ID != "" {
-				refLabels = append(refLabels, fmt.Sprintf("%s:%s", ref.Type, ref.ID))
-			}
 		}
 	}
 	requested := redactPromptPreview(strings.TrimSpace(req.Instruction))
@@ -1379,6 +2025,7 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 		imageMode = "screenshot-hash-only"
 	}
 	decision := decideVisualHarness(sanitizedReq)
+	isActionIntent := visualActionIntent(intent)
 	riskLevel := "low"
 	if len(refs) > 0 {
 		riskLevel = "medium"
@@ -1389,12 +2036,23 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 	decision.RiskLevel = maxRisk(decision.RiskLevel, riskLevel)
 	decision.HumanReviewRequired = decision.HumanReviewRequired || decision.RiskLevel != "low"
 	riskLevel = decision.RiskLevel
-	if intent == "action_preview" || intent == "action_execute" || intent == "action_execute_blocked" {
+	if isActionIntent {
 		decision.Intent = intent
 		decision.ExecutionMode = executionActionPreview
+		decision.UseLLM = false
 		decision.HumanReviewRequired = true
 		decision.RoutedBy = append(decision.RoutedBy, "visual.action.preview")
 	}
+	isActionDecision := isActionIntent || decision.Intent == "action_request" || decision.ExecutionMode == executionActionPreview
+	if isActionDecision {
+		decision.UseLLM = false
+		decision.UseAgent = false
+		decision.UseMultiAgent = false
+		decision.ExecutionMode = executionActionPreview
+		decision.HumanReviewRequired = true
+		decision.RoutedBy = append(decision.RoutedBy, "visual.action.preview_required")
+	}
+	requiresPreviewBoundary := isActionDecision || decision.ExecutionMode == executionHumanReviewRequired
 	contextPacket := visualContextPacket(sanitizedReq, decision)
 	resolvedItems, err := s.store.ResolveBusinessRefs(r.Context(), scope, principal(r), collectRefs(sanitizedReq.Regions))
 	if err != nil {
@@ -1406,16 +2064,99 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 		contextPacket.SourceCount["postgres_context"] = len(resolvedItems)
 		contextPacket.Boundary = "业务对象详情由 Go Context Resolver 按当前用户 scope 从数据库读取；DeepSeek 不直接访问数据库或页面。"
 	}
-	trust := buildTrustPacket(decision, confidence, nil, status, nil)
-	selectedSummary := visualSelectedSummary(len(req.Regions), refLabels, contextPacket)
+	ragCitations := []domain.RAGCitation{}
+	if visualShouldSearchRAG(requested, contextPacket) {
+		ragResult, ragErr := s.searchRAGResult(r.Context(), scope, principal(r), domain.RAGSearchRequest{
+			Query: visualRAGQuery(requested, sanitizedReq.Route, contextPacket),
+			Limit: 4,
+		})
+		if ragErr == nil && ragResult != nil && ragResult.RefusalReason == "" && len(ragResult.Citations) > 0 {
+			ragCitations = ragResult.Citations
+			contextPacket.Items = append(contextPacket.Items, contextPacketFromCitations(requested, decision, ragCitations).Items...)
+			contextPacket.SourceCount["rag_citation"] = len(ragCitations)
+			if ragResult.Confidence > confidence {
+				confidence = ragResult.Confidence
+			}
+		} else if ragErr != nil {
+			decision.RoutedBy = append(decision.RoutedBy, "visual.rag.unavailable_fallback")
+		}
+	} else {
+		decision.RoutedBy = append(decision.RoutedBy, "visual.rag.skipped_program_context")
+	}
+	evidenceCitations := append(visualContextCitations(contextPacket), ragCitations...)
+	explanation := visualExplanation(requested, contextPacket, decision)
+	provider := ""
+	model := ""
+	llmCitations := evidenceCitations
+	llmMessage := visualLLMMessage(requested, sanitizedReq.Route, contextPacket)
+	llmAllowed := visualShouldUseLLM(requested, decision, contextPacket, llmCitations) && s.agent != nil && s.agent.Enabled()
+	llmSucceeded := false
+	if llmAllowed && s.externalChatProvider(r.Context()) && !externalChatAllowed(llmMessage, llmCitations) {
+		llmAllowed = false
+		decision.UseLLM = false
+		decision.RoutedBy = append(decision.RoutedBy, "visual.llm.external_safety_fallback")
+	}
+	if llmAllowed {
+		chatCtx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+		response, err := s.agent.Chat(chatCtx, llmMessage, llmCitations)
+		cancel()
+		if err == nil && strings.TrimSpace(response.Message) != "" {
+			if highImpactOutputViolation(response.Message) {
+				decision.RiskLevel = "high"
+				decision.HumanReviewRequired = true
+				decision.ExecutionMode = executionHumanReviewRequired
+				decision.UseLLM = false
+				decision.RoutedBy = append(decision.RoutedBy, "visual.output_verifier.high_impact_block")
+			} else {
+				explanation = strings.TrimSpace(response.Message)
+				provider = response.Provider
+				model = response.Model
+				decision.UseLLM = true
+				llmSucceeded = true
+				if requiresPreviewBoundary {
+					if isActionDecision {
+						decision.Intent = intent
+					}
+					decision.HumanReviewRequired = true
+					if decision.RiskLevel == "high" || decision.ExecutionMode == executionHumanReviewRequired {
+						decision.ExecutionMode = executionHumanReviewRequired
+					} else {
+						decision.ExecutionMode = executionActionPreview
+					}
+				} else {
+					decision.ExecutionMode = executionLLMExplain
+				}
+				decision.RoutedBy = append(decision.RoutedBy, "visual.llm.scoped_context")
+				if confidence < 0.82 {
+					confidence = 0.82
+				}
+			}
+		} else if err != nil {
+			decision.UseLLM = false
+			decision.RoutedBy = append(decision.RoutedBy, "visual.llm.unavailable_fallback")
+		}
+	}
+	if !llmSucceeded {
+		decision.UseLLM = false
+	}
+	riskLevel = decision.RiskLevel
+	trust := buildTrustPacket(decision, confidence, evidenceCitations, status, nil)
+	selectedSummary := visualSelectedSummary(len(req.Regions), trustedVisualLabels(resolvedItems), contextPacket)
+	title := "选区业务解释已生成"
+	if llmSucceeded {
+		title = "DeepSeek 已基于受控上下文生成解释"
+	}
 	result := map[string]any{
-		"title":             "选区上下文已解析",
-		"preview":           fmt.Sprintf("已基于 %s 的圈选上下文生成解释。", req.Route),
-		"explanation":       visualExplanation(requested, contextPacket, decision),
+		"title":             title,
+		"preview":           visualPreview(contextPacket, decision),
+		"explanation":       explanation,
 		"selectedSummary":   selectedSummary,
 		"trustBoundary":     "当前模式是 DOM + 业务对象上下文解释；截图只用于审计哈希，不用于模型视觉识别。图片/像素级解释需要接入支持 vision 的 OpenAI-compatible provider。",
 		"riskLevel":         riskLevel,
 		"confidence":        confidence,
+		"provider":          provider,
+		"model":             model,
+		"citations":         evidenceCitations,
 		"imageMode":         imageMode,
 		"executionDecision": decision,
 		"contextPacket":     contextPacket,

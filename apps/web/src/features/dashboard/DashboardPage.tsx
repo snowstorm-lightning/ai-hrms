@@ -83,6 +83,7 @@ export function DashboardPage() {
   const [persona, setPersona] = useState<Persona>("HR");
   const [command, setCommand] = useState("为新人生成 30 天成长计划，并标注证据、风险和人工确认点");
   const [commandPreview, setCommandPreview] = useState("");
+  const [commandLoading, setCommandLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
@@ -151,6 +152,7 @@ export function DashboardPage() {
   }), [agentRuns.length, auditEvents.length, ragDocuments.length, recommendations.length]);
 
   const runCommandPreview = async () => {
+    if (commandLoading) return;
     if (!demoMode) {
       setCommandPreview("真实模式下将进入 AI Command Center，由 Go 权限、scope、RAG 和审计边界处理建议生成。");
       navigate("/app/ai-command");
@@ -160,12 +162,15 @@ export function DashboardPage() {
       setCommandPreview("该问题由程序化查询或受控 RAG 检索处理，不创建 Agent run；需要自然语言生成或跨模块行动时再升级到 Agent。");
       return;
     }
+    setCommandLoading(true);
     try {
       const run = await api.createAgentRun({ runType: "onboarding_planner", prompt: command, riskLevel: command.includes("面试") ? "high" : "medium" });
       setCommandPreview(`已生成 ${run.runType} 预览：${run.summary}。下一步请查看 AI Command Center 的证据、工具预览和审计草案。`);
       await reload();
     } catch {
       setCommandPreview("预览生成失败，请进入 AI Command Center 查看详细错误。");
+    } finally {
+      setCommandLoading(false);
     }
   };
 
@@ -182,6 +187,8 @@ export function DashboardPage() {
             size="large"
             value={command}
             enterButton={demoMode ? "生成预览" : "进入 AI 指挥中心"}
+            loading={commandLoading}
+            disabled={commandLoading}
             onChange={(event) => setCommand(event.target.value)}
             onSearch={runCommandPreview}
             placeholder="问组织、查知识、生成计划、预览动作、调度 Agent"

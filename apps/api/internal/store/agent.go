@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"ai-hrms/apps/api/internal/domain"
+	"github.com/jackc/pgx/v5"
 )
 
 func (s *Store) ListAgentRuns(ctx context.Context, userID string, page, size int) ([]domain.AgentRun, int64, error) {
@@ -90,6 +91,21 @@ func (s *Store) CreateAgentRun(ctx context.Context, input domain.AgentRun, userI
 			`[{"step":"compensate","description":"按审计事件回滚或补偿"}]`)
 	}
 	return &run, nil
+}
+
+func (s *Store) AgentRunOwnedBy(ctx context.Context, runID, userID string) (bool, error) {
+	if strings.TrimSpace(runID) == "" || strings.TrimSpace(userID) == "" {
+		return false, nil
+	}
+	var id string
+	err := s.pool.QueryRow(ctx, `SELECT id::text FROM agent_runs WHERE id = $1 AND actor_user_id = $2`, runID, userID).Scan(&id)
+	if err == nil {
+		return true, nil
+	}
+	if err == pgx.ErrNoRows {
+		return false, nil
+	}
+	return false, err
 }
 
 func (s *Store) CreateAgentToolCall(ctx context.Context, runID *string, toolName string, arguments map[string]any, accepted bool, message string) error {

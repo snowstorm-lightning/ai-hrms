@@ -406,6 +406,9 @@ export interface AgentWorkflowDemoResult {
   risk_level: string;
   human_review_required: boolean;
   audit_status: string;
+  demo_only?: boolean;
+  execution_mode?: string;
+  boundary?: string;
   steps: Array<{ name: string; status: string }>;
 }
 
@@ -458,6 +461,9 @@ export interface VisualCopilotResponse {
     trustBoundary?: string;
     riskLevel?: string;
     confidence?: number;
+    provider?: string;
+    model?: string;
+    citations?: RAGCitation[];
     imageMode?: string;
     executionDecision?: HarnessDecision;
     contextPacket?: ContextPacket;

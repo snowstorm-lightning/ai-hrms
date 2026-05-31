@@ -4,7 +4,7 @@ This file is an index for agents working on `ai-hrms`. Keep detailed constraints
 
 ## Project Direction
 
-- Product baseline: reproduce the useful business flows from `../saas_hrms`, then improve the implementation for a single-company HRMS with multiple subsidiaries.
+- Product baseline: AI-HRMS is a Human-Agent Symbiotic HR Operating System. Organization, employee, attendance, message, and role data are the governed data layer; AI Command, RAG, Agent runs, Visual Copilot, Co-Growth, and Audit are core product surfaces.
 - Frontend: TypeScript, React, Ant Design, modern versions.
 - Backend: Go service, PostgreSQL database.
 - AI: Python service managed by `uv`, used for DeepSeek-compatible chat, embeddings, agent, and RAG boundary work.
@@ -62,7 +62,7 @@ Accepted ADRs:
 - `docs/adr/0009-visual-copilot-layer.md`
 - `docs/adr/0010-learning-rag-integration.md`
 
-## Current Source Reference
+## Historical Source Reference
 
 - Source project: `../saas_hrms`
 - Reusable areas and mapping rules are indexed in `docs/constraints/product-scope.md` and `docs/constraints/database-postgres.md`.
@@ -70,7 +70,7 @@ Accepted ADRs:
 
 ## Operating Notes
 
-- Prefer reproducing behavior before expanding scope.
+- Treat `../saas_hrms` as a historical migration reference only; do not let it override the AI-HRMS product narrative or human-agent governance boundaries.
 - Put durable rules in the constraint documents listed above.
 - Put implementation decisions in ADRs.
 - Put executable verification in harness folders.

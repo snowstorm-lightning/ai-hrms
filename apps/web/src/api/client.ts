@@ -39,7 +39,7 @@ let memoryToken = "";
 const demoUser = {
   id: "demo-user-ai-hrms",
   mobile: "123",
-  username: "AI-HRMS Demo",
+  username: "demo",
   enableState: 1,
   createdAt: "2026-05-28T00:00:00+08:00",
   roles: ["group_admin", "group_hr", "employee"],
@@ -77,7 +77,7 @@ const demoRoleBindings: Record<string, RoleBinding[]> = {
 };
 
 let demoLegalEntities: LegalEntity[] = [
-  { id: "entity-001", code: "GROUP", name: "企鹅科技集团", legalName: "企鹅互联网科技有限公司", unifiedSocialCreditCode: "91440300PENGUIN001", legalRepresentative: "许海川", companyPhone: "0755-86000000", email: "people@penguin.example", area: "深圳", address: "深圳市南山区海湾科技园 1 号", status: "active", createdAt: "2026-05-01" },
+  { id: "entity-001", code: "GROUP", name: "企鹅互联网科技有限公司", legalName: "企鹅互联网科技有限公司", unifiedSocialCreditCode: "91440300PENGUIN001", legalRepresentative: "许海川", companyPhone: "0755-86000000", email: "people@penguin.example", area: "深圳", address: "深圳市南山区海湾科技园 1 号", status: "active", createdAt: "2026-05-01" },
   { id: "entity-002", code: "SUB-A", name: "企鹅企业服务", legalName: "企鹅企业服务有限公司", unifiedSocialCreditCode: "91440300PENGUIN002", legalRepresentative: "罗启明", companyPhone: "0755-86000002", email: "enterprise-hr@penguin.example", area: "深圳", address: "深圳市南山区企业服务路 8 号", status: "active", createdAt: "2026-05-01", parentId: "entity-001" },
   { id: "entity-003", code: "SUB-B", name: "企鹅协同产品", legalName: "企鹅协同产品有限公司", unifiedSocialCreditCode: "91440300PENGUIN003", legalRepresentative: "顾明远", companyPhone: "028-86000003", email: "penguin-collab-hr@penguin.example", area: "成都", address: "成都市高新区协同产品大道 12 号", status: "active", createdAt: "2026-05-01", parentId: "entity-001" },
   { id: "entity-004", code: "PENGUIN-RISK", name: "企鹅风控科技", legalName: "企鹅风控科技有限公司", unifiedSocialCreditCode: "91440300PENGUIN004", legalRepresentative: "沈知衡", companyPhone: "020-86000004", email: "risk-hr@penguin.example", area: "广州", address: "广州市天河区风险治理路 6 号", status: "active", createdAt: "2026-05-01", parentId: "entity-001" },
@@ -95,9 +95,9 @@ let demoOrgUnits: OrgUnit[] = [
 ];
 
 let demoEmployees: Employee[] = [
-  { id: "emp-001", employeeNo: "PG001", name: "许安宁", mobile: "13800000001", status: "active", sex: "未知", dateOfBirth: "", highestDegreeOfEducation: "硕士", nationalArea: "", passportNo: "", idNumber: "", nativePlace: "", nation: "", englishName: "", maritalStatus: "", birthday: "", zodiac: "", age: "", constellation: "", bloodType: "", domicile: "", politicalOutlook: "", qq: "", wechat: "", placeOfResidence: "深圳", postalAddress: "", personalMailbox: "", emergencyContact: "", emergencyContactNumber: "", bankCardNumber: "", openingBank: "", graduateSchool: "中国人民大学", major: "组织发展", homeCompany: "企鹅科技集团", title: "集团 HR", resume: "", isThereAnyCompetitionRestriction: "", remarks: "企鹅科技虚构样本 样本：集团 HR 和 Demo 主讲角色", primaryAssignment: { id: "assign-001", legalEntityId: "entity-001", legalEntityName: "企鹅科技集团", orgUnitId: "org-001", orgUnitName: "集团人力资源部", positionTitle: "集团 HR", isPrimary: true, startDate: "2026-04-01", employmentType: "full_time" } },
+  { id: "emp-001", employeeNo: "PG001", name: "许安宁", mobile: "13800000001", status: "active", sex: "未知", dateOfBirth: "", highestDegreeOfEducation: "硕士", nationalArea: "", passportNo: "", idNumber: "", nativePlace: "", nation: "", englishName: "", maritalStatus: "", birthday: "", zodiac: "", age: "", constellation: "", bloodType: "", domicile: "", politicalOutlook: "", qq: "", wechat: "", placeOfResidence: "深圳", postalAddress: "", personalMailbox: "", emergencyContact: "", emergencyContactNumber: "", bankCardNumber: "", openingBank: "", graduateSchool: "中国人民大学", major: "组织发展", homeCompany: "企鹅互联网科技有限公司", title: "集团 HR", resume: "", isThereAnyCompetitionRestriction: "", remarks: "企鹅科技虚构样本 样本：集团 HR 和 Demo 主讲角色", primaryAssignment: { id: "assign-001", legalEntityId: "entity-001", legalEntityName: "企鹅互联网科技有限公司", orgUnitId: "org-001", orgUnitName: "集团人力资源部", positionTitle: "集团 HR", isPrimary: true, startDate: "2026-04-01", employmentType: "full_time" } },
   { id: "emp-002", employeeNo: "PG002", name: "陈向南", mobile: "13800000002", status: "active", sex: "未知", dateOfBirth: "", highestDegreeOfEducation: "本科", nationalArea: "", passportNo: "", idNumber: "", nativePlace: "", nation: "", englishName: "", maritalStatus: "", birthday: "", zodiac: "", age: "", constellation: "", bloodType: "", domicile: "", politicalOutlook: "", qq: "", wechat: "", placeOfResidence: "深圳", postalAddress: "", personalMailbox: "", emergencyContact: "", emergencyContactNumber: "", bankCardNumber: "", openingBank: "", graduateSchool: "华南理工大学", major: "人力资源", homeCompany: "企鹅企业服务", title: "企业服务 HRBP", resume: "", isThereAnyCompetitionRestriction: "", remarks: "企鹅科技虚构样本 样本：企业服务 HRBP", primaryAssignment: { id: "assign-002", legalEntityId: "entity-002", legalEntityName: "企鹅企业服务", orgUnitId: "org-005", orgUnitName: "企业服务交付与客户成功部", positionTitle: "企业服务 HRBP", isPrimary: true, startDate: "2026-04-01", employmentType: "full_time" } },
-  { id: "emp-003", employeeNo: "PG003", name: "林晨", mobile: "13800000003", status: "active", sex: "未知", dateOfBirth: "", highestDegreeOfEducation: "本科", nationalArea: "", passportNo: "", idNumber: "", nativePlace: "", nation: "", englishName: "", maritalStatus: "", birthday: "", zodiac: "", age: "", constellation: "", bloodType: "", domicile: "", politicalOutlook: "", qq: "", wechat: "", placeOfResidence: "深圳", postalAddress: "", personalMailbox: "", emergencyContact: "", emergencyContactNumber: "", bankCardNumber: "", openingBank: "", graduateSchool: "同济大学", major: "软件工程", homeCompany: "企鹅科技集团", title: "AI 平台研发工程师", resume: "", isThereAnyCompetitionRestriction: "", remarks: "企鹅科技虚构样本 样本：新人研发，参与 Co-Growth mission", primaryAssignment: { id: "assign-003", legalEntityId: "entity-001", legalEntityName: "企鹅科技集团", orgUnitId: "org-002", orgUnitName: "AI 平台工程部", positionTitle: "AI 平台研发工程师", isPrimary: true, startDate: "2026-05-01", employmentType: "full_time" } },
+  { id: "emp-003", employeeNo: "PG003", name: "林晨", mobile: "13800000003", status: "active", sex: "未知", dateOfBirth: "", highestDegreeOfEducation: "本科", nationalArea: "", passportNo: "", idNumber: "", nativePlace: "", nation: "", englishName: "", maritalStatus: "", birthday: "", zodiac: "", age: "", constellation: "", bloodType: "", domicile: "", politicalOutlook: "", qq: "", wechat: "", placeOfResidence: "深圳", postalAddress: "", personalMailbox: "", emergencyContact: "", emergencyContactNumber: "", bankCardNumber: "", openingBank: "", graduateSchool: "同济大学", major: "软件工程", homeCompany: "企鹅互联网科技有限公司", title: "AI 平台研发工程师", resume: "", isThereAnyCompetitionRestriction: "", remarks: "企鹅科技虚构样本 样本：新人研发，参与 Co-Growth mission", primaryAssignment: { id: "assign-003", legalEntityId: "entity-001", legalEntityName: "企鹅互联网科技有限公司", orgUnitId: "org-002", orgUnitName: "AI 平台工程部", positionTitle: "AI 平台研发工程师", isPrimary: true, startDate: "2026-05-01", employmentType: "full_time" } },
   { id: "emp-004", employeeNo: "PG004", name: "周雨桐", mobile: "13800000004", status: "active", sex: "未知", dateOfBirth: "", highestDegreeOfEducation: "硕士", nationalArea: "", passportNo: "", idNumber: "", nativePlace: "", nation: "", englishName: "", maritalStatus: "", birthday: "", zodiac: "", age: "", constellation: "", bloodType: "", domicile: "", politicalOutlook: "", qq: "", wechat: "", placeOfResidence: "杭州", postalAddress: "", personalMailbox: "", emergencyContact: "", emergencyContactNumber: "", bankCardNumber: "", openingBank: "", graduateSchool: "浙江大学", major: "计算机科学", homeCompany: "企鹅增长科技", title: "算法导师", resume: "", isThereAnyCompetitionRestriction: "", remarks: "企鹅科技虚构样本 样本：导师，复核新人 AI Work Journal", primaryAssignment: { id: "assign-004", legalEntityId: "entity-005", legalEntityName: "企鹅增长科技", orgUnitId: "org-006", orgUnitName: "增长策略部", positionTitle: "增长算法导师", isPrimary: true, startDate: "2026-04-01", employmentType: "full_time" } },
   { id: "emp-005", employeeNo: "PG005", name: "顾明远", mobile: "13800000005", status: "active", sex: "未知", dateOfBirth: "", highestDegreeOfEducation: "硕士", nationalArea: "", passportNo: "", idNumber: "", nativePlace: "", nation: "", englishName: "", maritalStatus: "", birthday: "", zodiac: "", age: "", constellation: "", bloodType: "", domicile: "", politicalOutlook: "", qq: "", wechat: "", placeOfResidence: "成都", postalAddress: "", personalMailbox: "", emergencyContact: "", emergencyContactNumber: "", bankCardNumber: "", openingBank: "", graduateSchool: "电子科技大学", major: "协同产品工程", homeCompany: "企鹅协同产品", title: "业务管理者", resume: "", isThereAnyCompetitionRestriction: "", remarks: "企鹅科技虚构样本 样本：关注组织能力和 Agent 风险", primaryAssignment: { id: "assign-005", legalEntityId: "entity-003", legalEntityName: "企鹅协同产品", orgUnitId: "org-004", orgUnitName: "协同产品研发部", positionTitle: "协同产品研发管理者", isPrimary: true, startDate: "2026-04-01", employmentType: "full_time" } },
   { id: "emp-006", employeeNo: "PG006", name: "沈知衡", mobile: "13800000006", status: "active", sex: "未知", dateOfBirth: "", highestDegreeOfEducation: "博士", nationalArea: "", passportNo: "", idNumber: "", nativePlace: "", nation: "", englishName: "", maritalStatus: "", birthday: "", zodiac: "", age: "", constellation: "", bloodType: "", domicile: "", politicalOutlook: "", qq: "", wechat: "", placeOfResidence: "广州", postalAddress: "", personalMailbox: "", emergencyContact: "", emergencyContactNumber: "", bankCardNumber: "", openingBank: "", graduateSchool: "中山大学", major: "信息安全", homeCompany: "企鹅风控科技", title: "AI 安全与审计负责人", resume: "", isThereAnyCompetitionRestriction: "", remarks: "企鹅科技虚构样本 样本：负责知识治理和风险边界", primaryAssignment: { id: "assign-006", legalEntityId: "entity-004", legalEntityName: "企鹅风控科技", orgUnitId: "org-007", orgUnitName: "风险策略部", positionTitle: "AI 安全与审计负责人", isPrimary: true, startDate: "2026-04-01", employmentType: "full_time" } },
@@ -113,7 +113,7 @@ let demoMessages: MessageItem[] = [
     id: "msg-001",
     title: "本周 AI 学习 mission 开放试用",
     category: "announcement",
-    content: "企鹅科技集团的 Co-Growth OS Demo 已开放。欢迎先从 RAG 原理卡和工作内嵌 mission 开始体验。",
+    content: "企鹅互联网科技有限公司（虚构样本组织）的 AI-HRMS 成长引擎样本任务已开放。欢迎先从 RAG 原理卡和工作内嵌 mission 开始体验。",
     author: "许安宁",
     orgUnitName: "人力资源",
     scopeType: "global",
@@ -307,8 +307,8 @@ function demoVisualResponse(values: VisualContextRequest, intent: string): Visua
       ? refs.map((ref) => ({
         type: ref.type,
         id: ref.id,
-        label: ref.label || `${ref.type}:${ref.id}`,
-        summary: "来自圈选区域的业务对象引用；真实模式下由 Go Context Resolver 查询数据库摘要。",
+        label: compactDemoVisualText(ref.label || `${ref.type}:${ref.id}`, 60),
+        summary: demoVisualRefSummary(ref),
         source: "visual_selection.dom_ref",
         provenance: values.route,
       }))
@@ -364,7 +364,7 @@ function demoVisualResponse(values: VisualContextRequest, intent: string): Visua
         : `Demo Visual Copilot 已根据 ${routeLabel} 的圈选上下文生成解释。`,
       explanation: intent === "action_execute_blocked"
         ? "该请求可能改变业务状态，因此被降级为预览；需要人工确认、权限复核和审计记录后才能执行。"
-        : `你的意图是“${requested}”。系统当前依据页面路由、圈选坐标、DOM 摘要和业务对象引用解释选区，而不是读取像素内容。${domItems[0] ? ` 本次命中页面模块「${domItems[0].label}」：${domItems[0].summary}` : ""}`,
+        : `你的意图是“${requested}”。系统当前依据页面路由、圈选坐标、DOM 摘要和业务对象引用解释选区，而不是读取像素内容。${demoVisualFocusLine(refs, domItems)}`,
       selectedSummary,
       trustBoundary: "当前模式是 DOM + 业务对象上下文解释；未上传页面截图，也未调用视觉模型。图片/像素级解释需要接入支持 vision 的 OpenAI-compatible provider。",
       riskLevel,
@@ -393,14 +393,89 @@ function visualRouteLabel(route: string): string {
   return route || "当前页面";
 }
 
+function demoVisualFocusLine(refs: VisualContextRequest["regions"][number]["businessRefs"], domItems: ContextItem[]) {
+  if (refs.length) {
+    const lines = refs.slice(0, 3).map((ref) => {
+      const label = compactDemoVisualText(ref.label || `${ref.type}:${ref.id}`, 40);
+      return `「${label}」：${demoVisualRefSummary(ref)}`;
+    });
+    return ` 本次命中 ${refs.length} 个已校验业务对象：${lines.join("；")}。`;
+  }
+  if (domItems[0]) {
+    return ` 本次命中页面模块「${domItems[0].label}」：${domItems[0].summary}`;
+  }
+  return " 本次未命中具名业务对象；建议圈选具体表格行、卡片、字段或按钮，以获得数据库上下文解释。";
+}
+
+function demoVisualRefSummary(ref: VisualContextRequest["regions"][number]["businessRefs"][number]) {
+  const label = ref.label || ref.id;
+  switch (ref.type) {
+    case "legal_entity":
+      return `法人实体「${compactDemoVisualText(label, 40)}」用于确定合同主体、地区责任、权限 scope 和审计归属；解释不会推断真实公司外部信息。`;
+    case "org_unit":
+      return `组织单元「${compactDemoVisualText(label, 40)}」用于限定员工、知识资料、Agent run 和审计事件的组织范围。`;
+    case "employee":
+    case "user":
+      return demoEmployeeVisualSummary(ref, label);
+    case "rag_document":
+      return `知识资料「${compactDemoVisualText(label, 40)}」需要结合 trustLevel、sensitivity、scope 和 citation 才能用于 AI 回答。`;
+    case "agent_run":
+      return `Agent run「${compactDemoVisualText(label, 40)}」适合检查状态、工具预览、人工确认和审计记录，不代表动作已经执行。`;
+    case "audit_event":
+      return `审计事件「${compactDemoVisualText(label, 40)}」用于回溯 AI 建议、工具调用、人审和证据链。`;
+    case "learning":
+      return `学习对象「${compactDemoVisualText(label, 40)}」属于 Co-Growth 成长证据，可用于解释 mission、复盘和能力沉淀。`;
+    default:
+      return `业务对象「${compactDemoVisualText(label, 40)}」已随选区提交，系统只在当前权限边界内解释。`;
+  }
+}
+
+function demoEmployeeVisualSummary(ref: VisualContextRequest["regions"][number]["businessRefs"][number], fallbackLabel: string) {
+  const employee = demoEmployees.find((item) => item.id === ref.id);
+  if (!employee) {
+    return `员工/账号对象「${compactDemoVisualText(fallbackLabel, 40)}」只能用于查看已授权上下文；系统不会自动给出录用、晋升、降薪、淘汰等高影响裁决。`;
+  }
+  const assignment = employee.primaryAssignment;
+  const legalName = assignment?.legalEntityName || "未分配";
+  const orgName = assignment?.orgUnitName || "未分配";
+  const position = assignment?.positionTitle || employee.title || "未返回";
+  const legalProfile = demoBusinessProfileForLegal(assignment?.legalEntityId, legalName);
+  const orgProfile = demoBusinessProfileForOrg(assignment?.orgUnitId, orgName);
+  return `员工「${employee.name}」岗位=${position}，主任职归属=${legalName} / ${orgName}；业务内容按归属推断为${orgProfile || legalProfile}。该解释不评价个人绩效或真实产出。`;
+}
+
+function demoBusinessProfileForLegal(id?: string | null, name = "") {
+  const entity = demoLegalEntities.find((item) => item.id === id);
+  const value = `${entity?.code || ""} ${entity?.name || name}`.toLowerCase();
+  if (value.includes("enterprise") || value.includes("企业服务")) return "企业客户协作方案、交付实施、客户成功和培训支持";
+  if (value.includes("collab") || value.includes("协同")) return "协同办公、产品研发和跨团队工作流平台";
+  if (value.includes("risk") || value.includes("风控")) return "内容安全、风控策略、AI 治理和审计能力";
+  if (value.includes("growth") || value.includes("增长")) return "增长算法、用户运营和数据驱动业务实验";
+  if (value.includes("group") || value.includes("集团") || value.includes("互联网科技")) return "集团总部与 AI 平台底座，承载统一 HR、知识治理和 Agent 协作规范";
+  return "模拟互联网科技公司下的业务或职能法人，用于权限 scope、合同边界和审计归属";
+}
+
+function demoBusinessProfileForOrg(id?: string | null, name = "") {
+  const unit = demoOrgUnits.find((item) => item.id === id);
+  const value = `${unit?.code || ""} ${unit?.name || name}`.toLowerCase();
+  if (value.includes("group-hr") || value.includes("人力资源")) return "集团 HR 共享能力、组织制度、人才发展和人机协作治理";
+  if (value.includes("ai-platform") || value.includes("平台工程")) return "AI 平台底座、Agent 工程能力、内部工具链和安全工程实践";
+  if (value.includes("ai-gov") || value.includes("安全与治理")) return "AI 安全评审、风险策略、审计规范和人审流程";
+  if (value.includes("collab") || value.includes("协同")) return "协同办公产品研发、跨团队流程和工作流平台";
+  if (value.includes("enterprise") || value.includes("企业服务")) return "企业客户交付、客户成功、实施支持和培训服务";
+  if (value.includes("growth") || value.includes("增长")) return "增长策略、用户运营、实验分析和数据驱动迭代";
+  if (value.includes("risk") || value.includes("风险")) return "内容安全、风控策略、审计证据和 AI 治理能力";
+  return demoBusinessProfileForLegal(unit?.legalEntityId, "");
+}
+
 function demoDomContextItems(values: VisualContextRequest): ContextItem[] {
   return values.dom
     .filter((node) => Boolean(node.visible) && demoNodeIntersectsRegions(node, values.regions))
     .slice(0, 4)
     .map((node) => {
       const kind = stringValue(node.kind) || stringValue(node.action) || stringValue(node.field) || "page_module";
-      const label = stringValue(node.label) || kind;
-      const text = stringValue(node.text);
+      const label = compactDemoVisualText(stringValue(node.label) || kind, 48);
+      const text = compactDemoVisualText(stringValue(node.text), 120);
       return {
         type: "dom_module",
         label,
@@ -410,6 +485,12 @@ function demoDomContextItems(values: VisualContextRequest): ContextItem[] {
         metadata: { kind, tag: stringValue(node.tag), verifiedEvidence: false },
       };
     });
+}
+
+function compactDemoVisualText(value: string, limit: number) {
+  const text = value.replace(/\s+/g, " ").trim();
+  if (!limit || text.length <= limit) return text;
+  return `${text.slice(0, Math.max(limit - 3, 1))}...`;
 }
 
 function demoNodeIntersectsRegions(node: Record<string, unknown>, regions: VisualContextRequest["regions"]) {
@@ -615,6 +696,18 @@ export const api = {
       return Promise.resolve(demoOrgUnits.find((unit) => unit.id === id) ?? demoOrgUnits[0]);
     }
     return request<OrgUnit>(`/org-units/${id}`, { method: "PUT", body: JSON.stringify(values) });
+  },
+  deleteOrgUnit: (id: string) => {
+    if (demoMode) {
+      const referenced = demoOrgUnits.some((unit) => unit.parentId === id)
+        || demoEmployees.some((employee) => employee.assignments?.some((assignment) => assignment.orgUnitId === id));
+      if (referenced) {
+        return Promise.reject(new Error("该组织单元仍被子组织或员工任职引用，请先迁移引用或改为 inactive"));
+      }
+      demoOrgUnits = demoOrgUnits.filter((unit) => unit.id !== id);
+      return Promise.resolve({ deleted: true });
+    }
+    return request<{ deleted: boolean }>(`/org-units/${id}`, { method: "DELETE" });
   },
   roles: () => demoMode ? Promise.resolve(demoRoles) : request<Role[]>("/roles"),
   capabilities: () => demoMode ? Promise.resolve(demoCapabilities) : request<Capability[]>("/capabilities"),
@@ -1135,6 +1228,9 @@ export const api = {
       risk_level: highRisk ? "high" : "medium",
       human_review_required: true,
       audit_status: highRisk ? "blocked_pending_human_review" : "preview_logged",
+      demo_only: true,
+      execution_mode: "preview_only",
+      boundary: "LangGraph demo only: no HR data is written, no tool is executed, and human review is required before any real workflow run.",
       steps: [
         { name: "goal", status: "received" },
         { name: "risk_classification", status: highRisk ? "high" : "medium" },

@@ -10,6 +10,7 @@ import {
   MenuOutlined,
   IdcardOutlined,
   MessageOutlined,
+  QuestionCircleOutlined,
   RobotOutlined,
   TeamOutlined,
   UserOutlined,
@@ -24,32 +25,51 @@ import { PageLoading } from "./PageLoading";
 
 const { Header, Sider, Content } = Layout;
 
-const menuItems = [
-  { key: "/app/dashboard", icon: <DashboardOutlined />, label: "Command Dashboard" },
-  { key: "/app/ai-command", icon: <RobotOutlined />, label: "AI 指挥中心" },
-  { key: "/app/knowledge", icon: <DatabaseOutlined />, label: "Knowledge Hub" },
-  { key: "/co-growth", icon: <ExperimentOutlined />, label: "Co-Growth OS" },
-  { key: "/app/agents", icon: <TeamOutlined />, label: "Agent Run Center" },
-  { key: "/app/audit", icon: <AuditOutlined />, label: "Audit & Evidence" },
-  { type: "divider" as const },
-  { key: "/app/learning", icon: <BookOutlined />, label: "Learning Layer" },
-  { key: "/app/legal-entities", icon: <BankOutlined />, label: "法人实体" },
-  { key: "/app/org-units", icon: <ApartmentOutlined />, label: "组织单元" },
-  { key: "/app/users", icon: <UserOutlined />, label: "用户管理" },
-  { key: "/app/employees", icon: <IdcardOutlined />, label: "员工管理" },
-  { key: "/app/attendance", icon: <ClockCircleOutlined />, label: "考勤管理" },
-  { key: "/app/messages", icon: <MessageOutlined />, label: "消息社区" },
+const commandMenuItems = [
+  { key: "/app/dashboard", icon: <DashboardOutlined />, label: "OS Command Dashboard" },
+  { key: "/app/ai-command", icon: <RobotOutlined />, label: "Agent Command Center" },
+  { key: "/app/knowledge", icon: <DatabaseOutlined />, label: "Governed Knowledge" },
+  { key: "/app/agents", icon: <TeamOutlined />, label: "Agent Run Control" },
+  { key: "/app/audit", icon: <AuditOutlined />, label: "Trust & Evidence" },
 ];
+
+const growthMenuItems = [
+  { key: "/co-growth", icon: <ExperimentOutlined />, label: <span>Co-Growth Engine <Tag color="geekblue">独立工作区</Tag></span> },
+  { key: "/app/learning", icon: <BookOutlined />, label: "Learning Evidence" },
+];
+
+const dataMenuItems = [
+  { key: "/app/legal-entities", icon: <BankOutlined />, label: "法人 scope" },
+  { key: "/app/org-units", icon: <ApartmentOutlined />, label: "组织 scope" },
+  { key: "/app/users", icon: <UserOutlined />, label: "账号与角色" },
+  { key: "/app/employees", icon: <IdcardOutlined />, label: "员工数据层" },
+  { key: "/app/attendance", icon: <ClockCircleOutlined />, label: "考勤信号" },
+  { key: "/app/messages", icon: <MessageOutlined />, label: "消息证据" },
+];
+
+const helpMenuItems = [
+  { key: "/app/help", icon: <QuestionCircleOutlined />, label: "新手使用指南" },
+];
+
+const menuItems = [
+  { type: "group" as const, label: "AI-HRMS 操作系统", children: commandMenuItems },
+  { type: "group" as const, label: "成长引擎与证据", children: growthMenuItems },
+  { type: "group" as const, label: "组织数据与管理", children: dataMenuItems },
+  { type: "group" as const, label: "帮助", children: helpMenuItems },
+];
+
+const flatMenuItems = [...commandMenuItems, ...growthMenuItems, ...dataMenuItems, ...helpMenuItems];
 
 export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
   const token = theme.useToken().token;
-  const selectedKey = menuItems.find((item) => "key" in item && typeof item.key === "string" && location.pathname.startsWith(item.key))?.key ?? "/app/dashboard";
+  const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
+  const selectedKey = flatMenuItems.find((item) => typeof item.key === "string" && location.pathname.startsWith(item.key))?.key ?? "/app/dashboard";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [providerStatus, setProviderStatus] = useState<AIProviderStatus | null>(null);
-  const selectedLabel = menuItems.find((item) => "key" in item && item.key === selectedKey)?.label ?? "AI-HRMS";
+  const selectedLabel = flatMenuItems.find((item) => item.key === selectedKey)?.label ?? "AI-HRMS";
 
   useEffect(() => {
     let mounted = true;
@@ -65,7 +85,7 @@ export function AppShell() {
   };
 
   return (
-    <Layout className="app-shell" data-vc-shell="app" data-vc-kind="app-shell">
+    <Layout className="app-shell" data-vc-shell="app" data-vc-kind="app-shell" data-suite-mode={demoMode ? "demo" : "real"}>
       <Sider breakpoint="lg" collapsedWidth={0} className="app-sider">
         <div className="brand">
           <TeamOutlined />
@@ -81,10 +101,10 @@ export function AppShell() {
       </Sider>
       <Layout>
         <Header className="app-header" style={{ background: token.colorBgContainer }}>
-          <Button className="mobile-menu-button" type="text" icon={<MenuOutlined />} onClick={() => setMobileMenuOpen(true)} />
+          <Button className="mobile-menu-button" type="text" icon={<MenuOutlined />} aria-label="打开导航菜单" title="打开导航菜单" onClick={() => setMobileMenuOpen(true)} />
           <div className="app-header-title">
             <Typography.Text strong>Human-Agent Symbiotic HR Operating System</Typography.Text>
-            {import.meta.env.VITE_DEMO_MODE === "true" ? <Tag color="blue">Demo environment</Tag> : null}
+            {demoMode ? <Tag color="blue">Demo environment</Tag> : null}
             <Tag color={providerStatus?.chatProvider === "deepseek" ? "geekblue" : "default"}>
               AI {providerStatus?.chatProvider ?? "boundary"} / RAG {providerStatus?.embeddingProvider ?? "unknown"}
             </Tag>

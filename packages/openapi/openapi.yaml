@@ -3,9 +3,10 @@ info:
   title: AI-HRMS API
   version: 0.1.0
   description: >
-    Contract index for the current AI-HRMS reproduction phase. The API serves
-    one corporate group with multiple legal entities; legal entities are
-    organization scopes, not SaaS tenants.
+    Contract index for AI-HRMS, a Human-Agent Symbiotic HR Operating System.
+    The API exposes governed organization data, knowledge/RAG, agent runs,
+    human review, Visual Copilot context, and audit evidence. Legal entities
+    are organization scopes for permissions and evidence, not SaaS tenants.
 servers:
   - url: http://localhost:8080/api
     description: Local Go API
@@ -217,6 +218,26 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+    delete:
+      tags: [Organization]
+      operationId: deleteOrgUnit
+      summary: Delete organization unit
+      description: Requires global role scope. Deletion is blocked while the unit is referenced by child units, employee assignments, messages, role scopes, or RAG scopes.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Organization unit deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteResultEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -233,6 +254,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RoleListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /capabilities:
+    get:
+      tags: [Roles]
+      operationId: listCapabilities
+      summary: List capabilities
+      description: Requires global role scope. Capabilities define the RBAC gates used by data-layer, AI, RAG, Agent, Visual Copilot, and audit APIs.
+      responses:
+        "200":
+          description: Available capabilities.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapabilityListEnvelope"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -679,6 +718,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiEnvelope"
 
+  /rag/documents/{id}/rebuild:
+    post:
+      tags: [RAG]
+      operationId: rebuildRagDocument
+      summary: Rebuild chunks and embeddings for a scoped RAG document
+      description: >
+        Re-chunks the existing document content and replaces old embeddings only
+        after the configured embedding provider returns a complete vector set.
+        This endpoint writes an ingest job and audit event; it does not mutate
+        the original document text, scope, trust level, or sensitivity.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "201":
+          description: Rebuild job.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiEnvelope"
+
   /rag/ingest-jobs:
     post:
       tags: [RAG]
@@ -711,7 +770,12 @@ paths:
     post:
       tags: [RAG]
       operationId: searchRag
-      summary: Search scoped RAG knowledge with pgvector-first retrieval
+      summary: Search scoped RAG knowledge with hybrid PostgreSQL lexical and pgvector retrieval
+      description: >
+        Applies status, trustLevel, sensitivity, and scope filters before
+        retrieval. Vector and lexical candidates are fused with reciprocal rank
+        fusion. If the embedding provider is unavailable, the response may fall
+        back to scoped lexical retrieval and marks the provider/model accordingly.
       responses:
         "200":
           description: Search answer with citations or refusal reason.
@@ -1085,6 +1149,19 @@ components:
               items:
                 $ref: "#/components/schemas/OrgUnit"
 
+    DeleteResultEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: object
+              required: [deleted]
+              properties:
+                deleted:
+                  type: boolean
+
     RoleListEnvelope:
       allOf:
         - $ref: "#/components/schemas/ApiEnvelope"
@@ -1095,6 +1172,17 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Role"
+
+    CapabilityListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/Capability"
 
     RoleBindingListEnvelope:
       allOf:
@@ -1491,6 +1579,17 @@ components:
           type: string
         name:
           type: string
+
+    Capability:
+      type: object
+      required: [code, description]
+      properties:
+        code:
+          type: string
+          example: visual_copilot.use
+        description:
+          type: string
+          example: Use visual copilot
 
     RoleBinding:
       allOf:

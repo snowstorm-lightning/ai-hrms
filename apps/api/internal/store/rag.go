@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -106,13 +107,9 @@ func (s *Store) CreateRAGDocument(ctx context.Context, doc domain.RAGDocument, u
 	return s.CreateRAGDocumentWithEmbeddings(ctx, doc, userID, nil)
 }
 
-func (s *Store) CreateRAGDocumentWithEmbeddings(ctx context.Context, doc domain.RAGDocument, userID string, embeddings []domain.RAGEmbeddingInput) (*domain.RAGDocument, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
+func NormalizeRAGDocumentForCreate(doc *domain.RAGDocument) error {
+	doc.Title = strings.TrimSpace(doc.Title)
+	doc.Content = strings.TrimSpace(doc.Content)
 	if doc.Version == "" {
 		doc.Version = "v1"
 	}
@@ -124,6 +121,62 @@ func (s *Store) CreateRAGDocumentWithEmbeddings(ctx context.Context, doc domain.
 	}
 	if doc.Sensitivity == "" {
 		doc.Sensitivity = "normal"
+	}
+	if len(doc.Scopes) == 0 {
+		if doc.Status == "published" {
+			doc.Status = "draft"
+		}
+		if doc.Sensitivity == "normal" || doc.Sensitivity == "public" {
+			doc.Sensitivity = "internal"
+		}
+		return nil
+	}
+	for i := range doc.Scopes {
+		if doc.Scopes[i].ScopeType == "" {
+			return errors.New("rag document scope_type is required")
+		}
+		switch doc.Scopes[i].ScopeType {
+		case "global":
+			if doc.Scopes[i].ScopeID != nil || doc.Scopes[i].RoleCode != nil || doc.Scopes[i].EmployeeID != nil {
+				return errors.New("rag document global scope must not include scope_id, role_code, or employee_id")
+			}
+		case "legal_entity", "org_unit":
+			if doc.Scopes[i].ScopeID == nil || strings.TrimSpace(*doc.Scopes[i].ScopeID) == "" {
+				return errors.New("rag document legal_entity/org_unit scope requires scope_id")
+			}
+			if doc.Scopes[i].RoleCode != nil || doc.Scopes[i].EmployeeID != nil {
+				return errors.New("rag document legal_entity/org_unit scope must not include role_code or employee_id")
+			}
+		case "role":
+			if doc.Scopes[i].RoleCode == nil || strings.TrimSpace(*doc.Scopes[i].RoleCode) == "" {
+				return errors.New("rag document role scope requires role_code")
+			}
+			if doc.Scopes[i].EmployeeID != nil {
+				return errors.New("rag document role scope must not include employee_id")
+			}
+		case "employee":
+			if doc.Scopes[i].EmployeeID == nil || strings.TrimSpace(*doc.Scopes[i].EmployeeID) == "" {
+				return errors.New("rag document employee scope requires employee_id")
+			}
+			if doc.Scopes[i].ScopeID != nil || doc.Scopes[i].RoleCode != nil {
+				return errors.New("rag document employee scope must not include scope_id or role_code")
+			}
+		default:
+			return fmt.Errorf("unsupported rag document scope_type %q", doc.Scopes[i].ScopeType)
+		}
+	}
+	return nil
+}
+
+func (s *Store) CreateRAGDocumentWithEmbeddings(ctx context.Context, doc domain.RAGDocument, userID string, embeddings []domain.RAGEmbeddingInput) (*domain.RAGDocument, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	if err := NormalizeRAGDocumentForCreate(&doc); err != nil {
+		return nil, err
 	}
 	var publishedAt any
 	if doc.Status == "published" {
@@ -143,13 +196,7 @@ func (s *Store) CreateRAGDocumentWithEmbeddings(ctx context.Context, doc domain.
 	if err != nil {
 		return nil, err
 	}
-	if len(doc.Scopes) == 0 {
-		doc.Scopes = []domain.RAGDocumentScope{{ScopeType: "global", IncludeDescendants: true}}
-	}
 	for _, scope := range doc.Scopes {
-		if scope.ScopeType == "" {
-			scope.ScopeType = "global"
-		}
 		_, err = tx.Exec(ctx, `
 			INSERT INTO rag_document_scopes (document_id, scope_type, scope_id, role_code, employee_id, include_descendants)
 			VALUES ($1,$2,$3,$4,$5,$6)
@@ -343,10 +390,12 @@ func (s *Store) SearchRAGHybrid(ctx context.Context, scope Scope, principal rbac
 	if err != nil {
 		return nil, err
 	}
+	vectorCandidates = filterRAGCandidates(vectorCandidates, 0.5)
 	lexicalCandidates, err := s.searchRAGLexicalCandidates(ctx, scope, principal, req, candidateLimit)
 	if err != nil {
 		return nil, err
 	}
+	lexicalCandidates = filterRAGCandidates(lexicalCandidates, 0.6)
 	if len(vectorCandidates) == 0 {
 		return s.ragSearchResultFromCitations(ctx, principal.UserID, query, scope, citationsFromCandidates(lexicalCandidates), "lexical-fallback", "websearch+ILIKE;vector_hit_count=0", 0.72)
 	}
@@ -360,6 +409,19 @@ func (s *Store) SearchRAGHybrid(ctx context.Context, scope Scope, principal rbac
 		confidence = 0.72
 	}
 	return s.ragSearchResultFromCitations(ctx, principal.UserID, query, scope, fused, "hybrid-rrf", provider+":"+model+"+websearch+ILIKE", confidence)
+}
+
+func filterRAGCandidates(candidates []ragCandidate, minScore float64) []ragCandidate {
+	if len(candidates) == 0 {
+		return candidates
+	}
+	filtered := make([]ragCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.Citation.Score >= minScore {
+			filtered = append(filtered, candidate)
+		}
+	}
+	return filtered
 }
 
 type ragCandidate struct {
@@ -486,6 +548,7 @@ func (s *Store) searchRAGVectorCandidates(ctx context.Context, scope Scope, prin
 }
 
 func (s *Store) ragSearchResultFromCitations(ctx context.Context, userID, query string, scope Scope, citations []domain.RAGCitation, provider, model string, confidence float64) (*domain.RAGSearchResult, error) {
+	citations = filterRAGCitationsByQueryGuard(query, citations)
 	if len(citations) == 0 {
 		_ = s.recordRAGRetrieval(ctx, userID, query, scope, nil, nil, "no_citation")
 		return &domain.RAGSearchResult{RefusalReason: "no_citation", Provider: provider, Model: model}, nil
@@ -512,6 +575,42 @@ func (s *Store) ragSearchResultFromCitations(ctx context.Context, userID, query 
 	}
 	_ = s.recordRAGRetrieval(ctx, userID, query, scope, chunkIDs, citations, "")
 	return result, nil
+}
+
+func filterRAGCitationsByQueryGuard(query string, citations []domain.RAGCitation) []domain.RAGCitation {
+	required := ragQueryRequiredTerms(query)
+	if len(required) == 0 || len(citations) == 0 {
+		return citations
+	}
+	filtered := make([]domain.RAGCitation, 0, len(citations))
+	for _, citation := range citations {
+		text := strings.ToLower(citation.Title + "\n" + citation.Snippet)
+		for _, term := range required {
+			if strings.Contains(text, term) {
+				filtered = append(filtered, citation)
+				break
+			}
+		}
+	}
+	return filtered
+}
+
+func ragQueryRequiredTerms(query string) []string {
+	lower := strings.ToLower(query)
+	groups := [][]string{
+		{"奖金", "年终奖", "薪酬", "调薪", "工资", "bonus", "compensation", "salary", "pay"},
+		{"离职", "辞退", "解雇", "裁员", "layoff", "terminate", "termination"},
+		{"录用", "候选人", "面试", "招聘", "hiring", "candidate", "interview"},
+		{"晋升", "绩效", "评级", "promotion", "performance"},
+	}
+	for _, group := range groups {
+		for _, term := range group {
+			if strings.Contains(lower, term) {
+				return group
+			}
+		}
+	}
+	return nil
 }
 
 func citationsFromCandidates(candidates []ragCandidate) []domain.RAGCitation {
@@ -579,6 +678,22 @@ func fuseRAGCandidates(vectorCandidates, lexicalCandidates []ragCandidate, limit
 
 func insertRAGChunkRecords(ctx context.Context, tx pgx.Tx, documentID, content, title, sensitivity string, embeddings []domain.RAGEmbeddingInput) (int, error) {
 	chunks := prepareRAGChunkRecords(content, title)
+	if len(embeddings) > 0 && len(embeddings) != len(chunks) {
+		return 0, fmt.Errorf("rag embedding count mismatch: got %d embeddings for %d chunks", len(embeddings), len(chunks))
+	}
+	if len(embeddings) > 0 {
+		provider := strings.TrimSpace(embeddings[0].Provider)
+		model := strings.TrimSpace(embeddings[0].Model)
+		dimensions := embeddings[0].Dimensions
+		for i, embedding := range embeddings {
+			if len(embedding.Vector) == 0 {
+				return 0, fmt.Errorf("rag embedding %d is empty", i)
+			}
+			if provider != strings.TrimSpace(embedding.Provider) || model != strings.TrimSpace(embedding.Model) || dimensions != embedding.Dimensions {
+				return 0, errors.New("rag embeddings must use one provider/model/dimension batch")
+			}
+		}
+	}
 	for i, chunk := range chunks {
 		var chunkID string
 		err := tx.QueryRow(ctx, `
@@ -691,22 +806,39 @@ func ragVisibleWhere(scope Scope, principal rbac.Principal, start int) (string, 
 	if cond, condArgs := whereIn("ds.scope_id::text", scope.legalIDs(), start); cond != "" {
 		parts = append(parts, `EXISTS (
 			SELECT 1 FROM rag_document_scopes ds
-			WHERE ds.document_id = d.id AND ds.scope_type = 'legal_entity' AND `+cond+`
+			WHERE ds.document_id = d.id AND ds.scope_type = 'legal_entity' AND (`+cond+`
+				OR (ds.include_descendants AND EXISTS (
+					WITH RECURSIVE legal_tree(id) AS (
+						SELECT ds.scope_id
+						UNION ALL
+						SELECT le.id FROM legal_entities le JOIN legal_tree t ON le.parent_id = t.id
+					)
+					SELECT 1 FROM legal_tree WHERE legal_tree.id::text IN (`+holders(start, len(condArgs))+`)
+				))
+			)
 		)`)
 		args = append(args, condArgs...)
 	}
 	if cond, condArgs := whereIn("ds.scope_id::text", scope.orgIDs(), start+len(args)); cond != "" {
 		parts = append(parts, `EXISTS (
 			SELECT 1 FROM rag_document_scopes ds
-			WHERE ds.document_id = d.id AND ds.scope_type = 'org_unit' AND `+cond+`
+			WHERE ds.document_id = d.id AND ds.scope_type = 'org_unit' AND (`+cond+`
+				OR (ds.include_descendants AND EXISTS (
+					WITH RECURSIVE org_tree(id) AS (
+						SELECT ds.scope_id
+						UNION ALL
+						SELECT ou.id FROM org_units ou JOIN org_tree t ON ou.parent_id = t.id
+					)
+					SELECT 1 FROM org_tree WHERE org_tree.id::text IN (`+holders(start+len(args), len(condArgs))+`)
+				))
+			)
 		)`)
 		args = append(args, condArgs...)
 	}
-	roles := principal.RoleCodes()
-	if cond, condArgs := whereIn("ds.role_code", roles, start+len(args)); cond != "" {
+	if cond, condArgs := roleBindingScopeWhere(principal, start+len(args)); cond != "" {
 		parts = append(parts, `EXISTS (
 			SELECT 1 FROM rag_document_scopes ds
-			WHERE ds.document_id = d.id AND ds.scope_type = 'role' AND `+cond+`
+			WHERE ds.document_id = d.id AND ds.scope_type = 'role' AND (`+cond+`)
 		)`)
 		args = append(args, condArgs...)
 	}
@@ -717,6 +849,22 @@ func ragVisibleWhere(scope Scope, principal rbac.Principal, start int) (string, 
 	)`)
 	args = append(args, principal.UserID)
 	return "(" + strings.Join(parts, " OR ") + ")", args
+}
+
+func roleBindingScopeWhere(principal rbac.Principal, start int) (string, []any) {
+	var parts []string
+	args := []any{}
+	for _, binding := range principal.Bindings {
+		if binding.ScopeID == nil || strings.TrimSpace(*binding.ScopeID) == "" {
+			continue
+		}
+		if binding.ScopeType != rbac.ScopeLegalEntity && binding.ScopeType != rbac.ScopeOrgUnit {
+			continue
+		}
+		parts = append(parts, `(ds.role_code = $`+itoa(start+len(args))+` AND ds.scope_id::text = $`+itoa(start+len(args)+1)+`)`)
+		args = append(args, binding.RoleCode, *binding.ScopeID)
+	}
+	return strings.Join(parts, " OR "), args
 }
 
 func scopeSummary(scope Scope) map[string]any {
@@ -1058,6 +1206,7 @@ func PrepareRAGQuery(query string) string {
 	if query == "" {
 		return ""
 	}
+	query = trimRunes(query, 900)
 	return ragQueryInstruction + query
 }
 

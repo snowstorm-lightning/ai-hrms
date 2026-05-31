@@ -78,13 +78,14 @@ export function EmployeesPage() {
   };
 
   return (
-    <>
-      <PageTitle title="员工管理" description="维护员工档案。第一阶段展示主任职，底层支持多任职。" />
+    <main data-vc-page="employee-data-layer" data-vc-kind="employees-page">
+      <PageTitle title="员工数据层" description="维护员工档案、任职和组织关系，为 AI 建议、scope 控制、Agent 预览和审计证据提供可信数据。" />
       <Alert className="section-card" type="info" showIcon title="当前员工档案为合成样本，用于演示权限、组织关系和审计流程；不是任何真实员工数据。" />
       <InlineError message={error} onRetry={() => reload()} />
       <Space className="toolbar">
-        <Button type="primary" onClick={() => openEditor()}>新增员工</Button>
+        <Button type="primary" data-vc-action="employee.create" onClick={() => openEditor()}>新增员工</Button>
         <Button
+          data-vc-action="employee.export"
           loading={exporting}
           onClick={async () => {
             setExporting(true);
@@ -132,7 +133,7 @@ export function EmployeesPage() {
           },
         ]}
       />
-      <Drawer title="员工详情" open={!!selected} onClose={() => setSelected(null)} size="large" data-vc-kind="employee-drawer">
+      <Drawer title="员工详情" open={!!selected} onClose={() => setSelected(null)} size="large" data-vc-kind="employee-drawer" data-vc-object-type={selected ? "employee" : undefined} data-vc-object-id={selected?.id} data-vc-label={selected?.name}>
         {selected ? (
           <>
             <Descriptions column={2} bordered>
@@ -302,6 +303,6 @@ export function EmployeesPage() {
           </Form.List>
         </Form>
       </Modal>
-    </>
+    </main>
   );
 }

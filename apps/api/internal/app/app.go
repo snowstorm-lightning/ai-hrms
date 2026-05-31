@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"ai-hrms/apps/api/internal/agentbridge"
 	"ai-hrms/apps/api/internal/auth"
@@ -17,9 +19,12 @@ import (
 )
 
 type Server struct {
-	cfg   config.Config
-	store *store.Store
-	agent *agentbridge.Client
+	cfg                config.Config
+	store              *store.Store
+	agent              *agentbridge.Client
+	agentConfigMu      sync.Mutex
+	agentConfig        *agentbridge.ProviderConfig
+	agentConfigFetched time.Time
 }
 
 type contextKey string
@@ -38,6 +43,7 @@ func New(cfg config.Config, db *store.Store) http.Handler {
 	mux.Handle("GET /api/org-units", server.authenticated(http.HandlerFunc(server.listOrgUnits)))
 	mux.Handle("POST /api/org-units", server.authenticated(http.HandlerFunc(server.createOrgUnit)))
 	mux.Handle("PUT /api/org-units/{id}", server.authenticated(http.HandlerFunc(server.updateOrgUnit)))
+	mux.Handle("DELETE /api/org-units/{id}", server.authenticated(http.HandlerFunc(server.deleteOrgUnit)))
 	mux.Handle("GET /api/roles", server.authenticated(http.HandlerFunc(server.listRoles)))
 	mux.Handle("GET /api/capabilities", server.authenticated(http.HandlerFunc(server.listCapabilities)))
 	mux.Handle("GET /api/users", server.authenticated(http.HandlerFunc(server.listUsers)))
@@ -280,6 +286,29 @@ func (s *Server) updateOrgUnit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.OK(w, saved)
+}
+
+func (s *Server) deleteOrgUnit(w http.ResponseWriter, r *http.Request) {
+	if !requireGlobal(w, r) {
+		return
+	}
+	if err := s.store.DeleteOrgUnit(r.Context(), r.PathValue("id")); err != nil {
+		s.respondErr(w, err)
+		return
+	}
+	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+		ActorUserID: principal(r).UserID,
+		EventType:   "organization.org_unit.delete",
+		ObjectType:  "org_unit",
+		ObjectID:    r.PathValue("id"),
+		RequestID:   requestID(r),
+		RiskLevel:   "medium",
+		NewValueSummary: map[string]any{
+			"deleted": true,
+			"boundary": "delete allowed only when no child org, employee assignment, message, role scope, or RAG scope references remain",
+		},
+	})
+	httpx.OK(w, map[string]bool{"deleted": true})
 }
 
 func (s *Server) listRoles(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,6 @@
 import { Button, Form, Input, Modal, Space, Table, Tag, Typography } from "antd";
 import DOMPurify from "dompurify";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
 import type { CommentItem, MessageItem } from "../../api/types";
 import { EmptyBlock, InlineError, PageLoading } from "../../components/AsyncState";
@@ -54,18 +54,25 @@ export function MessagesPage() {
   useEffect(() => { void reload(1); }, []);
 
   return (
-    <>
-      <PageTitle title="消息社区" description="发布公告、内部交流和评论。" />
+    <main data-vc-page="message-evidence" data-vc-kind="messages-page">
+      <PageTitle title="消息与协作证据" description="发布公告、内部交流和评论；可作为组织沟通上下文进入审计和知识治理，而不是无边界训练数据。" />
       <InlineError message={error} onRetry={() => reload()} />
       <Space className="toolbar">
-        <Button type="primary" onClick={() => setPosting(true)}>发帖</Button>
+        <Button type="primary" data-vc-action="message.create" onClick={() => setPosting(true)}>发帖</Button>
       </Space>
       <Table
+        data-vc-kind="message-table"
         rowKey="id"
         loading={loading}
         dataSource={items}
         pagination={{ total, current: page, onChange: reload, pageSize: 10 }}
         locale={{ emptyText: <EmptyBlock description="暂无消息" /> }}
+        onRow={(row) => ({
+          "data-vc-kind": "table-row",
+          "data-vc-object-type": "message",
+          "data-vc-object-id": row.id,
+          "data-vc-label": row.title,
+        } as HTMLAttributes<HTMLElement>)}
         columns={[
           {
             title: "标题",
@@ -82,10 +89,10 @@ export function MessagesPage() {
             dataIndex: "content",
             render: (value) => <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(value) }} />,
           },
-          { title: "操作", render: (_, row) => <Button type="link" onClick={() => openComments(row)}>查看评论</Button> },
+          { title: "操作", render: (_, row) => <Button type="link" data-vc-action="message.comments.open" onClick={() => openComments(row)}>查看评论</Button> },
         ]}
       />
-      <Modal title="发帖" open={posting} onCancel={() => setPosting(false)} onOk={() => form.submit()} confirmLoading={saving}>
+      <Modal title="发帖" open={posting} onCancel={() => setPosting(false)} onOk={() => form.submit()} confirmLoading={saving} data-vc-kind="message-editor">
         <Form
           form={form}
           layout="vertical"
@@ -104,12 +111,12 @@ export function MessagesPage() {
             }
           }}
         >
-          <Form.Item name="title" label="标题" rules={[{ required: true }]}><Input /></Form.Item>
-          <Form.Item name="category" label="分类" initialValue="general"><Input /></Form.Item>
-          <Form.Item name="content" label="内容" rules={[{ required: true }]}><Input.TextArea rows={6} /></Form.Item>
+          <Form.Item name="title" label="标题" rules={[{ required: true }]}><Input data-vc-field="message.title" /></Form.Item>
+          <Form.Item name="category" label="分类" initialValue="general"><Input data-vc-field="message.category" /></Form.Item>
+          <Form.Item name="content" label="内容" rules={[{ required: true }]}><Input.TextArea data-vc-field="message.content" rows={6} /></Form.Item>
         </Form>
       </Modal>
-      <Modal title={selected?.title} open={!!selected} onCancel={() => setSelected(null)} footer={null}>
+      <Modal title={selected?.title} open={!!selected} onCancel={() => setSelected(null)} footer={null} data-vc-kind="message-comments" data-vc-object-type={selected ? "message" : undefined} data-vc-object-id={selected?.id} data-vc-label={selected?.title}>
         <InlineError message={commentError} onRetry={() => { if (selected) void openComments(selected); }} />
         <div className="comment-list">
           {commentsLoading ? <PageLoading /> : null}
@@ -139,10 +146,10 @@ export function MessagesPage() {
             }
           }}
         >
-          <Form.Item name="content" rules={[{ required: true }]} style={{ flex: 1 }}><Input placeholder="写评论" /></Form.Item>
-          <Button htmlType="submit" type="primary" loading={commenting}>发送</Button>
+          <Form.Item name="content" rules={[{ required: true }]} style={{ flex: 1 }}><Input data-vc-field="comment.content" placeholder="写评论" /></Form.Item>
+          <Button htmlType="submit" type="primary" data-vc-action="comment.create" loading={commenting}>发送</Button>
         </Form>
       </Modal>
-    </>
+    </main>
   );
 }

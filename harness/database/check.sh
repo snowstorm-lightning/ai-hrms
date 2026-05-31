@@ -4,10 +4,44 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="$ROOT/infra/compose.yaml"
+ENV_FILE="$ROOT/infra/.env"
+load_env_file() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  local line key value
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# || "$line" != *=* ]] && continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    key="$(printf '%s' "$key" | xargs)"
+    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    export "$key=$value"
+  done < "$file"
+}
+
+if [[ -f "$ENV_FILE" ]]; then
+  load_env_file "$ENV_FILE"
+fi
+export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-ai_hrms}"
+export DOCKER_DATABASE_URL="${DOCKER_DATABASE_URL:-postgres://ai_hrms:${POSTGRES_PASSWORD}@postgres:5432/ai_hrms?sslmode=disable}"
+export JWT_SECRET="${JWT_SECRET:-harness-dev-secret-change-me}"
+export DOCKER_CORS_ALLOWED_ORIGINS="${DOCKER_CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}"
+export DATABASE_URL="${HARNESS_DATABASE_URL:-postgres://ai_hrms:${POSTGRES_PASSWORD}@localhost:${POSTGRES_PORT:-55432}/ai_hrms?sslmode=disable}"
+compose=(docker compose)
+if [[ -f "$ENV_FILE" ]]; then
+  compose+=(--env-file "$ENV_FILE")
+fi
+compose+=(-f "$COMPOSE_FILE")
 
 psql_scalar() {
   local sql="$1"
-  docker compose -f "$COMPOSE_FILE" exec -T postgres \
+  "${compose[@]}" exec -T postgres \
     psql -U ai_hrms -d ai_hrms -t -A -c "$sql" | tr -d '[:space:]'
 }
 

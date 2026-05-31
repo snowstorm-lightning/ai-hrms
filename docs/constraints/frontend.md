@@ -8,8 +8,8 @@
 
 ## Implementation Direction
 
-- Reuse page workflow ideas from `../saas_hrms`.
-- Redesign layout and page composition for a cleaner enterprise HRMS experience.
+- Build an AI-HRMS operating console first: command dashboard, governed knowledge, agent runs, growth evidence, and audit must be visible as system surfaces.
+- Treat traditional HR pages as governed data-layer workbenches for scope, evidence, and permissions, not as the whole product.
 - Use a centralized API client generated from OpenAPI when practical.
 - Avoid scattering raw `axios` calls inside page components.
 
@@ -21,7 +21,7 @@
 - Legal entities.
 - Organization units.
 - Users.
-- Employees with primary assignment.
+- Employees with primary assignment as the organization data layer.
 
 ## AI-Native UI Scope
 
