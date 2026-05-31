@@ -22,6 +22,8 @@ func main() {
 	switch os.Args[1] {
 	case "bootstrap-admin":
 		runBootstrapAdmin(os.Args[2:])
+	case "seed-sample-company":
+		runSeedSampleCompany(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -72,9 +74,44 @@ func runBootstrapAdmin(args []string) {
 	fmt.Printf("Bootstrapped global group_admin user %s (%s)\n", user.Mobile, user.ID)
 }
 
+func runSeedSampleCompany(args []string) {
+	fs := flag.NewFlagSet("seed-sample-company", flag.ExitOnError)
+	yes := fs.Bool("yes", false, "confirm seeding fictional sample company data")
+	_ = fs.Parse(args)
+
+	if !*yes {
+		fmt.Fprintln(os.Stderr, "seed-sample-company requires --yes")
+		fs.Usage()
+		os.Exit(2)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatal(err)
+	}
+	db, err := store.Open(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	if err := db.Migrate(ctx, store.MigrationOptions{EnableDemoSeed: cfg.EnableDemoSeed}); err != nil {
+		log.Fatal(err)
+	}
+	if err := db.SeedSampleCompany(ctx); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Seeded fictional sample company data for 企鹅互联网科技有限公司.")
+}
+
 func usage() {
 	fmt.Fprintln(os.Stderr, `Usage:
   ai-hrms-admin bootstrap-admin --mobile <login-mobile> --name <display-name> --password-stdin
+  ai-hrms-admin seed-sample-company --yes
 
-Password must be provided on stdin and is never printed.`)
+Bootstrap password must be provided on stdin and is never printed.
+The sample company seed is fictional product-demo data and does not create users.`)
 }

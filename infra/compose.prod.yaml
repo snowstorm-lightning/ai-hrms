@@ -67,6 +67,21 @@ services:
       postgres:
         condition: service_healthy
 
+  seed-sample-company:
+    profiles: ["sample-data"]
+    image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-api:${IMAGE_TAG:-latest}
+    pull_policy: always
+    restart: "no"
+    entrypoint: ["ai-hrms-admin", "seed-sample-company", "--yes"]
+    environment:
+      DATABASE_URL: ${DOCKER_DATABASE_URL:?DOCKER_DATABASE_URL is required}
+      AI_HRMS_ENV: ${AI_HRMS_ENV:-production}
+      AI_HRMS_ENABLE_DEMO_SEED: ${AI_HRMS_ENABLE_DEMO_SEED:-false}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   web:
     image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-web:${IMAGE_TAG:-latest}
     pull_policy: always

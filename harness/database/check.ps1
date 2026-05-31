@@ -11,6 +11,8 @@ if (Test-Path $infraEnv) {
     if ($key) { [Environment]::SetEnvironmentVariable($key, $value, "Process") }
   }
 }
+$env:AI_HRMS_ENV = if ($env:AI_HRMS_HARNESS_ENV) { $env:AI_HRMS_HARNESS_ENV } else { "test" }
+$env:AI_HRMS_ENABLE_DEMO_SEED = if ($env:AI_HRMS_HARNESS_ENABLE_DEMO_SEED) { $env:AI_HRMS_HARNESS_ENABLE_DEMO_SEED } else { "true" }
 $pgPassword = if ($env:POSTGRES_PASSWORD) { $env:POSTGRES_PASSWORD } else { "ai_hrms" }
 $env:POSTGRES_PASSWORD = $pgPassword
 $env:DOCKER_DATABASE_URL = if ($env:DOCKER_DATABASE_URL) { $env:DOCKER_DATABASE_URL } else { "postgres://ai_hrms:$pgPassword@postgres:5432/ai_hrms?sslmode=disable" }

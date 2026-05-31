@@ -33,3 +33,10 @@ or fanout use case appears.
 `compose.prod.yaml` runs the same stack from prebuilt images pushed to a
 container registry. For Tencent Cloud CVM + TCR deployment, see
 `docs/deploy-tencent-cloud.md`.
+
+Production helper profiles:
+
+```bash
+docker compose --env-file infra/.env -f infra/compose.prod.yaml run --rm bootstrap-admin
+docker compose --env-file infra/.env -f infra/compose.prod.yaml run --rm seed-sample-company
+```

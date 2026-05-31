@@ -11,12 +11,21 @@ If production runs with `AI_HRMS_ENABLE_DEMO_SEED=false`, create the first
 administrator before exposing the site:
 
 ```bash
+cd /opt/projects/ai-hrms
 read -rsp 'Bootstrap admin password: ' BOOTSTRAP_ADMIN_PASSWORD; echo
-printf '%s' "$BOOTSTRAP_ADMIN_PASSWORD" | docker compose --env-file infra/.env -f infra/compose.yaml run --rm -T bootstrap-admin \
+printf '%s' "$BOOTSTRAP_ADMIN_PASSWORD" | docker compose --env-file infra/.env -f infra/compose.prod.yaml run --rm -T bootstrap-admin \
   --mobile '+8613800000000' \
   --name 'Platform Admin' \
   --password-stdin
 unset BOOTSTRAP_ADMIN_PASSWORD
+```
+
+To show the fictional enterprise technology company dataset in production while
+keeping demo logins disabled, run the opt-in sample seed after the admin exists:
+
+```bash
+cd /opt/projects/ai-hrms
+docker compose --env-file infra/.env -f infra/compose.prod.yaml run --rm seed-sample-company
 ```
 
 Create the Nginx site:

@@ -234,6 +234,21 @@ unset BOOTSTRAP_ADMIN_PASSWORD
 Use a real organization-controlled mobile/login value and a strong one-time
 password.
 
+## Seed Sample Company Data
+
+Production keeps `AI_HRMS_ENABLE_DEMO_SEED=false`, so it does not load frontend
+mock data or demo login accounts. To populate the real database with the
+fictional enterprise technology company dataset used by the product demo, run:
+
+```bash
+cd /opt/projects/ai-hrms
+docker compose --env-file infra/.env -f infra/compose.prod.yaml run --rm seed-sample-company
+```
+
+The command is idempotent and only inserts or updates sample organization,
+employee, RAG, learning, Agent, and audit records. It does not create passwords
+or demo users.
+
 ## Smoke Tests
 
 On the CVM:

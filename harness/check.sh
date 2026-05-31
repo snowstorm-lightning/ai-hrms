@@ -26,6 +26,8 @@ load_env_file() {
 if [[ -f "$ROOT/infra/.env" ]]; then
   load_env_file "$ROOT/infra/.env"
 fi
+export AI_HRMS_ENV="${AI_HRMS_HARNESS_ENV:-test}"
+export AI_HRMS_ENABLE_DEMO_SEED="${AI_HRMS_HARNESS_ENABLE_DEMO_SEED:-true}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-ai_hrms}"
 export DOCKER_DATABASE_URL="${DOCKER_DATABASE_URL:-postgres://ai_hrms:${POSTGRES_PASSWORD}@postgres:5432/ai_hrms?sslmode=disable}"
 export JWT_SECRET="${JWT_SECRET:-harness-dev-secret-change-me}"
