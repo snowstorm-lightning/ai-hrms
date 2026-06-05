@@ -21,6 +21,10 @@ func (s *Store) Authenticate(ctx context.Context, mobile, password string) (*dom
 	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
 		return nil, ErrNotFound
 	}
+	user.Roles, err = s.userRoles(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
 	return &user, nil
 }
 

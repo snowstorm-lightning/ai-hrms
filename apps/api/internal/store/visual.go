@@ -524,8 +524,10 @@ func (s *Store) CreateVisualCopilotEvent(ctx context.Context, userID string, req
 		return nil, err
 	}
 	domJSON, err := json.Marshal(map[string]any{
-		"nodeCount": len(req.DOM),
-		"viewport":  req.Viewport,
+		"nodeCount":   len(req.DOM),
+		"layoutItems": visualLayoutItemCount(req.Layout),
+		"mode":        req.Mode,
+		"viewport":    req.Viewport,
 	})
 	if err != nil {
 		return nil, err
@@ -564,6 +566,17 @@ func (s *Store) CreateVisualCopilotEvent(ctx context.Context, userID string, req
 	_ = json.Unmarshal(regionsRaw, &event.Regions)
 	_ = json.Unmarshal(refsRaw, &event.BusinessRefs)
 	return &event, nil
+}
+
+func visualLayoutItemCount(layout map[string]any) int {
+	if layout == nil {
+		return 0
+	}
+	items, ok := layout["items"].([]any)
+	if !ok {
+		return 0
+	}
+	return len(items)
 }
 
 func (s *Store) ListVisualCopilotEvents(ctx context.Context, userID string, page, size int) ([]domain.VisualCopilotEvent, int64, error) {

@@ -14,9 +14,10 @@ const skipDemo = process.env.AI_HRMS_BROWSER_SKIP_DEMO === "true";
 const headless = process.env.AI_HRMS_BROWSER_HEADFUL !== "true";
 
 const pageChecks = [
-  ["/app/dashboard", ["AI-HRMS", "Human-Agent Symbiotic"]],
+  ["/app/dashboard", ["AI-HRMS", "人机共生"]],
   ["/app/ai-command", ["Agentic HR Command Center", "Human-Agent Policy"]],
   ["/app/knowledge", ["Governed Knowledge Hub", "RAG Search"]],
+  ["/app/docs", ["文档库", "RAG 精准问答"]],
   ["/co-growth", ["AI-HRMS Co-Growth Engine", "人机共生成长引擎"]],
   ["/app/learning", ["Learning Layer", "Co-Growth OS"]],
   ["/app/agents", ["Human-Agent Run Center", "Agent run"]],
@@ -28,6 +29,7 @@ const pageChecks = [
   ["/app/employees", ["员工数据层", "新增员工"]],
   ["/app/attendance", ["考勤信号层", "导出 CSV"]],
   ["/app/messages", ["消息与协作证据", "查看评论"]],
+  ["/app/settings", ["设置", "侧边栏宽度"]],
 ];
 
 const results = [];
@@ -360,8 +362,8 @@ function attachDiagnostics(page, suite) {
       }
       try {
         const payload = JSON.parse(body);
-        if (payload.screenshot) {
-          visualPayloadFailures.push("POST request included screenshot payload");
+        if (payload.screenshot?.dataBase64) {
+          visualPayloadFailures.push("POST request included raw screenshot image payload");
         }
         if (isVisual && (!Array.isArray(payload.dom) || !Array.isArray(payload.regions))) {
           visualPayloadFailures.push("Visual Copilot request did not carry DOM/regions context");
@@ -447,7 +449,7 @@ async function checkVisualCopilot(page, suite, path, options = {}) {
   if (role !== "dialog") {
     throw new Error(`[${suite.name}] ${path} Visual Copilot panel should expose dialog semantics`);
   }
-  await panel.getByText(/不做图片.*识别/).waitFor({ state: "visible", timeout: timeoutMs });
+  await panel.getByText("普通问答走 RAG；截图/圈选问携带 layout snapshot", { exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
   if (await panel.getByText("换边").count()) {
     throw new Error(`[${suite.name}] ${path} Visual Copilot should not expose a confusing side-switch button`);
   }
@@ -494,6 +496,7 @@ async function checkVisualCopilot(page, suite, path, options = {}) {
   await panel.getByText("执行思路与路径").waitFor({ state: "visible", timeout: timeoutMs });
   await panel.getByRole("button", { name: /上下文证据/ }).waitFor({ state: "visible", timeout: timeoutMs });
   await panel.getByLabel("清空选区").click({ timeout: timeoutMs });
+  await panel.getByText("普通问答", { exact: true }).click({ timeout: timeoutMs });
   await panel.getByRole("button", { name: "询问" }).waitFor({ state: "visible", timeout: timeoutMs });
   const input = page.locator("[data-vc-field='visual_copilot.instruction']");
   await input.fill("这个页面怎么用", { timeout: timeoutMs });

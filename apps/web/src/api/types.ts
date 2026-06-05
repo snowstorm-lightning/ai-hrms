@@ -427,9 +427,15 @@ export interface ScreenRegion {
 }
 
 export interface VisualContextRequest {
+  mode?: "chat" | "screenshot_question" | "selection";
   route: string;
   viewport: { width: number; height: number; scrollX: number; scrollY: number };
-  screenshot?: { mime: "image/png"; dataBase64: string; redacted: boolean };
+  screenshot?: { mime: "image/png"; dataBase64?: string; redacted: boolean; mode?: string };
+  layout?: {
+    container: Record<string, unknown>;
+    regions: Array<Record<string, unknown>>;
+    items: Array<Record<string, unknown>>;
+  };
   dom: Array<Record<string, unknown>>;
   regions: ScreenRegion[];
   instruction: string;

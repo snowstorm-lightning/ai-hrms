@@ -256,13 +256,25 @@ func visualContextPacket(req domain.VisualContextRequest, decision domain.Harnes
 		Intent:      decision.Intent,
 		Subject:     strings.TrimSpace(req.Instruction),
 		Items:       items,
-		SourceCount: map[string]int{"business_ref": len(refs), "dom_node": len(req.DOM), "region": len(req.Regions)},
+		SourceCount: map[string]int{"business_ref": len(refs), "dom_node": len(req.DOM), "layout_item": visualLayoutItemCount(req.Layout), "region": len(req.Regions)},
 		Staleness:   "live_page_snapshot",
 		Boundary:    "当前 Visual Copilot 不做图片理解；DeepSeek 文本模型只接收经过系统裁剪和校验的业务上下文。",
 		Metadata: map[string]any{
 			"viewport": req.Viewport,
+			"mode":     req.Mode,
 		},
 	}
+}
+
+func visualLayoutItemCount(layout map[string]any) int {
+	if layout == nil {
+		return 0
+	}
+	items, ok := layout["items"].([]any)
+	if !ok {
+		return 0
+	}
+	return len(items)
 }
 
 func domContextItems(req domain.VisualContextRequest) []domain.ContextItem {
@@ -336,10 +348,14 @@ func routeSummary(route string) string {
 		return "这是 AI 指挥中心，用于生成带证据、风险和人工确认边界的 HR 建议。"
 	case strings.Contains(route, "knowledge"):
 		return "这是 Knowledge Hub，用于展示可被 AI 引用的受治理知识资料。"
+	case strings.Contains(route, "docs"):
+		return "这是 AI-HRMS 文档库，用于阅读受治理资料，并通过 RAG 生成带引用的精准回答。"
 	case strings.Contains(route, "agents"):
 		return "这是 Agent Run Center，用于查看工具预览、运行状态和人工确认。"
 	case strings.Contains(route, "audit"):
 		return "这是 Audit & Evidence，用于追踪建议、工具调用、人工确认和证据链。"
+	case strings.Contains(route, "settings"):
+		return "这是设置页面，用于管理语言、侧边栏宽度、界面密度和 Visual Copilot 默认行为。"
 	default:
 		return "这是 AI-HRMS 页面的一部分。"
 	}
@@ -582,8 +598,7 @@ func joinLimited(items []string, limit int) string {
 
 func visualExplanation(requested string, packet domain.ContextPacket, decision domain.HarnessDecision) string {
 	requested = compactVisualText(requested, 80)
-	sourceLine := visualExplanationBoundary(packet)
-	lines := []string{fmt.Sprintf("你的意图是“%s”。%s", requested, sourceLine)}
+	lines := []string{visualDirectAnswer(requested, packet)}
 	employeeItems := visualItemsByType(packet.Items, "employee", "user")
 	if len(employeeItems) > 0 {
 		lines = append(lines, visualEmployeeExplanationLines(employeeItems)...)
@@ -611,7 +626,7 @@ func visualExplanation(requested string, packet domain.ContextPacket, decision d
 		case "message":
 			lines = append(lines, fmt.Sprintf("消息证据「%s」：%s 它可作为组织沟通上下文和审计线索，但不能作为无边界训练数据。", label, summary))
 		case "dom_module":
-			lines = append(lines, fmt.Sprintf("页面模块「%s」：%s", label, summary))
+			lines = append(lines, visualDOMModuleExplanation(label, summary, item.Metadata))
 		case "screen_region":
 			lines = append(lines, "这个选区没有命中可验证的业务对象；建议圈选具体表格行、卡片、按钮或字段，系统才能读取数据库上下文。")
 		default:
@@ -630,6 +645,51 @@ func visualExplanation(requested string, packet domain.ContextPacket, decision d
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func visualDirectAnswer(requested string, packet domain.ContextPacket) string {
+	lowerRequest := strings.ToLower(requested)
+	if visualPacketHasAdminGuide(packet) && containsAny(lowerRequest, []string{"为什么", "看不了", "看不到", "无法", "不能", "why", "cannot", "can't", "not see"}) {
+		return "看不了这块通常是权限原因：管理员指南只对 group_admin 角色显示。请确认当前账号是否已绑定 group_admin；如果刚调整过角色，重新登录或刷新页面后再试。普通用户不会看到账号、角色、法人 scope、组织 scope 和 RAG 发布等治理入口。"
+	}
+	if strings.TrimSpace(requested) == "" {
+		return "我按当前选区解释如下。"
+	}
+	return fmt.Sprintf("我按“%s”来解释这块内容。", requested)
+}
+
+func visualPacketHasAdminGuide(packet domain.ContextPacket) bool {
+	for _, item := range packet.Items {
+		combined := strings.ToLower(item.Type + " " + item.Label + " " + item.Summary + " " + metadataString(item.Metadata, "kind"))
+		if strings.Contains(combined, "admin-guide") || strings.Contains(combined, "group_admin") || strings.Contains(combined, "管理员指南") {
+			return true
+		}
+	}
+	return false
+}
+
+func visualDOMModuleExplanation(label, summary string, metadata map[string]any) string {
+	kind := metadataString(metadata, "kind")
+	lower := strings.ToLower(kind + " " + label)
+	switch {
+	case strings.Contains(lower, "admin-guide") || strings.Contains(summary, "group_admin") || strings.Contains(summary, "管理员指南"):
+		return "这部分是管理员指南，覆盖账号维护、角色绑定、法人 scope、组织 scope、RAG 资料发布和高风险审计检查。它被设计成只对 group_admin 角色开放，避免把治理配置暴露给无关角色。"
+	case strings.Contains(lower, "ai-hrms-command-dashboard"):
+		return "这部分是 AI-HRMS 指挥看板首页主区域，用来说明产品定位、输入示例命令，并把用户引导到 AI 指挥中心、信任层和人机工作流。"
+	case strings.Contains(lower, "trust-layer-snapshot"):
+		return "这部分是信任层快照，用来展示风险级别、置信度、证据数量、工具预览状态、是否需要人工确认和审计状态。"
+	case strings.Contains(lower, "human-agent-workflow"):
+		return "这部分是人机协作流程，把 Goal、Context、Agent Plan、Tool Preview、Human Review 和 Audit 串成可审计路径。"
+	case strings.Contains(lower, "rag-search") || strings.Contains(lower, "docs-rag"):
+		return "这部分是 RAG 检索入口。涉及引用、制度依据或资料位置的问题应通过这里检索，并返回 citation、可信等级、敏感级别和审计记录。"
+	case strings.Contains(lower, "docs-document"):
+		return "这部分是文档库资料卡片，用来阅读资料摘要、查看来源、可信等级、敏感级别和可见 scope。"
+	default:
+		if summary == "" {
+			return fmt.Sprintf("页面模块「%s」：系统识别到这是当前页面的一个可解释模块，但没有拿到可验证业务对象。", label)
+		}
+		return fmt.Sprintf("页面模块「%s」：%s", label, summary)
+	}
 }
 
 func visualEmployeeExplanationLines(items []domain.ContextItem) []string {
@@ -751,9 +811,9 @@ func visualSelectedSummary(regionCount int, refLabels []string, packet domain.Co
 		}
 	}
 	if len(moduleLabels) > 0 {
-		return fmt.Sprintf("已识别 %d 个圈选区域，命中页面模块：%s。解释基于 DOM 摘要、路由和选区坐标，不读取截图像素。", regionCount, strings.Join(moduleLabels, "、"))
+		return fmt.Sprintf("已识别 %d 个圈选区域，命中页面模块：%s。回答会按当前页面可见内容和权限边界解释，不把截图当作已核验业务事实。", regionCount, strings.Join(moduleLabels, "、"))
 	}
-	return fmt.Sprintf("已识别 %d 个圈选区域，未命中具名业务对象或页面模块；系统只能基于页面路由和圈选坐标解释，不读取截图像素。", regionCount)
+	return fmt.Sprintf("已识别 %d 个圈选区域，未命中具名业务对象或页面模块；建议圈选具体卡片、表格行、按钮或字段，以便给出更精准的业务解释。", regionCount)
 }
 
 func trustedVisualItemLabels(items []domain.ContextItem, types ...string) []string {

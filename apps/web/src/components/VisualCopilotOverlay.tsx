@@ -1,11 +1,13 @@
-import { AimOutlined, CheckCircleOutlined, CloseOutlined, DeleteOutlined, DragOutlined, InfoCircleOutlined, MenuFoldOutlined, MenuUnfoldOutlined, SendOutlined } from "@ant-design/icons";
-import { Alert, Button, Collapse, Input, Space, Tag, Tooltip, Typography, message } from "antd";
+import { AimOutlined, CameraOutlined, CheckCircleOutlined, CloseOutlined, DeleteOutlined, DragOutlined, InfoCircleOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MessageOutlined, SendOutlined } from "@ant-design/icons";
+import { Alert, Button, Collapse, Input, Segmented, Space, Tag, Tooltip, Typography, message } from "antd";
 import type { Dispatch, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { api, getErrorMessage } from "../api/client";
-import type { BusinessRef, ScreenRegion, VisualCopilotResponse } from "../api/types";
+import type { AIChatResponse, BusinessRef, ScreenRegion, VisualCopilotResponse } from "../api/types";
+import { useAppSettings, type CopilotDefaultMode } from "../app/AppSettingsContext";
+import { useI18n } from "../i18n";
 import { ContextPacketPanel, ExecutionDecisionPanel, TrustPacketBar } from "./AiTrust";
 
 type DraftRect = ScreenRegion["rect"] | null;
@@ -13,7 +15,7 @@ type PanelRect = { x: number; y: number; width: number; height: number };
 type RailPosition = { x: number; y: number };
 type CopilotTurn =
   | { id: string; kind: "selection"; question: string; route: string; createdAt: string; regions: ScreenRegion[]; response: VisualCopilotResponse }
-  | { id: string; kind: "page_chat"; question: string; route: string; createdAt: string; response: VisualCopilotResponse };
+  | { id: string; kind: "chat"; question: string; route: string; createdAt: string; response: AIChatResponse };
 type ScrollTarget = Window | HTMLElement;
 type ScrollSnapshot = { target: ScrollTarget; scrollLeft: number; scrollTop: number };
 const visualLayoutStorageKey = "ai-hrms.visual-copilot.layout.v1";
@@ -21,12 +23,15 @@ const maxCopilotTurns = 8;
 
 export function VisualCopilotOverlay() {
   const location = useLocation();
+  const { settings } = useAppSettings();
+  const { t } = useI18n();
   const [active, setActive] = useState(false);
   const [regions, setRegions] = useState<ScreenRegion[]>([]);
   const [draft, setDraft] = useState<DraftRect>(null);
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
   const [instruction, setInstruction] = useState("");
   const [turns, setTurns] = useState<CopilotTurn[]>([]);
+  const [mode, setMode] = useState<CopilotDefaultMode>(settings.copilotDefaultMode);
   const [submitting, setSubmitting] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [captureMode, setCaptureMode] = useState(false);
@@ -153,6 +158,12 @@ export function VisualCopilotOverlay() {
 
   useEffect(() => () => stopAutoScroll(), []);
 
+  useEffect(() => {
+    if (!active) {
+      setMode(settings.copilotDefaultMode);
+    }
+  }, [active, settings.copilotDefaultMode]);
+
   const start = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!active || !captureMode || isPanelEvent(event)) {
       return;
@@ -219,57 +230,21 @@ export function VisualCopilotOverlay() {
 
   const currentTurn = turns[0];
   const historyTurns = turns.slice(1);
+  const canSubmit = mode === "chat" ? Boolean(instruction.trim()) : Boolean(regions.length);
 
   const submit = async () => {
     const requested = instruction.trim();
-    if (!regions.length && !requested) {
-      message.info("请先输入问题，或圈选页面区域后提交。");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      if (regions.length) {
-        const result = await api.visualSuggestions({
-          route: location.pathname,
-          viewport: {
-            width: window.innerWidth,
-            height: window.innerHeight,
-            scrollX: window.scrollX,
-            scrollY: window.scrollY,
-          },
-          dom: domSnapshot(regions),
-          regions,
-          instruction: requested || "解释这些选区的业务含义、证据边界和可执行动作。",
-        });
+    if (mode === "chat") {
+      if (!requested) {
+        message.info(t("copilot.needQuestion"));
+        return;
+      }
+      setSubmitting(true);
+      try {
+        const chat = await api.aiChat(requested);
         const turn: CopilotTurn = {
           id: nextID(),
-          kind: "selection",
-          question: requested || "解释这些选区的业务含义、证据边界和可执行动作。",
-          route: location.pathname,
-          createdAt: new Date().toISOString(),
-          regions: cloneRegions(regions),
-          response: result,
-        };
-        setTurns((current) => [turn, ...current].slice(0, maxCopilotTurns));
-        setInstruction("");
-        message.success("Visual Copilot 解释已生成");
-      } else {
-        const pageRegion = pageChatRegion();
-        const chat = await api.visualSuggestions({
-          route: location.pathname,
-          viewport: {
-            width: window.innerWidth,
-            height: window.innerHeight,
-            scrollX: window.scrollX,
-            scrollY: window.scrollY,
-          },
-          dom: pageChatDomSnapshot(location.pathname, pageRegion),
-          regions: [pageRegion],
-          instruction: requested,
-        });
-        const turn: CopilotTurn = {
-          id: nextID(),
-          kind: "page_chat",
+          kind: "chat",
           question: requested,
           route: location.pathname,
           createdAt: new Date().toISOString(),
@@ -277,8 +252,48 @@ export function VisualCopilotOverlay() {
         };
         setTurns((current) => [turn, ...current].slice(0, maxCopilotTurns));
         setInstruction("");
-        message.success("已基于当前页面上下文回答");
+        message.success(t("copilot.chatGenerated"));
+      } catch (err) {
+        message.error(getErrorMessage(err, "Visual Copilot chat failed"));
+      } finally {
+        setSubmitting(false);
       }
+      return;
+    }
+    if (!regions.length) {
+      message.info(t("copilot.needRegion"));
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const question = requested || "解释这些选区的业务含义、证据边界、引用依据和可执行动作。";
+      const result = await api.visualSuggestions({
+        mode: "screenshot_question",
+        route: location.pathname,
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          scrollX: window.scrollX,
+          scrollY: window.scrollY,
+        },
+        screenshot: { mime: "image/png", redacted: true, mode: "layout_snapshot_only" },
+        layout: layoutSnapshot(regions),
+        dom: domSnapshot(regions),
+        regions,
+        instruction: question,
+      });
+      const turn: CopilotTurn = {
+        id: nextID(),
+        kind: "selection",
+        question,
+        route: location.pathname,
+        createdAt: new Date().toISOString(),
+        regions: cloneRegions(regions),
+        response: result,
+      };
+      setTurns((current) => [turn, ...current].slice(0, maxCopilotTurns));
+      setInstruction("");
+      message.success(t("copilot.selectionGenerated"));
     } catch (err) {
       message.error(getErrorMessage(err, "Visual Copilot 提交失败"));
     } finally {
@@ -411,7 +426,7 @@ export function VisualCopilotOverlay() {
                 <div>
                   <Typography.Text id="visual-copilot-title" strong>Visual Copilot</Typography.Text>
                   <Typography.Text type="secondary">
-                    DOM + 业务上下文解释；不做图片识别
+                    {t("copilot.subtitle")}
                   </Typography.Text>
                 </div>
               </div>
@@ -421,6 +436,7 @@ export function VisualCopilotOverlay() {
                   type={captureMode ? "primary" : "default"}
                   title="收起为窄侧栏后圈选页面区域"
                   onClick={() => {
+                    setMode("screenshot");
                     setCaptureMode(true);
                     setPanelCollapsed(true);
                     setRailPosition(railFromPanel(panelRect));
@@ -435,15 +451,24 @@ export function VisualCopilotOverlay() {
               </Space>
             </div>
             <div className="visual-copilot-toolbar">
+              <Segmented
+                className="visual-mode-switch"
+                value={mode}
+                onChange={(value) => setMode(value === "screenshot" ? "screenshot" : "chat")}
+                options={[
+                  { label: <span><MessageOutlined /> {t("copilot.chat")}</span>, value: "chat" },
+                  { label: <span><CameraOutlined /> {t("copilot.screenshot")}</span>, value: "screenshot" },
+                ]}
+              />
               <Input.TextArea
                 rows={2}
-                placeholder={regions.length ? "说明这些选区的问题、修改或解释需求" : "不用圈选也可以直接问当前页面，例如：这个页面怎么用？这些数据代表什么？"}
+                placeholder={mode === "chat" ? t("copilot.chatPlaceholder") : t("copilot.screenshotPlaceholder")}
                 value={instruction}
                 onChange={(event) => setInstruction(event.target.value)}
                 data-vc-field="visual_copilot.instruction"
               />
-              <Button icon={<SendOutlined />} type="primary" loading={submitting} onClick={submit} disabled={!regions.length && !instruction.trim()}>
-                {regions.length ? "提交" : "询问"}
+              <Button icon={<SendOutlined />} type="primary" loading={submitting} onClick={submit} disabled={!canSubmit}>
+                {mode === "chat" ? t("copilot.ask") : t("copilot.submit")}
               </Button>
               <Button aria-label="清空选区" title="清空选区" icon={<DeleteOutlined />} onClick={() => { setRegions([]); setCaptureMode(false); }} />
             </div>
@@ -481,8 +506,10 @@ export function VisualCopilotOverlay() {
                     </Tag>
                   ))}
                 </div>
-              ) : (
+              ) : mode === "screenshot" ? (
                 <Alert className="visual-copilot-hint" type="info" showIcon title="先点击“开始圈选”，面板会收缩成窄侧栏，然后拖拽选择卡片、行、字段或按钮；侧栏准星可随时退出圈选并恢复页面输入。当前只使用 DOM 与业务对象上下文，不启用图像识别。" />
+              ) : (
+                <Alert className="visual-copilot-hint" type="info" showIcon title="普通问答不会采集坐标或截图；需要解释页面区域时切换到“截图/圈选问”。涉及引用位置和制度依据的问题会走 RAG 检索并展示 citations。" />
               )}
             </div>
             <button
@@ -504,7 +531,7 @@ export function VisualCopilotOverlay() {
 function CopilotTurnCard({ turn, current = false }: { turn: CopilotTurn; current?: boolean }) {
   return turn.kind === "selection"
     ? <SelectionTurnCard turn={turn} current={current} />
-    : <PageChatTurnCard turn={turn} current={current} />;
+    : <ChatTurnCard turn={turn} current={current} />;
 }
 
 function SelectionTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kind: "selection" }>; current: boolean }) {
@@ -564,33 +591,49 @@ function SelectionTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kin
   );
 }
 
-function PageChatTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kind: "page_chat" }>; current: boolean }) {
+function ChatTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kind: "chat" }>; current: boolean }) {
   const response = turn.response;
-  const decision = response.executionDecision ?? response.result.executionDecision;
-  const packet = response.contextPacket ?? response.result.contextPacket;
-  const trust = response.trustPacket ?? response.result.trustPacket;
+  const decision = response.executionDecision;
+  const packet = response.contextPacket;
+  const trust = response.trustPacket;
   return (
     <article className={current ? "visual-page-chat is-current" : "visual-page-chat"} data-vc-kind={current ? "visual-page-chat" : undefined}>
       <div className="visual-turn-meta">
-        <Tag color="cyan">页面问答</Tag>
+        <Tag color="cyan">普通问答</Tag>
         <Typography.Text type="secondary">{formatTurnTime(turn.createdAt)}</Typography.Text>
         <Typography.Text className="visual-chat-question">{turn.question}</Typography.Text>
       </div>
       <div className="visual-response-header">
         <CheckCircleOutlined />
         <div>
-          <Typography.Text strong>{response.result.title || "页面上下文回答已生成"}</Typography.Text>
-          <Typography.Text type="secondary">{response.result.preview}</Typography.Text>
+          <Typography.Text strong>RAG / AI Chat 回答已生成</Typography.Text>
+          <Typography.Text type="secondary">{response.provider || "program"}/{response.model || "routing"}</Typography.Text>
         </div>
       </div>
-      <Typography.Paragraph>{response.result.explanation || response.result.preview}</Typography.Paragraph>
+      <Typography.Paragraph>{response.message}</Typography.Paragraph>
       <Space wrap>
         <TrustPacketBar packet={trust} />
-        <Tag color={riskColor(response.result.riskLevel)}>risk={response.result.riskLevel ?? "low"}</Tag>
-        <Tag>confidence={Math.round((response.result.confidence ?? response.event.confidence ?? 0.72) * 100)}%</Tag>
-        <Tag color={response.result.provider === "deepseek" ? "purple" : "default"}>{response.result.provider || "program"}/{response.result.model || "routing"}</Tag>
+        <Tag color={riskColor(response.riskLevel)}>risk={response.riskLevel ?? "low"}</Tag>
+        <Tag>confidence={Math.round((response.confidence ?? 0.72) * 100)}%</Tag>
+        <Tag color={response.provider === "deepseek" ? "purple" : "default"}>{response.provider || "program"}/{response.model || "routing"}</Tag>
         {(trust?.humanReviewRequired || decision?.humanReviewRequired) ? <Tag color="red">humanReviewRequired=true</Tag> : null}
       </Space>
+      <Collapse
+        className="visual-history-collapse"
+        size="small"
+        defaultActiveKey={[]}
+        items={[{
+          key: "citations",
+          label: `引用 ${response.citations?.length ?? 0}`,
+          children: (
+            <div className="visual-citation-list">
+              {(response.citations ?? []).map((citation) => (
+                <Tag key={`${citation.documentId}:${citation.chunkId}`} color="blue">{citation.title}</Tag>
+              ))}
+            </div>
+          ),
+        }]}
+      />
       {packet?.boundary ? (
         <Alert
           className="visual-response-boundary"
@@ -1059,6 +1102,89 @@ function domSnapshot(regions: ScreenRegion[]) {
     .map(({ box: _box, selectedArea: _selectedArea, specificity: _specificity, ...node }) => node);
 }
 
+function layoutSnapshot(regions: ScreenRegion[]) {
+  const container = {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+    dpr: window.devicePixelRatio || 1,
+    capture: "relative_to_selected_regions",
+  };
+  const items: Array<Record<string, unknown>> = [];
+  const walker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || !node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
+        if (parent.closest(".visual-copilot-panel, .visual-copilot-rail, .visual-copilot-layer, .app-sider, .ant-layout-sider, .ant-menu")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        if (parent.offsetParent === null) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    },
+  );
+  while (walker.nextNode() && items.length < 80) {
+    const textNode = walker.currentNode;
+    const parent = textNode.parentElement;
+    if (!parent) continue;
+    const range = document.createRange();
+    range.selectNodeContents(textNode);
+    const style = getComputedStyle(parent);
+    for (const rect of Array.from(range.getClientRects())) {
+      const docBox = {
+        x: rect.left + window.scrollX,
+        y: rect.top + window.scrollY,
+        width: rect.width,
+        height: rect.height,
+      };
+      const region = regions.find((item) => intersectionArea(item.rect, docBox) > 4);
+      if (!region || region.rect.width <= 0 || region.rect.height <= 0) continue;
+      const text = redactLayoutText(textNode.textContent || "");
+      if (!text) continue;
+      items.push({
+        text,
+        regionId: region.id,
+        x: docBox.x - region.rect.x,
+        y: docBox.y - region.rect.y,
+        width: docBox.width,
+        height: docBox.height,
+        xRatio: (docBox.x - region.rect.x) / region.rect.width,
+        yRatio: (docBox.y - region.rect.y) / region.rect.height,
+        wRatio: docBox.width / region.rect.width,
+        hRatio: docBox.height / region.rect.height,
+        color: style.color,
+        backgroundColor: style.backgroundColor,
+        fontSize: style.fontSize,
+        fontWeight: style.fontWeight,
+        fontFamily: style.fontFamily,
+        lineHeight: style.lineHeight,
+      });
+      if (items.length >= 80) break;
+    }
+    range.detach();
+  }
+  return {
+    container,
+    regions: regions.map((region) => ({
+      id: region.id,
+      x: region.rect.x,
+      y: region.rect.y,
+      width: region.rect.width,
+      height: region.rect.height,
+      xRatio: region.rect.x / Math.max(document.documentElement.scrollWidth, 1),
+      yRatio: region.rect.y / Math.max(document.documentElement.scrollHeight, 1),
+      wRatio: region.rect.width / Math.max(document.documentElement.scrollWidth, 1),
+      hRatio: region.rect.height / Math.max(document.documentElement.scrollHeight, 1),
+      businessRefCount: region.businessRefs.length,
+    })),
+    items,
+  };
+}
+
 function pageChatRegion(): ScreenRegion {
   return {
     id: nextID(),
@@ -1137,13 +1263,15 @@ function routePageLabel(route: string) {
   if (route.includes("users")) return "账号与角色";
   if (route.includes("attendance")) return "考勤信号";
   if (route.includes("messages")) return "消息证据";
-  if (route.includes("knowledge")) return "Governed Knowledge Hub";
-  if (route.includes("audit")) return "Trust & Evidence";
-  if (route.includes("agents")) return "Agent Run Control";
+  if (route.includes("knowledge")) return "知识治理";
+  if (route.includes("docs")) return "文档库";
+  if (route.includes("audit")) return "信任与审计";
+  if (route.includes("settings")) return "设置";
+  if (route.includes("agents")) return "Agent 运行控制";
   if (route.includes("learning")) return "Learning Layer";
   if (route.includes("co-growth")) return "Co-Growth Engine";
-  if (route.includes("ai-command")) return "Agent Command Center";
-  if (route.includes("dashboard")) return "OS Command Dashboard";
+  if (route.includes("ai-command")) return "AI 指挥中心";
+  if (route.includes("dashboard")) return "指挥看板";
   return "AI-HRMS 页面";
 }
 
@@ -1161,6 +1289,17 @@ function dedupe(values: string[]) {
 function compactVisualText(value: string, limit: number) {
   const text = value.replace(/\s+/g, " ").trim();
   return text.length > limit ? `${text.slice(0, limit)}...` : text;
+}
+
+function redactLayoutText(value: string) {
+  return value
+    .replace(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, "[email]")
+    .replace(/\b1[3-9]\d{9}\b/g, "[mobile]")
+    .replace(/\b\d{12,19}\b/g, "[number]")
+    .replace(/\b\d{15}(\d{2}[0-9Xx])?\b/g, "[id]")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
 }
 
 function compactText(element: HTMLElement) {

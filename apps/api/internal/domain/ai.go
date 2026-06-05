@@ -288,9 +288,11 @@ type ScreenRegion struct {
 }
 
 type VisualContextRequest struct {
+	Mode        string         `json:"mode,omitempty"`
 	Route       string         `json:"route"`
 	Viewport    map[string]any `json:"viewport"`
 	Screenshot  map[string]any `json:"screenshot,omitempty"`
+	Layout      map[string]any `json:"layout,omitempty"`
 	DOM         []any          `json:"dom"`
 	Regions     []ScreenRegion `json:"regions"`
 	Instruction string         `json:"instruction"`

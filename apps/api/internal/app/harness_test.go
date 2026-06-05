@@ -302,11 +302,11 @@ func TestVisualExplanationDOMOnlyIsBoundedAndCompact(t *testing.T) {
 	packet := visualContextPacket(req, domain.HarnessDecision{Intent: "visual_selection_explain"})
 	explanation := visualExplanation("解释这个页面模块", packet, domain.HarnessDecision{ExecutionMode: executionRetrievalOnly, RiskLevel: "low", Reason: "页面圈选解释优先使用 DOM、业务对象和数据库上下文。"})
 
-	if !strings.Contains(explanation, "解释仅基于页面模块和选区位置") {
-		t.Fatalf("DOM-only explanation should state DOM boundary:\n%s", explanation)
+	if !strings.Contains(visualExplanationBoundary(packet), "解释仅基于页面模块和选区位置") {
+		t.Fatalf("DOM-only boundary should state page-module limitation")
 	}
-	if !strings.Contains(explanation, "没有图片理解") {
-		t.Fatalf("DOM-only explanation should not imply vision analysis:\n%s", explanation)
+	if strings.Contains(explanation, "路由") || strings.Contains(explanation, "DOM 坐标") || strings.Contains(explanation, "layout snapshot") {
+		t.Fatalf("DOM-only main answer should avoid implementation details:\n%s", explanation)
 	}
 	if strings.Count(explanation, "整页侧栏菜单和页面文本") > 6 {
 		t.Fatalf("DOM explanation leaked too much page text:\n%s", explanation)
@@ -332,8 +332,61 @@ func TestVisualExplanationBusinessAndPostgresContextBoundary(t *testing.T) {
 		SourceCount: map[string]int{"business_ref": 1, "postgres_context": 1},
 	}
 	postgresExplanation := visualExplanation("解释这个员工", postgresPacket, decision)
-	if !strings.Contains(postgresExplanation, "Postgres") || !strings.Contains(postgresExplanation, "只解释已返回字段") {
-		t.Fatalf("Postgres context explanation should state explainability boundary:\n%s", postgresExplanation)
+	if !strings.Contains(postgresExplanation, "Postgres") {
+		t.Fatalf("Postgres context explanation should use returned business content:\n%s", postgresExplanation)
+	}
+	if !strings.Contains(visualExplanationBoundary(postgresPacket), "只解释已返回字段") {
+		t.Fatalf("Postgres context boundary should state explainability limit")
+	}
+}
+
+func TestVisualExplanationAdminGuideAccessQuestion(t *testing.T) {
+	packet := domain.ContextPacket{
+		Items: []domain.ContextItem{{
+			Type:    "dom_module",
+			Label:   "管理员指南",
+			Summary: "管理员指南 仅 group_admin 可见 管理员可以维护账号、角色、法人 scope、组织 scope 和 RAG scope 引用。",
+			Source:  "visual_selection.dom_snapshot_unverified",
+			Metadata: map[string]any{
+				"kind": "admin-guide",
+			},
+		}},
+		SourceCount: map[string]int{"dom_node": 1, "layout_item": 4, "region": 1},
+	}
+	explanation := visualExplanation("为什么我看不了", packet, domain.HarnessDecision{ExecutionMode: executionLLMExplain, RiskLevel: "low", UseLLM: true})
+	if !strings.Contains(explanation, "group_admin") || !strings.Contains(explanation, "重新登录") {
+		t.Fatalf("admin guide access answer should explain role visibility and next step:\n%s", explanation)
+	}
+	if strings.Contains(explanation, "DOM") || strings.Contains(explanation, "layout snapshot") || strings.Contains(explanation, "路由") {
+		t.Fatalf("admin guide access answer should not expose collection internals:\n%s", explanation)
+	}
+}
+
+func TestVisualFilterRAGCitationsForAdminGuide(t *testing.T) {
+	packet := domain.ContextPacket{
+		Items: []domain.ContextItem{{
+			Type:    "dom_module",
+			Label:   "管理员指南",
+			Summary: "仅 group_admin 可见",
+			Source:  "visual_selection.dom_snapshot_unverified",
+		}},
+	}
+	citations := []domain.RAGCitation{
+		{Title: "Harness onboarding policy", Snippet: "Onboarding employees must finish policy learning in 7 days."},
+		{Title: "管理员指南与可见性规则", Snippet: "管理员指南只对 group_admin 角色可见。"},
+		{Title: "AI 平台工程部新人 30 天成长计划", Snippet: "新人完成 RAG 与 Agent 基础任务。"},
+	}
+	filtered := visualFilterRAGCitations("为什么我看不了", packet, citations)
+	if len(filtered) != 1 || filtered[0].Title != "管理员指南与可见性规则" {
+		t.Fatalf("admin guide citations should keep only relevant access policy docs: %#v", filtered)
+	}
+	query := visualRAGQuery("为什么我看不了", "/app/help", packet)
+	if query != "管理员指南 group_admin" {
+		t.Fatalf("admin guide query should use focused lexical terms, got %q", query)
+	}
+	adminCitations := visualAdminGuideCitations()
+	if len(adminCitations) != 1 || adminCitations[0].DocumentID != "00000000-0000-0000-0000-000000000933" || !strings.Contains(adminCitations[0].Snippet, "group_admin") {
+		t.Fatalf("admin guide citation should point to governed product doc: %#v", adminCitations)
 	}
 }
 

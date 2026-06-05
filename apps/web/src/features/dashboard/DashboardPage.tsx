@@ -7,6 +7,7 @@ import {
   DatabaseOutlined,
   ExperimentOutlined,
   EyeOutlined,
+  FileSearchOutlined,
   PlayCircleOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
@@ -22,46 +23,14 @@ import type { AgentRun, AuditEvent, Employee, LegalEntity, LearningRecommendatio
 import { CollaborationRubric, CollaborationWorkflow, RiskTag, TrustMetaBar } from "../../components/AiTrust";
 import { PageLoading } from "../../components/PageLoading";
 import { InlineError } from "../../components/AsyncState";
+import { useI18n } from "../../i18n";
 
-type Persona = "HR" | "员工" | "导师" | "管理者";
+type Persona = "hr" | "employee" | "mentor" | "manager";
 
 const SignalColumn = lazy(async () => {
   const module = await import("@ant-design/charts");
   return { default: module.Column as ComponentType<Record<string, unknown>> };
 });
-
-const demoTour = [
-  { title: "Command Dashboard", path: "/app/dashboard", summary: "统一入口：组织数据、AI 指挥、知识、成长、Agent 和审计。" },
-  { title: "AI Command Center", path: "/app/ai-command", summary: "生成结构化 HR 建议，展示 riskLevel、confidence、evidence。" },
-  { title: "Knowledge Hub", path: "/app/knowledge", summary: "查看 RAG 资料的来源、可信等级、敏感级别和引用。" },
-  { title: "Co-Growth OS", path: "/co-growth", summary: "员工学习 AI 原理，把模拟工作转成 mission 并复盘。" },
-  { title: "Agent Run Center", path: "/app/agents", summary: "预览 Agent run、工具调用和人工确认状态。" },
-  { title: "Audit & Evidence", path: "/app/audit", summary: "追踪 AI 建议、人工确认、证据和高风险阻断。" },
-];
-
-const systemLayers = [
-  { icon: <ApartmentOutlined />, title: "Organization Data Layer", text: "员工、组织、法人、角色、考勤和消息。", risk: "low" },
-  { icon: <DatabaseOutlined />, title: "Knowledge & Learning Layer", text: "受控知识库、RAG 引用、课程和 Co-Growth。", risk: "medium" },
-  { icon: <RobotOutlined />, title: "Agent Collaboration Layer", text: "AI 指挥中心、Agent run、Visual Copilot 和 Workflow Lab。", risk: "medium" },
-  { icon: <SafetyCertificateOutlined />, title: "Governance & Trust Layer", text: "riskLevel、confidence、evidence、citation、humanReview 和 audit。", risk: "high" },
-  { icon: <ThunderboltOutlined />, title: "Human-AI Co-evolution Layer", text: "人提出目标，AI 生成建议，Agent 预览动作，人确认并复盘。", risk: "low" },
-];
-
-const highlightEntries = [
-  { title: "AI 指挥中心", path: "/app/ai-command", icon: <RobotOutlined />, text: "问组织、查知识、生成计划、预览动作。" },
-  { title: "Governed Knowledge Hub", path: "/app/knowledge", icon: <DatabaseOutlined />, text: "引用、范围、敏感级别和资料可信度。" },
-  { title: "Co-Growth OS", path: "/co-growth", icon: <ExperimentOutlined />, text: "AI-HRMS 的人机共生成长引擎。" },
-  { title: "Agent Run Center", path: "/app/agents", icon: <TeamOutlined />, text: "Agent run、tool preview、人工确认和审计状态。" },
-  { title: "Audit & Evidence Layer", path: "/app/audit", icon: <AuditOutlined />, text: "把建议、工具调用、人工确认和证据串起来。" },
-  { title: "Visual Copilot Showcase", path: "/app/knowledge", icon: <EyeOutlined />, text: "圈选页面对象，生成解释和可审计的动作预览。" },
-];
-
-const personaValue: Record<Persona, string[]> = {
-  HR: ["查看组织趋势和高风险待确认事项", "用证据支持制度解释与学习计划", "把 AI 建议写入审计而不是直接执行"],
-  员工: ["获得与模拟工作绑定的 AI 学习 mission", "记录 prompt、AI 输出、人工修改和验证", "把成长证据沉淀到 portfolio"],
-  导师: ["复核员工复盘和高风险学习建议", "给出人工确认与纠偏意见", "把带教动作纳入证据链"],
-  管理者: ["查看团队能力趋势而不是个人排名", "理解 Agent run 的范围和风险", "确认 AI 协作过程是否可复用为 workflow"],
-};
 
 async function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
   try {
@@ -73,6 +42,7 @@ async function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { t, language } = useI18n();
   const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([]);
   const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -80,7 +50,7 @@ export function DashboardPage() {
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [recommendations, setRecommendations] = useState<LearningRecommendation[]>([]);
-  const [persona, setPersona] = useState<Persona>("HR");
+  const [persona, setPersona] = useState<Persona>("hr");
   const [command, setCommand] = useState("为新人生成 30 天成长计划，并标注证据、风险和人工确认点");
   const [commandPreview, setCommandPreview] = useState("");
   const [commandLoading, setCommandLoading] = useState(false);
@@ -111,7 +81,7 @@ export function DashboardPage() {
       setAuditEvents(auditPage.rows ?? []);
       setRecommendations(recommendationPage.rows ?? []);
     } catch {
-      setError("Dashboard core HRMS data failed to load. Check API connectivity or enable VITE_DEMO_MODE=true.");
+      setError(t("dashboard.loadError"));
     } finally {
       setLoading(false);
     }
@@ -119,7 +89,69 @@ export function DashboardPage() {
 
   useEffect(() => {
     void reload();
-  }, []);
+  }, [t]);
+
+  const demoTour = useMemo(() => language === "en-US" ? [
+    { title: "Command Dashboard", path: "/app/dashboard", summary: "Unified entry for org data, AI command, knowledge, growth, agents, and audit." },
+    { title: "AI Command Center", path: "/app/ai-command", summary: "Generate structured HR suggestions with risk, confidence, and evidence." },
+    { title: "Document Library", path: "/app/docs", summary: "Read governed references and run precise RAG citation answers." },
+    { title: "Co-Growth Engine", path: "/co-growth", summary: "Turn simulated work into AI learning missions and reflection evidence." },
+    { title: "Agent Run Center", path: "/app/agents", summary: "Preview agent runs, tool calls, and human confirmation states." },
+    { title: "Trust & Audit", path: "/app/audit", summary: "Trace suggestions, confirmations, evidence, and high-risk blocks." },
+  ] : [
+    { title: "指挥看板", path: "/app/dashboard", summary: "统一入口：组织数据、AI 指挥、知识、成长、Agent 和审计。" },
+    { title: "AI 指挥中心", path: "/app/ai-command", summary: "生成结构化 HR 建议，展示风险、置信度和证据。" },
+    { title: "文档库", path: "/app/docs", summary: "阅读受治理资料，并用 RAG 生成精准引用回答。" },
+    { title: "共生成长引擎", path: "/co-growth", summary: "员工学习 AI 原理，把模拟工作转成 mission 并复盘。" },
+    { title: "Agent 运行中心", path: "/app/agents", summary: "预览 Agent run、工具调用和人工确认状态。" },
+    { title: "信任与审计", path: "/app/audit", summary: "追踪 AI 建议、人工确认、证据和高风险阻断。" },
+  ], [language]);
+
+  const systemLayers = useMemo(() => language === "en-US" ? [
+    { icon: <ApartmentOutlined />, title: "Organization Data Layer", text: "Employees, org units, legal entities, roles, attendance, and messages.", risk: "low" },
+    { icon: <DatabaseOutlined />, title: "Knowledge & Learning Layer", text: "Governed knowledge, RAG citations, courses, and Co-Growth.", risk: "medium" },
+    { icon: <RobotOutlined />, title: "Agent Collaboration Layer", text: "AI Command, agent runs, Visual Copilot, and workflow preview.", risk: "medium" },
+    { icon: <SafetyCertificateOutlined />, title: "Governance & Trust Layer", text: "Risk, confidence, evidence, citation, human review, and audit.", risk: "high" },
+    { icon: <ThunderboltOutlined />, title: "Human-AI Co-evolution Layer", text: "People set goals, AI drafts, agents preview actions, people confirm and reflect.", risk: "low" },
+  ] : [
+    { icon: <ApartmentOutlined />, title: "组织数据层", text: "员工、组织、法人、角色、考勤和消息。", risk: "low" },
+    { icon: <DatabaseOutlined />, title: "知识与学习层", text: "受控知识库、RAG 引用、课程和共生成长。", risk: "medium" },
+    { icon: <RobotOutlined />, title: "智能体协作层", text: "AI 指挥中心、Agent 运行、Visual Copilot 和工作流预览。", risk: "medium" },
+    { icon: <SafetyCertificateOutlined />, title: "治理与信任层", text: "风险、置信度、证据、引用、人工复核和审计。", risk: "high" },
+    { icon: <ThunderboltOutlined />, title: "人机共进层", text: "人提出目标，AI 生成建议，Agent 预览动作，人确认并复盘。", risk: "low" },
+  ], [language]);
+
+  const highlightEntries = useMemo(() => language === "en-US" ? [
+    { title: "AI Command Center", path: "/app/ai-command", icon: <RobotOutlined />, text: "Ask, search, generate plans, and preview actions." },
+    { title: "Document Library", path: "/app/docs", icon: <FileSearchOutlined />, text: "Read references and ask citation-backed questions." },
+    { title: "Co-Growth Engine", path: "/co-growth", icon: <ExperimentOutlined />, text: "AI-HRMS growth engine for human-agent learning." },
+    { title: "Agent Run Center", path: "/app/agents", icon: <TeamOutlined />, text: "Agent runs, tool previews, confirmation, and audit status." },
+    { title: "Trust & Audit Layer", path: "/app/audit", icon: <AuditOutlined />, text: "Connect suggestions, tool calls, review, and evidence." },
+    { title: "Visual Copilot", path: "/app/docs", icon: <EyeOutlined />, text: "Ask through chat or selected screen layout snapshots." },
+  ] : [
+    { title: "AI 指挥中心", path: "/app/ai-command", icon: <RobotOutlined />, text: "问组织、查知识、生成计划、预览动作。" },
+    { title: "文档库", path: "/app/docs", icon: <FileSearchOutlined />, text: "阅读资料，并用 RAG 精准回答引用问题。" },
+    { title: "共生成长引擎", path: "/co-growth", icon: <ExperimentOutlined />, text: "AI-HRMS 的人机共生成长引擎。" },
+    { title: "Agent 运行中心", path: "/app/agents", icon: <TeamOutlined />, text: "Agent 运行、工具预览、人工确认和审计状态。" },
+    { title: "信任与审计层", path: "/app/audit", icon: <AuditOutlined />, text: "把建议、工具调用、人工确认和证据串起来。" },
+    { title: "Visual Copilot", path: "/app/docs", icon: <EyeOutlined />, text: "普通问答走 RAG，截图问携带 layout snapshot。" },
+  ], [language]);
+
+  const personaValue = useMemo<Record<Persona, string[]>>(() => language === "en-US" ? ({
+    hr: ["Review organization trends and high-risk confirmations", "Use evidence for policy explanations and learning plans", "Audit AI suggestions instead of executing them directly"],
+    employee: ["Receive AI learning missions tied to simulated work", "Record prompts, AI output, human edits, and validation", "Collect growth evidence into a portfolio"],
+    mentor: ["Review reflection and high-risk learning suggestions", "Provide confirmation and correction", "Keep mentoring actions in the evidence chain"],
+    manager: ["Review team capability trends, not personal ranking", "Understand agent scope and risk", "Confirm whether collaboration can become workflow"],
+  }) : ({
+    hr: ["查看组织趋势和高风险待确认事项", "用证据支持制度解释与学习计划", "把 AI 建议写入审计而不是直接执行"],
+    employee: ["获得与模拟工作绑定的 AI 学习 mission", "记录 prompt、AI 输出、人工修改和验证", "把成长证据沉淀到 portfolio"],
+    mentor: ["复核员工复盘和高风险学习建议", "给出人工确认与纠偏意见", "把带教动作纳入证据链"],
+    manager: ["查看团队能力趋势而不是个人排名", "理解 Agent 运行的范围和风险", "确认 AI 协作过程是否可复用为 workflow"],
+  }), [language]);
+
+  const personaOptions = language === "en-US"
+    ? [{ label: "HR", value: "hr" }, { label: "Employee", value: "employee" }, { label: "Mentor", value: "mentor" }, { label: "Manager", value: "manager" }]
+    : [{ label: "HR", value: "hr" }, { label: "员工", value: "employee" }, { label: "导师", value: "mentor" }, { label: "管理者", value: "manager" }];
 
   const highRiskCount = useMemo(
     () => auditEvents.filter((event) => event.riskLevel === "high").length + agentRuns.filter((run) => run.riskLevel === "high").length,
@@ -154,21 +186,21 @@ export function DashboardPage() {
   const runCommandPreview = async () => {
     if (commandLoading) return;
     if (!demoMode) {
-      setCommandPreview("真实模式下将进入 AI Command Center，由 Go 权限、scope、RAG 和审计边界处理建议生成。");
+      setCommandPreview(t("dashboard.realModePreview"));
       navigate("/app/ai-command");
       return;
     }
     if (/统计|数量|状态|列表|查|查询|引用|资料/.test(command) && !/计划|workflow|Agent|调度|生成/.test(command)) {
-      setCommandPreview("该问题由程序化查询或受控 RAG 检索处理，不创建 Agent run；需要自然语言生成或跨模块行动时再升级到 Agent。");
+      setCommandPreview(t("dashboard.programPreview"));
       return;
     }
     setCommandLoading(true);
     try {
       const run = await api.createAgentRun({ runType: "onboarding_planner", prompt: command, riskLevel: command.includes("面试") ? "high" : "medium" });
-      setCommandPreview(`已生成 ${run.runType} 预览：${run.summary}。下一步请查看 AI Command Center 的证据、工具预览和审计草案。`);
+      setCommandPreview(t("dashboard.previewCreated", { runType: run.runType, summary: run.summary }));
       await reload();
     } catch {
-      setCommandPreview("预览生成失败，请进入 AI Command Center 查看详细错误。");
+      setCommandPreview(t("dashboard.previewFailed"));
     } finally {
       setCommandLoading(false);
     }
@@ -178,20 +210,20 @@ export function DashboardPage() {
     <div className="ai-dashboard" data-vc-page="dashboard">
       <section className="ai-dashboard-hero" data-vc-kind="ai-hrms-command-dashboard" data-vc-label="AI-HRMS Command Dashboard hero">
         <div className="hero-copy">
-          <Tag color="blue">Human-Agent Symbiotic HR Operating System</Tag>
-          <Typography.Title level={1}>AI-HRMS｜人机共生的人力资源智能操作系统</Typography.Title>
+          <Tag color="blue">{t("dashboard.heroTag")}</Tag>
+          <Typography.Title level={1}>{t("dashboard.title")}</Typography.Title>
           <Typography.Paragraph>
-            连接组织数据、知识库、学习成长、智能体运行和审计治理，让 HR 与 AI Agent 协作完成更可信的人力资源工作。
+            {t("dashboard.description")}
           </Typography.Paragraph>
           <Input.Search
             size="large"
             value={command}
-            enterButton={demoMode ? "生成预览" : "进入 AI 指挥中心"}
+            enterButton={demoMode ? t("dashboard.demoCommandButton") : t("dashboard.realCommandButton")}
             loading={commandLoading}
             disabled={commandLoading}
             onChange={(event) => setCommand(event.target.value)}
             onSearch={runCommandPreview}
-            placeholder="问组织、查知识、生成计划、预览动作、调度 Agent"
+            placeholder={t("dashboard.commandPlaceholder")}
             aria-label="AI-HRMS command preview"
             data-vc-field="dashboard.ai_command"
           />
@@ -201,16 +233,16 @@ export function DashboardPage() {
           <CollaborationWorkflow />
         </div>
         <aside className="hero-trust-panel" data-vc-kind="trust-layer-snapshot" data-vc-label="Trust Layer Snapshot">
-          <Typography.Title level={4}>Trust Layer Snapshot</Typography.Title>
+          <Typography.Title level={4}>{t("dashboard.trustTitle")}</Typography.Title>
           <TrustMetaBar riskLevel={highRiskCount ? "high" : "medium"} confidence={87} evidenceCount={ragDocuments.length + auditEvents.length} humanReviewRequired={highRiskCount > 0} toolPreview auditStatus="active" />
           <Alert
             showIcon
             type="warning"
-            title="高风险人事建议不会自动执行"
-            description="系统只允许生成预览、请求人工确认、查看证据和写入审计。"
+            title={t("dashboard.highRiskTitle")}
+            description={t("dashboard.highRiskDescription")}
           />
           <Button type="primary" icon={<PlayCircleOutlined />} onClick={() => navigate("/app/ai-command")}>
-            进入 AI 指挥中心
+            {t("dashboard.aiCommandCta")}
           </Button>
         </aside>
       </section>
@@ -233,7 +265,7 @@ export function DashboardPage() {
 
           <Row gutter={[16, 16]} className="section-card">
             <Col xs={24} lg={14}>
-              <Card title="AI-HRMS Demo Tour" data-vc-kind="demo-tour">
+              <Card title={language === "en-US" ? "AI-HRMS Demo Tour" : "AI-HRMS 演示路径"} data-vc-kind="demo-tour">
                 <Timeline
                   items={demoTour.map((step, index) => ({
                     icon: <CheckCircleOutlined />,
@@ -244,7 +276,7 @@ export function DashboardPage() {
                           <Typography.Paragraph type="secondary">{step.summary}</Typography.Paragraph>
                         </div>
                         <Button size="small" icon={<ArrowRightOutlined />} onClick={() => navigate(step.path)}>
-                          打开
+                          {language === "en-US" ? "Open" : "打开"}
                         </Button>
                       </div>
                     ),
@@ -253,9 +285,9 @@ export function DashboardPage() {
               </Card>
             </Col>
             <Col xs={24} lg={10}>
-              <Card title="Human-Agent Collaboration Rubric" data-vc-kind="collaboration-health">
+              <Card title={language === "en-US" ? "Human-Agent Collaboration Rubric" : "人机协作评分维度"} data-vc-kind="collaboration-health">
                 <Typography.Paragraph type="secondary">
-                  这里评价协作过程是否可信，不评价员工个人表现。
+                  {language === "en-US" ? "This evaluates whether collaboration is trustworthy, not personal performance." : "这里评价协作过程是否可信，不评价员工个人表现。"}
                 </Typography.Paragraph>
                 <CollaborationRubric compact />
               </Card>
@@ -275,12 +307,12 @@ export function DashboardPage() {
 
           <Row gutter={[16, 16]} className="section-card">
             <Col xs={24} lg={10}>
-              <Card title="角色视角" data-vc-kind="persona-switch">
+              <Card title={language === "en-US" ? "Persona View" : "角色视角"} data-vc-kind="persona-switch">
                 <Segmented
                   block
                   value={persona}
                   onChange={(value) => setPersona(value as Persona)}
-                  options={["HR", "员工", "导师", "管理者"]}
+                  options={personaOptions}
                 />
                 <div className="persona-value-list">
                   {personaValue[persona].map((item) => (
@@ -293,7 +325,7 @@ export function DashboardPage() {
               </Card>
             </Col>
             <Col xs={24} lg={14}>
-              <Card title="AI-HRMS 核心亮点入口" data-vc-kind="highlight-entry-grid">
+              <Card title={language === "en-US" ? "AI-HRMS Key Entrypoints" : "AI-HRMS 核心入口"} data-vc-kind="highlight-entry-grid">
                 <div className="highlight-grid">
                   {highlightEntries.map((entry) => (
                     <button key={entry.title} className="highlight-entry" onClick={() => navigate(entry.path)} type="button">

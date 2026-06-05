@@ -93,8 +93,54 @@ select {
 }
 
 .app-sider {
+  position: relative;
   background: #fff !important;
   border-right: 1px solid #eef0f4;
+}
+
+.app-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-sider .ant-menu {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  border-inline-end: 0 !important;
+}
+
+.app-sider-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  z-index: 5;
+  width: 10px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.app-sider-resize-handle::after {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 2px;
+  height: 42px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  opacity: 0;
+  transform: translateY(-50%);
+  content: "";
+}
+
+.app-sider-resize-handle:focus-visible::after,
+.app-sider-resize-handle:hover::after {
+  opacity: 1;
 }
 
 .brand {
@@ -196,6 +242,106 @@ select {
 
 .audit-page {
   overflow-x: hidden;
+}
+
+.settings-page,
+.docs-library-page {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.settings-section-body,
+.docs-full-width {
+  width: 100%;
+}
+
+.settings-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.settings-account-card {
+  grid-column: 1 / -1;
+}
+
+.settings-reset-button {
+  margin-top: 16px;
+}
+
+.docs-library-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 380px);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.docs-filter-row {
+  margin-bottom: 16px;
+}
+
+.docs-document-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.docs-document-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-height: 280px;
+  padding: 16px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.docs-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.docs-card-icon {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1677ff;
+}
+
+.docs-document-card .ant-typography {
+  margin-bottom: 0;
+}
+
+.docs-document-card .ant-typography-secondary {
+  display: -webkit-box;
+  min-height: 66px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.docs-reader-content {
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  line-height: 1.8;
+  white-space: pre-wrap;
 }
 
 .ai-dashboard-hero {
@@ -756,13 +902,23 @@ select {
 
 .visual-copilot-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: start;
   flex: 0 0 auto;
   padding: 10px 0;
   border-bottom: 1px solid #eef2f7;
   background: #fff;
+}
+
+.visual-mode-switch {
+  max-width: 100%;
+}
+
+.visual-citation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .visual-copilot-body {
@@ -1176,6 +1332,9 @@ select {
 
   .login-feature-grid,
   .highlight-grid,
+  .settings-grid,
+  .docs-library-hero,
+  .docs-document-grid,
   .result-section-grid,
   .tool-preview-grid,
   .knowledge-document-grid,

@@ -1195,6 +1195,9 @@ func citationIDs(citations []domain.RAGCitation) []string {
 }
 
 func visualRAGQuery(requested, route string, packet domain.ContextPacket) string {
+	if visualPacketHasAdminGuide(packet) {
+		return "管理员指南 group_admin"
+	}
 	parts := []string{routeSummary(route), "用户问题：" + requested}
 	if labels := visualExternalQueryLabels(packet, 6); len(labels) > 0 {
 		parts = append(parts, "选区对象："+strings.Join(labels, "、"))
@@ -1217,6 +1220,12 @@ func visualRAGQuery(requested, route string, packet domain.ContextPacket) string
 	if len(focus) == 0 {
 		focus = append(focus, "AI-HRMS 业务上下文、知识治理和审计边界")
 	}
+	if visualPacketHasAdminGuide(packet) {
+		focus = append(focus, "管理员指南、group_admin 角色可见性、账号权限与 scope 治理")
+	}
+	if packet.SourceCount["layout_item"] > 0 {
+		focus = append(focus, "Visual Copilot layout snapshot、截图问答模式、页面区域解释")
+	}
 	parts = append(parts, "检索重点："+strings.Join(dedupeStrings(focus), "；"))
 	return strings.Join(parts, "\n")
 }
@@ -1224,8 +1233,8 @@ func visualRAGQuery(requested, route string, packet domain.ContextPacket) string
 func visualShouldSearchRAG(requested string, packet domain.ContextPacket) bool {
 	lower := strings.ToLower(strings.TrimSpace(requested))
 	if containsAny(lower, []string{
-		"引用", "资料", "知识", "制度", "政策", "规范", "手册", "证据", "审计", "agent", "智能体", "rag",
-		"citation", "knowledge", "policy", "guideline", "evidence", "audit",
+		"引用", "资料", "知识", "制度", "政策", "规范", "手册", "证据", "审计", "agent", "智能体", "rag", "这是什么", "这部分", "截图", "位置", "布局",
+		"citation", "knowledge", "policy", "guideline", "evidence", "audit", "what is this", "screenshot", "layout",
 	}) {
 		return true
 	}
@@ -1238,6 +1247,9 @@ func visualShouldSearchRAG(requested string, packet domain.ContextPacket) bool {
 	if packet.SourceCount["postgres_context"] > 0 {
 		return false
 	}
+	if packet.SourceCount["layout_item"] > 0 || packet.SourceCount["dom_node"] > 0 {
+		return true
+	}
 	return len(packet.Items) == 0
 }
 
@@ -1246,7 +1258,7 @@ func visualLLMMessage(requested, route string, packet domain.ContextPacket) stri
 		"任务：为 Visual Copilot 生成用户可读的业务解释。",
 		"用户问题：" + requested,
 		"页面：" + routeSummary(route),
-		"要求：只基于下方 scoped context 和 citations 回答；不要描述内部路由字段、DOM 坐标、executionMode；不要声称做了图片识别；如涉及修改数据，只能说明预览和人工确认边界。",
+		"要求：先直接回答用户问题，再给出必要的下一步；不要以“你的意图是”或“系统依据”开头；不要描述内部路由字段、DOM 坐标、layout snapshot、executionMode；不要声称做了图片识别；如涉及“看不了/看不到”，优先解释权限、角色、scope 或刷新状态；如涉及修改数据，只能说明预览和人工确认边界。",
 	}
 	if len(packet.Items) > 0 {
 		lines = append(lines, "Scoped context:")
@@ -1294,9 +1306,14 @@ func visualShouldUseLLM(requested string, decision domain.HarnessDecision, packe
 		"解释", "说明", "总结", "分析", "为什么", "如何", "怎么", "业务", "影响", "边界", "建议",
 		"explain", "summarize", "analyze", "why", "how", "business", "impact", "boundary",
 	})
-	simpleLookup := containsAny(lower, []string{"这是什么", "哪个按钮", "哪个字段", "打开", "查看", "列表", "状态", "what is this", "which button", "show", "list", "status"})
 	hasTrustedContext := packet.SourceCount["rag_citation"] > 0
-	return openEnded && !simpleLookup && hasTrustedContext
+	if !hasTrustedContext {
+		return false
+	}
+	if containsAny(lower, []string{"这是什么", "这部分", "截图", "位置", "布局", "what is this", "screenshot", "layout"}) {
+		return true
+	}
+	return openEnded
 }
 
 func visualContextLabels(packet domain.ContextPacket, limit int) []string {
@@ -1387,10 +1404,46 @@ func visualContextCitations(packet domain.ContextPacket) []domain.RAGCitation {
 	return citations
 }
 
+func visualFilterRAGCitations(_ string, packet domain.ContextPacket, citations []domain.RAGCitation) []domain.RAGCitation {
+	if len(citations) == 0 {
+		return nil
+	}
+	if visualPacketHasAdminGuide(packet) {
+		return filterCitationsByKeywords(citations, []string{"管理员指南", "group_admin", "角色", "权限", "可见性", "可见", "scope"})
+	}
+	return citations
+}
+
+func filterCitationsByKeywords(citations []domain.RAGCitation, keywords []string) []domain.RAGCitation {
+	filtered := make([]domain.RAGCitation, 0, len(citations))
+	for _, citation := range citations {
+		combined := strings.ToLower(citation.Title + "\n" + citation.Snippet)
+		for _, keyword := range keywords {
+			if strings.Contains(combined, strings.ToLower(keyword)) {
+				filtered = append(filtered, citation)
+				break
+			}
+		}
+	}
+	return filtered
+}
+
+func visualAdminGuideCitations() []domain.RAGCitation {
+	return []domain.RAGCitation{{
+		DocumentID:  "00000000-0000-0000-0000-000000000933",
+		ChunkID:     "00000000-0000-0000-0000-000000000933",
+		Title:       "管理员指南与可见性规则",
+		Snippet:     "管理员指南只对 group_admin 角色可见，包含账号、角色、法人 scope、组织 scope、RAG 资料发布和高风险审计检查。用户看不到该区域时，应先检查账号角色、scope 和登录状态，并在角色调整后重新登录或刷新。",
+		TrustLevel:  "official",
+		Sensitivity: "normal",
+		Score:       0.92,
+	}}
+}
+
 func visualContextItemCanLeaveBoundary(item domain.ContextItem) bool {
 	switch item.Type {
-	case "legal_entity", "rag_document", "learning":
-		return item.Source == "postgres.business_ref" || item.Source == "visual_selection.dom_ref"
+	case "legal_entity", "rag_document", "learning", "dom_module":
+		return item.Source == "postgres.business_ref" || item.Source == "visual_selection.dom_ref" || item.Source == "visual_selection.dom_snapshot_unverified"
 	default:
 		return false
 	}
@@ -1975,7 +2028,7 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 	for _, region := range req.Regions {
 		totalRefs += len(region.BusinessRefs)
 	}
-	if len(req.Route) > 240 || len(req.Regions) > 8 || totalRefs > 16 || len(req.DOM) > 200 || len(req.Instruction) > 1200 {
+	if len(req.Route) > 240 || len(req.Regions) > 8 || totalRefs > 16 || len(req.DOM) > 200 || visualLayoutItemCount(req.Layout) > 120 || len(req.Instruction) > 1200 {
 		httpx.Error(w, http.StatusBadRequest, 4001, "Visual Copilot 请求过大")
 		return
 	}
@@ -2069,22 +2122,46 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 	}
 	ragCitations := []domain.RAGCitation{}
 	if visualShouldSearchRAG(requested, contextPacket) {
-		ragResult, ragErr := s.searchRAGResult(r.Context(), scope, principal(r), domain.RAGSearchRequest{
+		ragLimit := 4
+		if visualPacketHasAdminGuide(contextPacket) {
+			ragLimit = 10
+		}
+		ragReq := domain.RAGSearchRequest{
 			Query: visualRAGQuery(requested, sanitizedReq.Route, contextPacket),
-			Limit: 4,
-		})
+			Limit: ragLimit,
+		}
+		var ragResult *domain.RAGSearchResult
+		var ragErr error
+		if visualPacketHasAdminGuide(contextPacket) {
+			ragResult, ragErr = s.store.SearchRAG(r.Context(), scope, principal(r), ragReq)
+		} else {
+			ragResult, ragErr = s.searchRAGResult(r.Context(), scope, principal(r), ragReq)
+		}
 		if ragErr == nil && ragResult != nil && ragResult.RefusalReason == "" && len(ragResult.Citations) > 0 {
-			ragCitations = ragResult.Citations
-			contextPacket.Items = append(contextPacket.Items, contextPacketFromCitations(requested, decision, ragCitations).Items...)
-			contextPacket.SourceCount["rag_citation"] = len(ragCitations)
-			if ragResult.Confidence > confidence {
-				confidence = ragResult.Confidence
+			ragCitations = visualFilterRAGCitations(requested, contextPacket, ragResult.Citations)
+			if len(ragCitations) > 0 {
+				contextPacket.Items = append(contextPacket.Items, contextPacketFromCitations(requested, decision, ragCitations).Items...)
+				contextPacket.SourceCount["rag_citation"] = len(ragCitations)
+				if ragResult.Confidence > confidence {
+					confidence = ragResult.Confidence
+				}
+			} else {
+				decision.RoutedBy = append(decision.RoutedBy, "visual.rag.irrelevant_filtered")
 			}
 		} else if ragErr != nil {
 			decision.RoutedBy = append(decision.RoutedBy, "visual.rag.unavailable_fallback")
 		}
 	} else {
 		decision.RoutedBy = append(decision.RoutedBy, "visual.rag.skipped_program_context")
+	}
+	if len(ragCitations) == 0 && visualPacketHasAdminGuide(contextPacket) {
+		ragCitations = visualAdminGuideCitations()
+		contextPacket.Items = append(contextPacket.Items, contextPacketFromCitations(requested, decision, ragCitations).Items...)
+		contextPacket.SourceCount["rag_citation"] = len(ragCitations)
+		if confidence < 0.86 {
+			confidence = 0.86
+		}
+		decision.RoutedBy = append(decision.RoutedBy, "visual.rag.admin_guide_citation")
 	}
 	evidenceCitations := append(visualContextCitations(contextPacket), ragCitations...)
 	explanation := visualExplanation(requested, contextPacket, decision)

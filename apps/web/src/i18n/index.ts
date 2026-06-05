@@ -1,0 +1,269 @@
+import { useCallback } from "react";
+import { useAppSettings, type LanguageCode } from "../app/AppSettingsContext";
+
+interface Dictionary {
+  [key: string]: string | Dictionary;
+}
+
+const zhCN: Dictionary = {
+  shell: {
+    subtitle: "人机共生 HR 操作系统",
+    demoEnvironment: "演示环境",
+    aiBoundary: "AI {chat} / RAG {rag}",
+    openNav: "打开导航菜单",
+    navigation: "AI-HRMS 导航",
+    resizeSidebar: "调整侧边栏宽度",
+    roles: "角色：{roles}",
+    noRoles: "未分配",
+    logout: "退出登录",
+    demoBoundaryTitle: "当前组织、员工、制度和审计均为虚构样本企业数据",
+    demoBoundaryDescription: "企鹅互联网科技有限公司只用于承载 AI-HRMS 演示流程；不是腾讯，也不是任何真实公司的 HR 数据。",
+    groups: {
+      operating: "AI-HRMS 操作系统",
+      knowledge: "知识与证据",
+      growth: "成长引擎与证据",
+      data: "组织数据与管理",
+      support: "支持",
+    },
+    nav: {
+      dashboard: "指挥看板",
+      aiCommand: "AI 指挥中心",
+      knowledge: "知识治理",
+      docs: "文档库",
+      agents: "Agent 运行控制",
+      audit: "信任与审计",
+      coGrowth: "共生成长引擎",
+      learning: "学习证据",
+      legalEntities: "法人 Scope",
+      orgUnits: "组织 Scope",
+      users: "账号与角色",
+      employees: "员工数据层",
+      attendance: "考勤信号",
+      messages: "消息证据",
+      settings: "设置",
+      help: "新手指南",
+    },
+  },
+  dashboard: {
+    heroTag: "人机共生 HR 操作系统",
+    title: "AI-HRMS｜人机共生的人力资源智能操作系统",
+    description: "连接组织数据、知识库、学习成长、智能体运行和审计治理，让 HR 与 AI Agent 协作完成更可信的人力资源工作。",
+    commandPlaceholder: "问组织、查知识、生成计划、预览动作、调度 Agent",
+    demoCommandButton: "生成预览",
+    realCommandButton: "进入 AI 指挥中心",
+    trustTitle: "信任层快照",
+    highRiskTitle: "高风险人事建议不会自动执行",
+    highRiskDescription: "系统只允许生成预览、请求人工确认、查看证据和写入审计。",
+    aiCommandCta: "进入 AI 指挥中心",
+    loadError: "Dashboard 核心数据加载失败。请检查 API 连接，或启用 VITE_DEMO_MODE=true。",
+    realModePreview: "真实模式下将进入 AI 指挥中心，由 Go 权限、scope、RAG 和审计边界处理建议生成。",
+    programPreview: "该问题由程序化查询或受控 RAG 检索处理，不创建 Agent run；需要自然语言生成或跨模块行动时再升级到 Agent。",
+    previewFailed: "预览生成失败，请进入 AI 指挥中心查看详细错误。",
+    previewCreated: "已生成 {runType} 预览：{summary}。下一步请查看 AI 指挥中心的证据、工具预览和审计草案。",
+  },
+  settings: {
+    title: "设置",
+    description: "管理语言、界面密度、侧边栏宽度、Visual Copilot 默认行为和本地演示偏好。",
+    languageTitle: "语言与区域",
+    languageDescription: "当前只内置中文和英文；新增语言时只需要扩展 locale 字典和 Ant Design locale 映射。",
+    languageLabel: "界面语言",
+    interfaceTitle: "界面偏好",
+    density: "界面密度",
+    comfortable: "舒适",
+    compact: "紧凑",
+    showDemoBanner: "显示演示数据边界提示",
+    navigationTitle: "导航",
+    sidebarWidth: "侧边栏宽度",
+    resetWidth: "重置宽度",
+    copilotTitle: "Visual Copilot",
+    copilotMode: "默认模式",
+    copilotChat: "普通问答",
+    copilotScreenshot: "截图/圈选问",
+    copilotEvidence: "默认展开技术证据",
+    accountTitle: "账户与运行状态",
+    currentUser: "当前用户",
+    roles: "角色",
+    providerStatus: "AI / RAG Provider",
+    resetAll: "恢复默认设置",
+  },
+  docs: {
+    title: "文档库",
+    description: "面向阅读和引用的受治理文档库。正式回答仍通过 RAG 检索、scope 校验和审计记录生成。",
+    askPlaceholder: "请输入需要引用文档回答的问题",
+    askButton: "RAG 精准问答",
+    libraryTitle: "文档目录",
+    source: "来源",
+    status: "状态",
+    trust: "可信等级",
+    sensitivity: "敏感级别",
+    scope: "可见范围",
+    preview: "阅读",
+    governance: "治理",
+    noDocs: "暂无文档",
+    answerTitle: "RAG 回答与引用",
+  },
+  copilot: {
+    title: "Visual Copilot",
+    subtitle: "普通问答走 RAG；截图/圈选问携带 layout snapshot",
+    chat: "普通问答",
+    screenshot: "截图/圈选问",
+    startCapture: "开始圈选",
+    submit: "提交",
+    ask: "询问",
+    chatPlaceholder: "直接问 AI-HRMS、制度、RAG、Agent 或审计问题",
+    screenshotPlaceholder: "说明这块区域的问题、修改或解释需求",
+    needQuestion: "请输入问题。",
+    needRegion: "请先圈选页面区域，再提交截图/圈选问题。",
+    chatGenerated: "已基于 RAG/AI Chat 回答",
+    selectionGenerated: "Visual Copilot 解释已生成",
+  },
+};
+
+const enUS: Dictionary = {
+  shell: {
+    subtitle: "Human-Agent Symbiotic HR Operating System",
+    demoEnvironment: "Demo environment",
+    aiBoundary: "AI {chat} / RAG {rag}",
+    openNav: "Open navigation",
+    navigation: "AI-HRMS Navigation",
+    resizeSidebar: "Resize sidebar",
+    roles: "Roles: {roles}",
+    noRoles: "Unassigned",
+    logout: "Log out",
+    demoBoundaryTitle: "Current organization, employees, policies, and audits are fictional demo data",
+    demoBoundaryDescription: "Penguin Internet Technology Co., Ltd. is only a fictional sample organization for the AI-HRMS demo; it is not Tencent or real HR data.",
+    groups: {
+      operating: "AI-HRMS Operating System",
+      knowledge: "Knowledge & Evidence",
+      growth: "Growth Engine & Evidence",
+      data: "Organization Data",
+      support: "Support",
+    },
+    nav: {
+      dashboard: "Command Dashboard",
+      aiCommand: "AI Command Center",
+      knowledge: "Knowledge Governance",
+      docs: "Document Library",
+      agents: "Agent Run Control",
+      audit: "Trust & Audit",
+      coGrowth: "Co-Growth Engine",
+      learning: "Learning Evidence",
+      legalEntities: "Legal Scope",
+      orgUnits: "Org Scope",
+      users: "Accounts & Roles",
+      employees: "Employee Data",
+      attendance: "Attendance Signals",
+      messages: "Message Evidence",
+      settings: "Settings",
+      help: "Getting Started",
+    },
+  },
+  dashboard: {
+    heroTag: "Human-Agent Symbiotic HR Operating System",
+    title: "AI-HRMS | Human-Agent Symbiotic HR Operating System",
+    description: "Connect organization data, governed knowledge, learning growth, agent runs, and audit governance so HR and AI agents can work inside traceable boundaries.",
+    commandPlaceholder: "Ask about org data, search knowledge, generate plans, preview actions, or schedule agents",
+    demoCommandButton: "Generate preview",
+    realCommandButton: "Open AI Command",
+    trustTitle: "Trust Layer Snapshot",
+    highRiskTitle: "High-risk HR suggestions are never executed automatically",
+    highRiskDescription: "The system only allows previews, human confirmation, evidence review, and audit writes.",
+    aiCommandCta: "Open AI Command Center",
+    loadError: "Dashboard core data failed to load. Check API connectivity or enable VITE_DEMO_MODE=true.",
+    realModePreview: "Real mode will open AI Command Center, where Go permissions, scope, RAG, and audit boundaries handle the suggestion.",
+    programPreview: "This request can be handled by programmatic query or governed RAG. Agent runs are reserved for generation or cross-module action.",
+    previewFailed: "Preview generation failed. Open AI Command Center for details.",
+    previewCreated: "Generated {runType} preview: {summary}. Next, review evidence, tool preview, and audit draft in AI Command Center.",
+  },
+  settings: {
+    title: "Settings",
+    description: "Manage language, density, sidebar width, Visual Copilot defaults, and local demo preferences.",
+    languageTitle: "Language & Region",
+    languageDescription: "Chinese and English are bundled now. New languages only need a locale dictionary and Ant Design locale mapping.",
+    languageLabel: "Interface language",
+    interfaceTitle: "Interface Preferences",
+    density: "Density",
+    comfortable: "Comfortable",
+    compact: "Compact",
+    showDemoBanner: "Show demo data boundary banner",
+    navigationTitle: "Navigation",
+    sidebarWidth: "Sidebar width",
+    resetWidth: "Reset width",
+    copilotTitle: "Visual Copilot",
+    copilotMode: "Default mode",
+    copilotChat: "Chat",
+    copilotScreenshot: "Screenshot/selection question",
+    copilotEvidence: "Expand technical evidence by default",
+    accountTitle: "Account & Runtime",
+    currentUser: "Current user",
+    roles: "Roles",
+    providerStatus: "AI / RAG Provider",
+    resetAll: "Reset defaults",
+  },
+  docs: {
+    title: "Document Library",
+    description: "A governed reading and citation library. Formal answers still go through RAG retrieval, scope checks, and audit logging.",
+    askPlaceholder: "Ask a question that needs document citations",
+    askButton: "Precise RAG Answer",
+    libraryTitle: "Documents",
+    source: "Source",
+    status: "Status",
+    trust: "Trust",
+    sensitivity: "Sensitivity",
+    scope: "Scope",
+    preview: "Read",
+    governance: "Governance",
+    noDocs: "No documents",
+    answerTitle: "RAG Answer & Citations",
+  },
+  copilot: {
+    title: "Visual Copilot",
+    subtitle: "Chat uses RAG; screenshot/selection sends a layout snapshot",
+    chat: "Chat",
+    screenshot: "Screenshot/Selection",
+    startCapture: "Select region",
+    submit: "Submit",
+    ask: "Ask",
+    chatPlaceholder: "Ask about AI-HRMS, policies, RAG, agents, or audit",
+    screenshotPlaceholder: "Describe what you need explained or changed in this selected area",
+    needQuestion: "Enter a question.",
+    needRegion: "Select a page region before submitting a screenshot/selection question.",
+    chatGenerated: "Answered through RAG/AI Chat",
+    selectionGenerated: "Visual Copilot explanation generated",
+  },
+};
+
+const dictionaries: Record<LanguageCode, Dictionary> = {
+  "zh-CN": zhCN,
+  "en-US": enUS,
+};
+
+export const languageOptions: Array<{ value: LanguageCode; label: string }> = [
+  { value: "zh-CN", label: "中文" },
+  { value: "en-US", label: "English" },
+];
+
+export function useI18n() {
+  const { settings } = useAppSettings();
+  const language = settings.language;
+  const t = useCallback((key: string, vars?: Record<string, string | number | undefined>) => translate(language, key, vars), [language]);
+
+  return {
+    language,
+    t,
+  };
+}
+
+function translate(language: LanguageCode, key: string, vars?: Record<string, string | number | undefined>) {
+  const value = resolve(dictionaries[language], key) ?? resolve(dictionaries["zh-CN"], key) ?? key;
+  if (typeof value !== "string") return key;
+  if (!vars) return value;
+  return value.replace(/\{(\w+)\}/g, (_, name: string) => String(vars[name] ?? ""));
+}
+
+function resolve(source: Dictionary, key: string): string | Dictionary | undefined {
+  return key.split(".").reduce<string | Dictionary | undefined>((current, part) => {
+    if (!current || typeof current === "string") return undefined;
+    return current[part];
+  }, source);
+}
