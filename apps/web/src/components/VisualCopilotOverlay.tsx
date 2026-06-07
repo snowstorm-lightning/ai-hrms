@@ -1,6 +1,6 @@
 import { AimOutlined, CameraOutlined, CheckCircleOutlined, CloseOutlined, DeleteOutlined, DragOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MessageOutlined, SendOutlined } from "@ant-design/icons";
 import { Alert, Button, Collapse, Input, Segmented, Space, Tag, Tooltip, Typography, message } from "antd";
-import type { Dispatch, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, SetStateAction } from "react";
+import type { CSSProperties, Dispatch, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
@@ -43,6 +43,7 @@ export function VisualCopilotOverlay() {
   const captureScrollRef = useRef<ScrollSnapshot | null>(null);
   const autoScrollFrameRef = useRef<number | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const fabAnchorRef = useRef<HTMLDivElement | null>(null);
   const primaryPanelActionRef = useRef<HTMLButtonElement | null>(null);
   const railCaptureActionRef = useRef<HTMLButtonElement | null>(null);
 
@@ -157,6 +158,26 @@ export function VisualCopilotOverlay() {
   }, [panelRect, railPosition]);
 
   useEffect(() => () => stopAutoScroll(), []);
+
+  useEffect(() => {
+    const updateVisualViewport = () => {
+      setViewportTick((value) => value + 1);
+      applyFabAnchorStyle(fabAnchorRef.current);
+    };
+    window.addEventListener("resize", updateVisualViewport);
+    window.visualViewport?.addEventListener("resize", updateVisualViewport);
+    window.visualViewport?.addEventListener("scroll", updateVisualViewport);
+    updateVisualViewport();
+    const frame = window.requestAnimationFrame(updateVisualViewport);
+    const timeout = window.setTimeout(updateVisualViewport, 100);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+      window.removeEventListener("resize", updateVisualViewport);
+      window.visualViewport?.removeEventListener("resize", updateVisualViewport);
+      window.visualViewport?.removeEventListener("scroll", updateVisualViewport);
+    };
+  }, []);
 
   useEffect(() => {
     if (!active) {
@@ -302,26 +323,42 @@ export function VisualCopilotOverlay() {
   };
 
   const fab = (
-    <Tooltip title="Visual Copilot">
-      <Button
-        className={active ? "visual-copilot-fab is-active" : "visual-copilot-fab"}
-        shape="circle"
-        type={active ? "primary" : "default"}
-        icon={<AimOutlined />}
-        aria-label="打开 Visual Copilot"
-        title="打开 Visual Copilot"
-        onClick={(event) => {
-          openerRef.current = event.currentTarget;
-          if (active) {
-            closeOverlay();
-          } else {
-            setActive(true);
-            setPanelCollapsed(false);
-          }
-        }}
-        data-vc-action="visual_copilot.toggle"
-      />
-    </Tooltip>
+    <div
+      className="visual-copilot-fab-anchor"
+      ref={fabAnchorRef}
+      data-vc-action="visual_copilot.toggle"
+      role="button"
+      tabIndex={0}
+      aria-label="打开 Visual Copilot"
+      title="打开 Visual Copilot"
+      style={fabAnchorStyle(viewportTick)}
+      onClick={(event) => {
+        openerRef.current = event.currentTarget;
+        if (active) {
+          closeOverlay();
+        } else {
+          setActive(true);
+          setPanelCollapsed(false);
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.currentTarget.click();
+      }}
+    >
+      <Tooltip title="Visual Copilot">
+        <Button
+          className={active ? "visual-copilot-fab is-active" : "visual-copilot-fab"}
+          shape="circle"
+          type={active ? "primary" : "default"}
+          icon={<AimOutlined />}
+          aria-label="打开 Visual Copilot"
+          title="打开 Visual Copilot"
+          tabIndex={-1}
+        />
+      </Tooltip>
+    </div>
   );
 
   return (
@@ -756,6 +793,30 @@ function initialRailPosition(): RailPosition {
   if (stored?.railPosition) return clampRailPosition(stored.railPosition);
   if (typeof window === "undefined") return { x: 12, y: 240 };
   return clampRailPosition({ x: window.innerWidth - 58, y: Math.round(window.innerHeight / 2) });
+}
+
+function fabAnchorStyle(_viewportTick: number): CSSProperties {
+  if (typeof window === "undefined") return {};
+  const visualWidth = document.documentElement.clientWidth || window.visualViewport?.width || window.innerWidth;
+  const visualHeight = document.documentElement.clientHeight || window.visualViewport?.height || window.innerHeight;
+  const rightOffset = Math.max(0, window.innerWidth - visualWidth);
+  const bottomOffset = Math.max(0, window.innerHeight - visualHeight);
+  const base = window.matchMedia("(max-width: 991.98px)").matches ? 14 : 18;
+  return {
+    right: base + rightOffset,
+    bottom: base + bottomOffset,
+  };
+}
+
+function applyFabAnchorStyle(element: HTMLDivElement | null) {
+  if (!element) return;
+  const style = fabAnchorStyle(0);
+  if (typeof style.right === "number") {
+    element.style.right = `${style.right}px`;
+  }
+  if (typeof style.bottom === "number") {
+    element.style.bottom = `${style.bottom}px`;
+  }
 }
 
 function readVisualLayout(): { panelRect?: PanelRect; railPosition?: RailPosition } | null {

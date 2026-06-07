@@ -18,14 +18,26 @@ Product/data boundary: AI-HRMS is the product. `企鹅互联网科技有限公�
 
 ## Core Highlights
 
-- AI-HRMS Command Dashboard: demo tour, system state, role value, and human-agent workflow.
+- AI-HRMS Command Dashboard: demo tour, global HR period/scope context,
+  My Actions Required, system state, role value, and human-agent workflow.
+- Large-page HRMS information architecture: the sidebar now exposes
+  Dashboard, Org & People, Employee Ops, Recruitment & Lifecycle, Growth &
+  Performance, Knowledge & Agent, Trust & Audit, and Settings as primary
+  pages. Legacy routes remain accessible as child entries or compatibility
+  paths.
+- First-phase HRMS work-domain backend: leave applications, attendance
+  requests, shift assignments, expense claims, salary slips, job
+  requisitions/openings/applicants/interviews/offers, training events,
+  performance goals, appraisal cycles, and appraisals are persisted in
+  dedicated SQL tables and exposed through scoped Go APIs.
 - Agentic HR Command Center: structured HR recommendations with citations, risk, confidence, tool preview, and audit preview.
 - Governed Knowledge Hub: documents as scoped, trusted, sensitive knowledge sources for AI answers.
 - Document Library Reader: catalog cards open dedicated document pages, with
   full body reading in the main pane and table-of-contents plus
   citation/governance metadata in drawers.
 - Attendance Real-Time Cockpit: scoped attendance aggregation, exception
-  drill-down, and preview-only Agent analysis for HR follow-up.
+  drill-down with leave/attendance-request/shift context, and preview-only
+  Agent analysis for HR follow-up.
 - Co-Growth OS: the AI-HRMS growth engine for AI literacy, work missions, reflection, and evidence.
 - Human-Agent Run Center: agent run cards with delegated context, tool preview, confirmation, and audit status.
 - Trust, Audit & Evidence Layer: AI suggestions, citations, human review, blocked events, and reversible actions.
@@ -57,6 +69,9 @@ Narration rule: keep the 3-minute walkthrough about AI-HRMS capabilities. Treat 
 
 - AI does not make final promotion, termination, pay, performance, or hiring decisions.
 - High-risk suggestions are preview-only until a human confirms them.
+- Recruitment, performance, salary, and attendance exception records can be
+  created and updated as auditable work items, but first-phase business rules
+  intentionally stop at CRUD/status workflow and human review boundaries.
 - Demo mode uses deterministic local data and does not call external LLMs.
 - Demo company data is fictional and must not be presented as Tencent or any real company's HR data.
 - Production reads, writes, RAG retrieval, tool calls, and audit events go through Go authorization and scope checks.

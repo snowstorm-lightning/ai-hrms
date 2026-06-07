@@ -15,11 +15,11 @@ import {
   ThunderboltOutlined,
   UserSwitchOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Card, Col, Input, Progress, Row, Segmented, Space, Statistic, Tag, Timeline, Typography } from "antd";
+import { Alert, Button, Card, Col, Input, Progress, Row, Segmented, Space, Statistic, Table, Tag, Timeline, Typography } from "antd";
 import { lazy, Suspense, useEffect, useMemo, useState, type ComponentType } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../api/client";
-import type { AgentRun, AuditEvent, Employee, LegalEntity, LearningRecommendation, OrgUnit, RAGDocument } from "../../api/types";
+import type { AgentRun, AuditEvent, Employee, HRWorkItem, LegalEntity, LearningRecommendation, OrgUnit, RAGDocument } from "../../api/types";
 import { CollaborationRubric, CollaborationWorkflow, RiskTag, TrustMetaBar } from "../../components/AiTrust";
 import { PageLoading } from "../../components/PageLoading";
 import { InlineError } from "../../components/AsyncState";
@@ -50,6 +50,7 @@ export function DashboardPage() {
   const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [recommendations, setRecommendations] = useState<LearningRecommendation[]>([]);
+  const [workItems, setWorkItems] = useState<HRWorkItem[]>([]);
   const [persona, setPersona] = useState<Persona>("hr");
   const [command, setCommand] = useState("为新人生成 30 天成长计划，并标注证据、风险和人工确认点");
   const [commandPreview, setCommandPreview] = useState("");
@@ -67,11 +68,12 @@ export function DashboardPage() {
         api.orgUnits(),
         api.employees(1, 8),
       ]);
-      const [docPage, runPage, auditPage, recommendationPage] = await Promise.all([
+      const [docPage, runPage, auditPage, recommendationPage, workItemPage] = await Promise.all([
         safe(api.ragDocuments(1, 20), { total: 0, rows: [] }),
         safe(api.agentRuns(1, 20), { total: 0, rows: [] }),
         safe(api.auditEvents(1, 50), { total: 0, rows: [] }),
         safe(api.learningRecommendations(1, 20), { total: 0, rows: [] }),
+        safe(api.workbenchWorkItems(1, 12), { total: 0, rows: [] }),
       ]);
       setLegalEntities(entities);
       setOrgUnits(units);
@@ -80,6 +82,7 @@ export function DashboardPage() {
       setAgentRuns(runPage.rows ?? []);
       setAuditEvents(auditPage.rows ?? []);
       setRecommendations(recommendationPage.rows ?? []);
+      setWorkItems(workItemPage.rows ?? []);
     } catch {
       setError(t("dashboard.loadError"));
     } finally {
@@ -166,6 +169,13 @@ export function DashboardPage() {
     { title: "高风险待确认", value: highRiskCount, suffix: "项", icon: <SafetyCertificateOutlined />, tone: "red" },
     { title: "审计事件", value: auditEvents.length, suffix: "条", icon: <AuditOutlined />, tone: "orange" },
   ];
+
+  const workItemRoute = (item: HRWorkItem) => {
+    if (item.module === "employee_ops") return "/app/employee-ops";
+    if (item.module === "recruitment_lifecycle") return "/app/recruitment-lifecycle";
+    if (item.module === "growth_performance") return "/app/growth-performance";
+    return "/app/trust-audit";
+  };
 
   const operatingSignalChart = useMemo(() => ({
     data: [
@@ -262,6 +272,24 @@ export function DashboardPage() {
               </Card>
             ))}
           </section>
+
+          <Card className="section-card" title="My Actions Required" data-vc-kind="my-actions-required">
+            <Table
+              rowKey={(record) => `${record.resource}-${record.id}`}
+              size="middle"
+              dataSource={workItems}
+              pagination={false}
+              locale={{ emptyText: "暂无待处理事项" }}
+              columns={[
+                { title: "事项", dataIndex: "title" },
+                { title: "模块", dataIndex: "module", render: (module: string) => module === "employee_ops" ? "员工事务" : module === "recruitment_lifecycle" ? "招聘与生命周期" : module === "growth_performance" ? "成长与绩效" : module },
+                { title: "对象", render: (_: unknown, item: HRWorkItem) => item.employeeName || item.orgUnitName || item.recordType },
+                { title: "状态", dataIndex: "status", render: (status: string) => <Tag>{status}</Tag> },
+                { title: "风险", render: (_: unknown, item: HRWorkItem) => <Space><RiskTag risk={item.riskLevel} />{item.humanReviewRequired ? <Tag color="red">human review</Tag> : null}</Space> },
+                { title: "操作", render: (_: unknown, item: HRWorkItem) => <Button size="small" onClick={() => navigate(workItemRoute(item))}>处理</Button> },
+              ]}
+            />
+          </Card>
 
           <Row gutter={[16, 16]} className="section-card">
             <Col xs={24} lg={14}>

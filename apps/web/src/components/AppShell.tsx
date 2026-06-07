@@ -8,6 +8,8 @@ import {
   DatabaseOutlined,
   ExperimentOutlined,
   FileTextOutlined,
+  AppstoreOutlined,
+  BellOutlined,
   MenuOutlined,
   IdcardOutlined,
   MessageOutlined,
@@ -17,11 +19,11 @@ import {
   TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { Avatar, Button, Drawer, Dropdown, Layout, Menu, Tag, theme, Typography } from "antd";
+import { Avatar, Badge, Button, Drawer, Dropdown, Input, Layout, List, Menu, Popover, Space, Tag, theme, Typography } from "antd";
 import { Suspense, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import type { AIProviderStatus } from "../api/types";
+import type { HRWorkItem } from "../api/types";
 import { clampSidebarWidth, useAppSettings } from "../app/AppSettingsContext";
 import { useAuth } from "../app/AuthContext";
 import { useI18n } from "../i18n";
@@ -38,60 +40,137 @@ export function AppShell() {
   const token = theme.useToken().token;
   const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
   const { menuItems, flatMenuItems } = useMemo(() => {
-    const commandMenuItems = [
+    const bigMenuItems = [
       { key: "/app/dashboard", icon: <DashboardOutlined />, label: t("shell.nav.dashboard") },
-      { key: "/app/ai-command", icon: <RobotOutlined />, label: t("shell.nav.aiCommand") },
-      { key: "/app/agents", icon: <TeamOutlined />, label: t("shell.nav.agents") },
-    ];
-    const knowledgeMenuItems = [
-      { key: "/app/knowledge", icon: <DatabaseOutlined />, label: t("shell.nav.knowledge") },
-      { key: "/app/docs", icon: <FileTextOutlined />, label: t("shell.nav.docs") },
-      { key: "/app/audit", icon: <AuditOutlined />, label: t("shell.nav.audit") },
-    ];
-    const growthMenuItems = [
-      { key: "/co-growth", icon: <ExperimentOutlined />, label: t("shell.nav.coGrowth") },
-      { key: "/app/learning", icon: <BookOutlined />, label: t("shell.nav.learning") },
-    ];
-    const dataMenuItems = [
-      { key: "/app/legal-entities", icon: <BankOutlined />, label: t("shell.nav.legalEntities") },
-      { key: "/app/org-units", icon: <ApartmentOutlined />, label: t("shell.nav.orgUnits") },
-      { key: "/app/users", icon: <UserOutlined />, label: t("shell.nav.users") },
-      { key: "/app/employees", icon: <IdcardOutlined />, label: t("shell.nav.employees") },
-      { key: "/app/attendance", icon: <ClockCircleOutlined />, label: t("shell.nav.attendance") },
-      { key: "/app/messages", icon: <MessageOutlined />, label: t("shell.nav.messages") },
-    ];
-    const supportMenuItems = [
+      { key: "/app/org-people", icon: <ApartmentOutlined />, label: t("shell.nav.orgPeople") },
+      { key: "/app/employee-ops", icon: <ClockCircleOutlined />, label: t("shell.nav.employeeOps") },
+      { key: "/app/recruitment-lifecycle", icon: <TeamOutlined />, label: t("shell.nav.recruitmentLifecycle") },
+      { key: "/app/growth-performance", icon: <ExperimentOutlined />, label: t("shell.nav.growthPerformance") },
+      { key: "/app/knowledge-agent", icon: <RobotOutlined />, label: t("shell.nav.knowledgeAgent") },
+      { key: "/app/trust-audit", icon: <AuditOutlined />, label: t("shell.nav.trustAudit") },
       { key: "/app/settings", icon: <SettingOutlined />, label: t("shell.nav.settings") },
-      { key: "/app/help", icon: <QuestionCircleOutlined />, label: t("shell.nav.help") },
     ];
     return {
-      menuItems: [
-        { type: "group" as const, label: t("shell.groups.operating"), children: commandMenuItems },
-        { type: "group" as const, label: t("shell.groups.knowledge"), children: knowledgeMenuItems },
-        { type: "group" as const, label: t("shell.groups.growth"), children: growthMenuItems },
-        { type: "group" as const, label: t("shell.groups.data"), children: dataMenuItems },
-        { type: "group" as const, label: t("shell.groups.support"), children: supportMenuItems },
-      ],
-      flatMenuItems: [...commandMenuItems, ...knowledgeMenuItems, ...growthMenuItems, ...dataMenuItems, ...supportMenuItems],
+      menuItems: [{ type: "group" as const, label: t("shell.groups.operating"), children: bigMenuItems }],
+      flatMenuItems: bigMenuItems,
     };
   }, [t]);
-  const selectedKey = flatMenuItems.find((item) => typeof item.key === "string" && location.pathname.startsWith(item.key))?.key ?? "/app/dashboard";
+  const legacySelectedKey = useMemo(() => {
+    const legacyMap = [
+      { key: "/app/org-people", paths: ["/app/legal-entities", "/app/org-units", "/app/users", "/app/employees"] },
+      { key: "/app/employee-ops", paths: ["/app/attendance", "/app/messages"] },
+      { key: "/app/recruitment-lifecycle", paths: ["/app/recruitment"] },
+      { key: "/app/growth-performance", paths: ["/app/learning", "/co-growth"] },
+      { key: "/app/knowledge-agent", paths: ["/app/ai-command", "/app/knowledge", "/app/docs", "/app/agents"] },
+      { key: "/app/trust-audit", paths: ["/app/audit"] },
+      { key: "/app/settings", paths: ["/app/help", "/app/profile"] },
+    ];
+    return legacyMap.find((item) => item.paths.some((path) => location.pathname.startsWith(path)))?.key;
+  }, [location.pathname]);
+  const selectedKey = legacySelectedKey ?? flatMenuItems.find((item) => typeof item.key === "string" && location.pathname.startsWith(item.key))?.key ?? "/app/dashboard";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [providerStatus, setProviderStatus] = useState<AIProviderStatus | null>(null);
-  const selectedLabel = flatMenuItems.find((item) => item.key === selectedKey)?.label ?? "AI-HRMS";
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [workItems, setWorkItems] = useState<HRWorkItem[]>([]);
+  const [workItemTotal, setWorkItemTotal] = useState(0);
+  const selectedLabel = location.pathname.startsWith("/app/profile") ? t("shell.profile") : flatMenuItems.find((item) => item.key === selectedKey)?.label ?? "AI-HRMS";
+  const appGridItems = [
+    { key: "/app/ai-command", icon: <RobotOutlined />, label: t("shell.nav.aiCommand") },
+    { key: "/app/knowledge", icon: <DatabaseOutlined />, label: t("shell.nav.knowledge") },
+    { key: "/app/docs", icon: <FileTextOutlined />, label: t("shell.nav.docs") },
+    { key: "/app/agents", icon: <TeamOutlined />, label: t("shell.nav.agents") },
+    { key: "/app/audit", icon: <AuditOutlined />, label: t("shell.nav.audit") },
+    { key: "/app/legal-entities", icon: <BankOutlined />, label: t("shell.nav.legalEntities") },
+    { key: "/app/org-units", icon: <ApartmentOutlined />, label: t("shell.nav.orgUnits") },
+    { key: "/app/employees", icon: <IdcardOutlined />, label: t("shell.nav.employees") },
+    { key: "/app/attendance", icon: <ClockCircleOutlined />, label: t("shell.nav.attendance") },
+    { key: "/app/learning", icon: <BookOutlined />, label: t("shell.nav.learning") },
+    { key: "/app/help", icon: <QuestionCircleOutlined />, label: t("shell.nav.help") },
+  ];
 
   useEffect(() => {
     let mounted = true;
-    api.providerStatus()
-      .then((status) => { if (mounted) setProviderStatus(status); })
-      .catch(() => { if (mounted) setProviderStatus(null); });
+    api.workbenchWorkItems(1, 6)
+      .then((result) => {
+        if (!mounted) return;
+        setWorkItems(result.rows ?? []);
+        setWorkItemTotal(result.total ?? 0);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setWorkItems([]);
+        setWorkItemTotal(0);
+      });
     return () => { mounted = false; };
-  }, []);
+  }, [location.pathname]);
 
   const handleMenuClick = (key: string) => {
     navigate(key);
     setMobileMenuOpen(false);
   };
+
+  const handleSearch = (value: string) => {
+    const query = value.trim();
+    if (!query) return;
+    navigate(`/app/ai-command?q=${encodeURIComponent(query)}`);
+  };
+
+  const workItemRoute = (item: HRWorkItem) => {
+    if (item.module === "employee_ops") return "/app/employee-ops";
+    if (item.module === "recruitment_lifecycle") return "/app/recruitment-lifecycle";
+    if (item.module === "growth_performance") return "/app/growth-performance";
+    return "/app/trust-audit";
+  };
+
+  const notificationContent = (
+    <div className="notification-panel" data-vc-kind="notification-panel">
+      <div className="notification-panel-header">
+        <Typography.Text strong>{t("shell.notificationTitle")}</Typography.Text>
+        <Button
+          type="link"
+          size="small"
+          onClick={() => {
+            setNotificationOpen(false);
+            navigate("/app/dashboard");
+          }}
+        >
+          {t("shell.viewAll")}
+        </Button>
+      </div>
+      <List
+        size="small"
+        dataSource={workItems}
+        locale={{ emptyText: t("shell.noNotifications") }}
+        renderItem={(item) => (
+          <List.Item
+            className="notification-item"
+            actions={[
+              <Button
+                key="handle"
+                type="link"
+                size="small"
+                onClick={() => {
+                  setNotificationOpen(false);
+                  navigate(workItemRoute(item));
+                }}
+              >
+                {t("shell.handleNow")}
+              </Button>,
+            ]}
+          >
+            <List.Item.Meta
+              title={(
+                <Space size={6} wrap>
+                  <Typography.Text strong>{item.title}</Typography.Text>
+                  <Tag color={item.riskLevel === "high" ? "red" : item.riskLevel === "medium" ? "orange" : "green"}>{item.riskLevel}</Tag>
+                </Space>
+              )}
+              description={`${item.employeeName || item.orgUnitName || item.recordType} · ${item.action}`}
+            />
+          </List.Item>
+        )}
+      />
+    </div>
+  );
 
   const beginSidebarResize = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
@@ -154,21 +233,50 @@ export function AppShell() {
       <Layout>
         <Header className="app-header" style={{ background: token.colorBgContainer }}>
           <Button className="mobile-menu-button" type="text" icon={<MenuOutlined />} aria-label={t("shell.openNav")} title={t("shell.openNav")} onClick={() => setMobileMenuOpen(true)} />
-          <div className="app-header-title">
-            <Typography.Text strong>{t("shell.subtitle")}</Typography.Text>
-            {demoMode ? <Tag color="blue">{t("shell.demoEnvironment")}</Tag> : null}
-            <Tag color={providerStatus?.chatProvider === "deepseek" ? "geekblue" : "default"}>
-              {t("shell.aiBoundary", { chat: providerStatus?.chatProvider ?? "boundary", rag: providerStatus?.embeddingProvider ?? "unknown" })}
-            </Tag>
+          <div className="app-header-title global-work-context">
+            <Space size={8} wrap>
+              <Typography.Text strong>{t("shell.yearMonth")}</Typography.Text>
+              <Tag color="blue">{t("shell.hrPeriod")}</Tag>
+              <Tag>{t("shell.scope")}</Tag>
+            </Space>
           </div>
           <Typography.Text className="mobile-route-title" strong>{selectedLabel}</Typography.Text>
+          <Input.Search className="global-search" placeholder={t("shell.searchPlaceholder")} allowClear onSearch={handleSearch} />
+          <Popover
+            trigger="click"
+            placement="bottomRight"
+            open={notificationOpen}
+            onOpenChange={setNotificationOpen}
+            content={notificationContent}
+          >
+            <Button
+              type="text"
+              className="notification-button"
+              icon={<Badge count={workItemTotal} size="small" overflowCount={99}><BellOutlined /></Badge>}
+              aria-label={t("shell.notifications")}
+              title={t("shell.notifications")}
+            />
+          </Popover>
+          <Dropdown
+            menu={{
+              items: appGridItems,
+              onClick: ({ key }) => navigate(key),
+            }}
+          >
+            <Button type="text" icon={<AppstoreOutlined />} aria-label={t("shell.appGrid")} title={t("shell.appGrid")} />
+          </Dropdown>
           <Dropdown
             menu={{
               items: [
+                { key: "profile", label: t("shell.profile") },
                 { key: "roles", label: t("shell.roles", { roles: user?.roles?.join(", ") || t("shell.noRoles") }) },
                 { key: "logout", danger: true, label: t("shell.logout") },
               ],
               onClick: ({ key }) => {
+                if (key === "profile") {
+                  navigate("/app/profile");
+                  return;
+                }
                 if (key === "logout") {
                   logout();
                   navigate("/login");

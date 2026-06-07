@@ -15,6 +15,12 @@ const headless = process.env.AI_HRMS_BROWSER_HEADFUL !== "true";
 
 const pageChecks = [
   ["/app/dashboard", ["AI-HRMS", "人机共生"]],
+  ["/app/org-people", ["组织与员工", "组织入口"]],
+  ["/app/employee-ops", ["员工事务", "Quick Links"]],
+  ["/app/recruitment-lifecycle", ["招聘与生命周期", "招聘公平性边界"]],
+  ["/app/growth-performance", ["成长与绩效", "绩效只做证据化预览"]],
+  ["/app/knowledge-agent", ["知识与 Agent", "AI 指挥中心"]],
+  ["/app/trust-audit", ["信任与审计", "人工复核队列"]],
   ["/app/ai-command", ["Agentic HR Command Center", "Human-Agent Policy"]],
   ["/app/knowledge", ["Governed Knowledge Hub", "RAG Search"]],
   ["/app/docs", ["文档库", "RAG 精准问答"]],
@@ -23,6 +29,7 @@ const pageChecks = [
   ["/app/agents", ["Human-Agent Run Center", "Agent run"]],
   ["/app/audit", ["Trust, Audit & Evidence Layer", "审计链路"]],
   ["/app/help", ["新手使用指南", "Visual Copilot 怎么用"]],
+  ["/app/profile", ["个人简历", "履历摘要"]],
   ["/app/legal-entities", ["法人 scope 底座", "新增法人实体"]],
   ["/app/org-units", ["组织 scope 图谱", "新增组织单元"]],
   ["/app/users", ["账号与角色治理", "新增用户"]],

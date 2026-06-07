@@ -69,7 +69,10 @@ func (s *Store) AttendanceOverview(ctx context.Context, scope Scope, day string)
 		SELECT e.id::text, e.name, e.mobile, COALESCE(ou.name, ''),
 			COALESCE(ar.id::text, ''), COALESCE(ar.attendance_status, 0),
 			ar.attendance_in_time, ar.attendance_out_time,
-			COALESCE(ar.attendance_in_place, ''), COALESCE(ar.day, $1), COALESCE(ar.remarks, '')
+			COALESCE(ar.attendance_in_place, ''), COALESCE(ar.day, $1), COALESCE(ar.remarks, ''),
+			COALESCE(shift_ctx.shift_type, ''), COALESCE(shift_ctx.start_time, ''), COALESCE(shift_ctx.end_time, ''),
+			COALESCE(leave_ctx.id, ''), COALESCE(leave_ctx.leave_type, ''), COALESCE(leave_ctx.status, ''),
+			COALESCE(request_ctx.id, ''), COALESCE(request_ctx.reason, ''), COALESCE(request_ctx.status, '')
 		FROM employees e
 		LEFT JOIN employee_assignments pa ON pa.employee_id=e.id AND pa.is_primary AND pa.end_date IS NULL
 		LEFT JOIN org_units ou ON ou.id = pa.org_unit_id
@@ -80,6 +83,38 @@ func (s *Store) AttendanceOverview(ctx context.Context, scope Scope, day string)
 			ORDER BY created_at DESC, attendance_in_time DESC NULLS LAST
 			LIMIT 1
 		) ar ON true
+		LEFT JOIN LATERAL (
+			SELECT la.id::text AS id, COALESCE(lt.name, '') AS leave_type, la.status
+			FROM leave_applications la
+			LEFT JOIN leave_types lt ON lt.id = la.leave_type_id
+			WHERE la.employee_id = e.id
+				AND la.from_date IS NOT NULL
+				AND COALESCE(la.to_date, la.from_date) IS NOT NULL
+				AND $1::date BETWEEN la.from_date AND COALESCE(la.to_date, la.from_date)
+			ORDER BY la.created_at DESC
+			LIMIT 1
+		) leave_ctx ON true
+		LEFT JOIN LATERAL (
+			SELECT id::text AS id, reason, status
+			FROM attendance_requests
+			WHERE employee_id = e.id
+				AND from_date IS NOT NULL
+				AND COALESCE(to_date, from_date) IS NOT NULL
+				AND $1::date BETWEEN from_date AND COALESCE(to_date, from_date)
+			ORDER BY created_at DESC
+			LIMIT 1
+		) request_ctx ON true
+		LEFT JOIN LATERAL (
+			SELECT st.name AS shift_type, st.start_time::text AS start_time, st.end_time::text AS end_time
+			FROM shift_assignments sa
+			LEFT JOIN shift_types st ON st.id = sa.shift_type_id
+			WHERE sa.employee_id = e.id
+				AND sa.start_date IS NOT NULL
+				AND COALESCE(sa.end_date, sa.start_date) IS NOT NULL
+				AND $1::date BETWEEN sa.start_date AND COALESCE(sa.end_date, sa.start_date)
+			ORDER BY sa.created_at DESC
+			LIMIT 1
+		) shift_ctx ON true
 		WHERE e.status = 'active'
 	`
 	if where != "" {
@@ -100,6 +135,9 @@ func (s *Store) AttendanceOverview(ctx context.Context, scope Scope, day string)
 			&row.AttendanceID, &row.AttendanceStatus,
 			&row.AttendanceInTime, &row.AttendanceOutTime,
 			&row.AttendanceInPlace, &row.Day, &row.Remarks,
+			&row.ShiftType, &row.ShiftStartTime, &row.ShiftEndTime,
+			&row.LeaveApplicationID, &row.LeaveType, &row.LeaveStatus,
+			&row.AttendanceRequestID, &row.AttendanceRequestReason, &row.AttendanceRequestStatus,
 		); err != nil {
 			return nil, err
 		}

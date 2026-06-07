@@ -7,6 +7,12 @@ import { VisualCopilotOverlay } from "../components/VisualCopilotOverlay";
 const AppShell = lazy(() => import("../components/AppShell").then((module) => ({ default: module.AppShell })));
 const LoginPage = lazy(() => import("../features/auth/LoginPage").then((module) => ({ default: module.LoginPage })));
 const DashboardPage = lazy(() => import("../features/dashboard/DashboardPage").then((module) => ({ default: module.DashboardPage })));
+const OrgPeoplePage = lazy(() => import("../features/work-domains/WorkDomainPages").then((module) => ({ default: module.OrgPeoplePage })));
+const EmployeeOpsPage = lazy(() => import("../features/work-domains/WorkDomainPages").then((module) => ({ default: module.EmployeeOpsPage })));
+const RecruitmentLifecyclePage = lazy(() => import("../features/work-domains/WorkDomainPages").then((module) => ({ default: module.RecruitmentLifecyclePage })));
+const GrowthPerformancePage = lazy(() => import("../features/work-domains/WorkDomainPages").then((module) => ({ default: module.GrowthPerformancePage })));
+const KnowledgeAgentPage = lazy(() => import("../features/work-domains/WorkDomainPages").then((module) => ({ default: module.KnowledgeAgentPage })));
+const TrustAuditPage = lazy(() => import("../features/work-domains/WorkDomainPages").then((module) => ({ default: module.TrustAuditPage })));
 const LegalEntitiesPage = lazy(() => import("../features/legal-entities/LegalEntitiesPage").then((module) => ({ default: module.LegalEntitiesPage })));
 const OrgUnitsPage = lazy(() => import("../features/org-units/OrgUnitsPage").then((module) => ({ default: module.OrgUnitsPage })));
 const UsersPage = lazy(() => import("../features/users/UsersPage").then((module) => ({ default: module.UsersPage })));
@@ -23,6 +29,7 @@ const AgentRunsPage = lazy(() => import("../features/agents/AgentRunsPage").then
 const AuditPage = lazy(() => import("../features/audit/AuditPage").then((module) => ({ default: module.AuditPage })));
 const SettingsPage = lazy(() => import("../features/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 const HelpPage = lazy(() => import("../features/help/HelpPage").then((module) => ({ default: module.HelpPage })));
+const ProfilePage = lazy(() => import("../features/profile/ProfilePage").then((module) => ({ default: module.ProfilePage })));
 
 function RequireAuth() {
   const { user, loading } = useAuth();
@@ -58,6 +65,12 @@ export function AppRouter() {
                 <Route path="/app" element={<AppShell />}>
                   <Route index element={<Navigate to="/app/dashboard" replace />} />
                   <Route path="dashboard" element={<DashboardPage />} />
+                  <Route path="org-people" element={<OrgPeoplePage />} />
+                  <Route path="employee-ops" element={<EmployeeOpsPage />} />
+                  <Route path="recruitment-lifecycle" element={<RecruitmentLifecyclePage />} />
+                  <Route path="growth-performance" element={<GrowthPerformancePage />} />
+                  <Route path="knowledge-agent" element={<KnowledgeAgentPage />} />
+                  <Route path="trust-audit" element={<TrustAuditPage />} />
                   <Route path="legal-entities" element={<LegalEntitiesPage />} />
                   <Route path="org-units" element={<OrgUnitsPage />} />
                   <Route path="users" element={<UsersPage />} />
@@ -74,6 +87,7 @@ export function AppRouter() {
                   <Route path="audit" element={<AuditPage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   <Route path="help" element={<HelpPage />} />
+                  <Route path="profile" element={<ProfilePage />} />
                 </Route>
               </Route>
             </Route>

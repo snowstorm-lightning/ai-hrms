@@ -20,6 +20,8 @@ tags:
   - name: Users
   - name: Employees
   - name: Attendance
+  - name: Workbench
+  - name: HR
   - name: Messages
   - name: Audit
   - name: RAG
@@ -636,6 +638,111 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /workbench/overview:
+    get:
+      tags: [Workbench]
+      operationId: getWorkbenchOverview
+      summary: Get HR workbench overview
+      description: Aggregates first-phase HRMS work-domain records by module, risk, status, and human review state.
+      responses:
+        "200":
+          description: Workbench overview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkbenchOverviewEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /workbench/work-items:
+    get:
+      tags: [Workbench]
+      operationId: listWorkbenchWorkItems
+      summary: List HR workbench action items
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: Paged work items.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HRWorkItemPageEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /hr/{resource}:
+    get:
+      tags: [HR]
+      operationId: listHRRecords
+      summary: List records for an HRMS work-domain resource
+      parameters:
+        - $ref: "#/components/parameters/HRResource"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: Paged HR records.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HRRecordPageEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [HR]
+      operationId: createHRRecord
+      summary: Create an HRMS work-domain record
+      description: Writes the record to the resource-specific SQL table and records audit evidence. High-risk people-impacting records remain human-review bounded.
+      parameters:
+        - $ref: "#/components/parameters/HRResource"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HRRecordInput"
+      responses:
+        "201":
+          description: Created HR record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HRRecordEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /hr/{resource}/{id}:
+    put:
+      tags: [HR]
+      operationId: updateHRRecord
+      summary: Update an HRMS work-domain record
+      parameters:
+        - $ref: "#/components/parameters/HRResource"
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HRRecordInput"
+      responses:
+        "200":
+          description: Updated HR record.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HRRecordEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /messages:
     get:
       tags: [Messages]
@@ -1110,6 +1217,12 @@ components:
         minimum: 1
         maximum: 100
         default: 10
+    HRResource:
+      name: resource
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/HRResource"
 
   responses:
     BadRequest:
@@ -1377,6 +1490,42 @@ components:
             data:
               $ref: "#/components/schemas/MessagePage"
 
+    WorkbenchOverviewEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/WorkbenchOverview"
+
+    HRRecordEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/HRRecord"
+
+    HRRecordPageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/HRRecordPage"
+
+    HRWorkItemPageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/HRWorkItemPage"
+
     CommentListEnvelope:
       allOf:
         - $ref: "#/components/schemas/ApiEnvelope"
@@ -1387,6 +1536,185 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/Comment"
+
+    HRResource:
+      type: string
+      enum:
+        - leave-applications
+        - attendance-requests
+        - shift-assignments
+        - expense-claims
+        - salary-slips
+        - job-requisitions
+        - job-openings
+        - job-applicants
+        - interviews
+        - job-offers
+        - training-events
+        - performance-goals
+        - appraisal-cycles
+        - appraisals
+
+    HRRecordInput:
+      type: object
+      properties:
+        title:
+          type: string
+        employeeId:
+          type: [string, "null"]
+          format: uuid
+        orgUnitId:
+          type: [string, "null"]
+          format: uuid
+        scopeType:
+          type: string
+          enum: [global, legal_entity, org_unit]
+          default: global
+        scopeId:
+          type: [string, "null"]
+          format: uuid
+        status:
+          type: string
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+        humanReviewRequired:
+          type: boolean
+        payload:
+          type: object
+          additionalProperties: true
+
+    HRRecord:
+      allOf:
+        - $ref: "#/components/schemas/HRRecordInput"
+        - type: object
+          required: [id, resource, module, recordType, title, employeeName, orgUnitName, scopeType, status, riskLevel, humanReviewRequired, payload, createdAt, updatedAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            resource:
+              $ref: "#/components/schemas/HRResource"
+            module:
+              type: string
+              enum: [employee_ops, recruitment_lifecycle, growth_performance]
+            recordType:
+              type: string
+            employeeName:
+              type: string
+            orgUnitName:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    HRRecordPage:
+      allOf:
+        - $ref: "#/components/schemas/Page"
+        - type: object
+          properties:
+            rows:
+              type: array
+              items:
+                $ref: "#/components/schemas/HRRecord"
+
+    HRWorkItem:
+      type: object
+      required: [id, resource, module, recordType, title, employeeName, orgUnitName, status, riskLevel, humanReviewRequired, action, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        resource:
+          $ref: "#/components/schemas/HRResource"
+        module:
+          type: string
+        recordType:
+          type: string
+        title:
+          type: string
+        employeeId:
+          type: [string, "null"]
+          format: uuid
+        employeeName:
+          type: string
+        orgUnitId:
+          type: [string, "null"]
+          format: uuid
+        orgUnitName:
+          type: string
+        status:
+          type: string
+        riskLevel:
+          type: string
+        humanReviewRequired:
+          type: boolean
+        action:
+          type: string
+          enum: [review, approve, human_review]
+        createdAt:
+          type: string
+          format: date-time
+
+    HRWorkItemPage:
+      allOf:
+        - $ref: "#/components/schemas/Page"
+        - type: object
+          properties:
+            rows:
+              type: array
+              items:
+                $ref: "#/components/schemas/HRWorkItem"
+
+    WorkbenchModuleSummary:
+      type: object
+      required: [module, label, total, pending, highRisk, statusCount]
+      properties:
+        module:
+          type: string
+        label:
+          type: string
+        total:
+          type: integer
+          format: int64
+        pending:
+          type: integer
+          format: int64
+        highRisk:
+          type: integer
+          format: int64
+        statusCount:
+          type: object
+          additionalProperties:
+            type: integer
+
+    WorkbenchOverview:
+      type: object
+      required: [generatedAt, period, scopeLabel, total, pending, highRisk, modules]
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        period:
+          type: string
+        scopeLabel:
+          type: string
+        total:
+          type: integer
+          format: int64
+        pending:
+          type: integer
+          format: int64
+        highRisk:
+          type: integer
+          format: int64
+        modules:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkbenchModuleSummary"
 
     Health:
       type: object

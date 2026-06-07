@@ -138,6 +138,7 @@ export interface Attendance {
   attendanceStatus: number;
   attendanceInTime?: string | null;
   attendanceOutTime?: string | null;
+  attendanceInPlace?: string;
   day: string;
   remarks: string;
 }
@@ -174,6 +175,15 @@ export interface AttendanceException {
   attendanceInTime?: string | null;
   attendanceOutTime?: string | null;
   remarks: string;
+  shiftType?: string;
+  shiftStartTime?: string;
+  shiftEndTime?: string;
+  leaveApplicationId?: string;
+  leaveType?: string;
+  leaveStatus?: string;
+  attendanceRequestId?: string;
+  attendanceRequestReason?: string;
+  attendanceRequestStatus?: string;
 }
 
 export interface AttendanceOverview {
@@ -183,6 +193,74 @@ export interface AttendanceOverview {
   orgUnits: AttendanceOrgUnitSummary[];
   exceptions: AttendanceException[];
   recentRecords: Attendance[];
+}
+
+export interface HRRecord {
+  id: string;
+  resource: string;
+  module: string;
+  recordType: string;
+  title: string;
+  employeeId?: string | null;
+  employeeName: string;
+  orgUnitId?: string | null;
+  orgUnitName: string;
+  scopeType: "global" | "legal_entity" | "org_unit" | string;
+  scopeId?: string | null;
+  status: string;
+  riskLevel: string;
+  humanReviewRequired: boolean;
+  payload: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HRRecordInput {
+  title?: string;
+  employeeId?: string | null;
+  orgUnitId?: string | null;
+  scopeType?: "global" | "legal_entity" | "org_unit" | string;
+  scopeId?: string | null;
+  status?: string;
+  riskLevel?: string;
+  humanReviewRequired?: boolean;
+  payload?: Record<string, unknown>;
+}
+
+export interface WorkbenchModuleSummary {
+  module: string;
+  label: string;
+  total: number;
+  pending: number;
+  highRisk: number;
+  statusCount: Record<string, number>;
+}
+
+export interface WorkbenchOverview {
+  generatedAt: string;
+  period: string;
+  scopeLabel: string;
+  total: number;
+  pending: number;
+  highRisk: number;
+  modules: WorkbenchModuleSummary[];
+}
+
+export interface HRWorkItem {
+  id: string;
+  resource: string;
+  module: string;
+  recordType: string;
+  title: string;
+  employeeId?: string | null;
+  employeeName: string;
+  orgUnitId?: string | null;
+  orgUnitName: string;
+  status: string;
+  riskLevel: string;
+  humanReviewRequired: boolean;
+  action: string;
+  createdAt: string;
 }
 
 export interface MessageItem {

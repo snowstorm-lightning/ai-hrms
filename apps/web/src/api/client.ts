@@ -13,6 +13,9 @@ import type {
   CommentItem,
   ContextItem,
   Employee,
+  HRRecord,
+  HRRecordInput,
+  HRWorkItem,
   LearningCourse,
   LearningEnrollment,
   LearningLesson,
@@ -31,6 +34,7 @@ import type {
   VisualContextRequest,
   VisualCopilotEvent,
   VisualCopilotResponse,
+  WorkbenchOverview,
 } from "./types";
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api";
@@ -797,6 +801,166 @@ function demoPage<T>(rows: T[]): Page<T> {
 
 function demoPaged<T>(rows: T[], page: number, size: number): Page<T> {
   return { total: rows.length, rows: rows.slice((page - 1) * size, page * size) };
+}
+
+const demoHRResourceMeta: Record<string, { module: string; recordType: string; defaultTitle: string; defaultStatus: string; defaultRisk: string; defaultHumanReview: boolean }> = {
+  "leave-applications": { module: "employee_ops", recordType: "Leave Application", defaultTitle: "请假申请", defaultStatus: "submitted", defaultRisk: "medium", defaultHumanReview: true },
+  "attendance-requests": { module: "employee_ops", recordType: "Attendance Request", defaultTitle: "补卡/外勤申请", defaultStatus: "submitted", defaultRisk: "medium", defaultHumanReview: true },
+  "shift-assignments": { module: "employee_ops", recordType: "Shift Assignment", defaultTitle: "排班分配", defaultStatus: "active", defaultRisk: "low", defaultHumanReview: false },
+  "expense-claims": { module: "employee_ops", recordType: "Expense Claim", defaultTitle: "报销申请", defaultStatus: "submitted", defaultRisk: "medium", defaultHumanReview: true },
+  "salary-slips": { module: "employee_ops", recordType: "Salary Slip", defaultTitle: "工资单", defaultStatus: "draft", defaultRisk: "high", defaultHumanReview: true },
+  "job-requisitions": { module: "recruitment_lifecycle", recordType: "Job Requisition", defaultTitle: "招聘需求", defaultStatus: "submitted", defaultRisk: "medium", defaultHumanReview: true },
+  "job-openings": { module: "recruitment_lifecycle", recordType: "Job Opening", defaultTitle: "职位发布", defaultStatus: "open", defaultRisk: "medium", defaultHumanReview: true },
+  "job-applicants": { module: "recruitment_lifecycle", recordType: "Job Applicant", defaultTitle: "候选人", defaultStatus: "active", defaultRisk: "high", defaultHumanReview: true },
+  "interviews": { module: "recruitment_lifecycle", recordType: "Interview", defaultTitle: "面试", defaultStatus: "scheduled", defaultRisk: "high", defaultHumanReview: true },
+  "job-offers": { module: "recruitment_lifecycle", recordType: "Job Offer", defaultTitle: "Offer", defaultStatus: "draft", defaultRisk: "high", defaultHumanReview: true },
+  "training-events": { module: "growth_performance", recordType: "Training Event", defaultTitle: "培训活动", defaultStatus: "planned", defaultRisk: "medium", defaultHumanReview: false },
+  "performance-goals": { module: "growth_performance", recordType: "Performance Goal", defaultTitle: "绩效目标", defaultStatus: "active", defaultRisk: "medium", defaultHumanReview: false },
+  "appraisal-cycles": { module: "growth_performance", recordType: "Appraisal Cycle", defaultTitle: "绩效周期", defaultStatus: "draft", defaultRisk: "high", defaultHumanReview: true },
+  appraisals: { module: "growth_performance", recordType: "Appraisal", defaultTitle: "绩效评估", defaultStatus: "submitted", defaultRisk: "high", defaultHumanReview: true },
+};
+
+function demoEmployeeName(id?: string | null) {
+  return demoEmployees.find((employee) => employee.id === id)?.name ?? "";
+}
+
+function demoOrgUnitName(id?: string | null, employeeId?: string | null) {
+  const orgUnit = demoOrgUnits.find((unit) => unit.id === id);
+  if (orgUnit) return orgUnit.name;
+  const employee = demoEmployees.find((item) => item.id === employeeId);
+  return employee?.primaryAssignment?.orgUnitName ?? "";
+}
+
+function makeDemoHRRecord(resource: string, index: number, values: Partial<HRRecord>): HRRecord {
+  const meta = demoHRResourceMeta[resource];
+  const createdAt = values.createdAt ?? `2026-05-${String(28 + (index % 4)).padStart(2, "0")}T09:${String(index * 7).padStart(2, "0")}:00+08:00`;
+  return {
+    id: values.id ?? `${resource}-${String(index).padStart(3, "0")}`,
+    resource,
+    module: values.module ?? meta.module,
+    recordType: values.recordType ?? meta.recordType,
+    title: values.title ?? meta.defaultTitle,
+    employeeId: values.employeeId ?? null,
+    employeeName: values.employeeName ?? demoEmployeeName(values.employeeId),
+    orgUnitId: values.orgUnitId ?? null,
+    orgUnitName: values.orgUnitName ?? demoOrgUnitName(values.orgUnitId, values.employeeId),
+    scopeType: values.scopeType ?? "global",
+    scopeId: values.scopeId ?? null,
+    status: values.status ?? meta.defaultStatus,
+    riskLevel: values.riskLevel ?? meta.defaultRisk,
+    humanReviewRequired: values.humanReviewRequired ?? meta.defaultHumanReview,
+    payload: values.payload ?? {},
+    createdAt,
+    updatedAt: values.updatedAt ?? createdAt,
+  };
+}
+
+let demoHRRecords: Record<string, HRRecord[]> = {
+  "leave-applications": [
+    makeDemoHRRecord("leave-applications", 1, { title: "林晨 年假申请", employeeId: "emp-003", orgUnitId: "org-002", status: "submitted", payload: { leaveType: "annual", fromDate: "2026-05-30", toDate: "2026-05-31", days: 2 } }),
+    makeDemoHRRecord("leave-applications", 2, { title: "周雨桐 调休申请", employeeId: "emp-004", orgUnitId: "org-006", status: "approved", riskLevel: "low", humanReviewRequired: false, payload: { leaveType: "compensatory", days: 1 } }),
+  ],
+  "attendance-requests": [
+    makeDemoHRRecord("attendance-requests", 3, { title: "补卡申请：忘记签退", employeeId: "emp-003", orgUnitId: "org-002", status: "submitted", payload: { requestType: "missing_checkout", reason: "外出会议后忘记签退" } }),
+  ],
+  "shift-assignments": [
+    makeDemoHRRecord("shift-assignments", 4, { title: "AI 平台工程部弹性班", orgUnitId: "org-002", status: "active", payload: { shift: "flex", startTime: "10:00", endTime: "19:00" } }),
+  ],
+  "expense-claims": [
+    makeDemoHRRecord("expense-claims", 5, { title: "客户拜访交通报销", employeeId: "emp-004", orgUnitId: "org-006", status: "submitted", payload: { amount: 486, currency: "CNY", expenseType: "transport" } }),
+  ],
+  "salary-slips": [
+    makeDemoHRRecord("salary-slips", 6, { title: "2026-05 工资单预览", employeeId: "emp-003", orgUnitId: "org-002", status: "draft", payload: { period: "2026-05", netPay: 23800 } }),
+  ],
+  "job-requisitions": [
+    makeDemoHRRecord("job-requisitions", 7, { title: "AI Workflow 工程师 HC", orgUnitId: "org-002", status: "submitted", payload: { openings: 2, expectedOnboardingDate: "2026-07-01" } }),
+  ],
+  "job-openings": [
+    makeDemoHRRecord("job-openings", 8, { title: "高级 HRIS 产品经理", orgUnitId: "org-004", status: "open", payload: { channel: "internal_referral", salaryRange: "35k-45k" } }),
+  ],
+  "job-applicants": [
+    makeDemoHRRecord("job-applicants", 9, { title: "候选人：A-1024", orgUnitId: "org-004", status: "active", payload: { stage: "screening", fairnessBoundary: true } }),
+  ],
+  interviews: [
+    makeDemoHRRecord("interviews", 10, { title: "产品经理二面", orgUnitId: "org-004", status: "scheduled", payload: { scheduledAt: "2026-06-03T14:00:00+08:00", interviewer: "许安宁" } }),
+  ],
+  "job-offers": [
+    makeDemoHRRecord("job-offers", 11, { title: "Offer 草案：HRIS 产品经理", orgUnitId: "org-004", status: "draft", payload: { expectedJoiningDate: "2026-07-15", compensationReviewRequired: true } }),
+  ],
+  "training-events": [
+    makeDemoHRRecord("training-events", 12, { title: "RAG 可靠性工作坊", orgUnitId: "org-006", status: "planned", payload: { startsAt: "2026-06-10T10:00:00+08:00" } }),
+  ],
+  "performance-goals": [
+    makeDemoHRRecord("performance-goals", 13, { title: "Q2 AI 工具链交付目标", employeeId: "emp-003", orgUnitId: "org-002", status: "active", payload: { progress: 42, evidenceRequired: true } }),
+  ],
+  "appraisal-cycles": [
+    makeDemoHRRecord("appraisal-cycles", 14, { title: "2026 H1 绩效周期", orgUnitId: "org-001", status: "draft", payload: { periodStart: "2026-01-01", periodEnd: "2026-06-30" } }),
+  ],
+  appraisals: [
+    makeDemoHRRecord("appraisals", 15, { title: "林晨 H1 绩效评估", employeeId: "emp-003", orgUnitId: "org-002", status: "submitted", payload: { selfScore: 4.2, feedbackScore: 4.0, humanReviewBoundary: true } }),
+  ],
+};
+
+function demoWorkbenchOverview(): WorkbenchOverview {
+  const moduleLabels: Record<string, string> = {
+    employee_ops: "员工事务",
+    recruitment_lifecycle: "招聘与生命周期",
+    growth_performance: "成长与绩效",
+  };
+  const modules = new Map<string, WorkbenchOverview["modules"][number]>();
+  Object.values(demoHRRecords).flat().forEach((record) => {
+    const module = modules.get(record.module) ?? {
+      module: record.module,
+      label: moduleLabels[record.module] ?? record.module,
+      total: 0,
+      pending: 0,
+      highRisk: 0,
+      statusCount: {},
+    };
+    module.total += 1;
+    module.statusCount[record.status] = (module.statusCount[record.status] ?? 0) + 1;
+    if (record.humanReviewRequired || ["submitted", "pending", "draft", "scheduled", "planned", "open", "active", "in_review"].includes(record.status)) {
+      module.pending += 1;
+    }
+    if (record.riskLevel === "high" || record.humanReviewRequired) {
+      module.highRisk += 1;
+    }
+    modules.set(record.module, module);
+  });
+  const moduleRows = Array.from(modules.values());
+  return {
+    generatedAt: new Date().toISOString(),
+    period: "2026-05",
+    scopeLabel: "global",
+    total: moduleRows.reduce((sum, item) => sum + item.total, 0),
+    pending: moduleRows.reduce((sum, item) => sum + item.pending, 0),
+    highRisk: moduleRows.reduce((sum, item) => sum + item.highRisk, 0),
+    modules: moduleRows,
+  };
+}
+
+function demoWorkbenchItems(page: number, size: number): Page<HRWorkItem> {
+  const rows = Object.values(demoHRRecords)
+    .flat()
+    .filter((record) => record.humanReviewRequired || ["submitted", "pending", "draft", "scheduled", "planned", "open", "active", "in_review"].includes(record.status))
+    .map((record) => ({
+      id: record.id,
+      resource: record.resource,
+      module: record.module,
+      recordType: record.recordType,
+      title: record.title,
+      employeeId: record.employeeId,
+      employeeName: record.employeeName,
+      orgUnitId: record.orgUnitId,
+      orgUnitName: record.orgUnitName,
+      status: record.status,
+      riskLevel: record.riskLevel,
+      humanReviewRequired: record.humanReviewRequired,
+      action: record.humanReviewRequired ? "human_review" : "review",
+      createdAt: record.createdAt,
+    }))
+    .sort((left, right) => (right.riskLevel === "high" ? 1 : 0) - (left.riskLevel === "high" ? 1 : 0) || right.createdAt.localeCompare(left.createdAt));
+  return demoPaged(rows, page, size);
 }
 
 function demoAssignments(id: string): NonNullable<Employee["assignments"]> {
@@ -1569,6 +1733,62 @@ export const api = {
     return request<CommentItem>(`/messages/${messageId}/comments`, { method: "POST", body: JSON.stringify({ content }) });
   },
   auditEvents: (page = 1, size = 10) => demoMode ? Promise.resolve(demoPaged(demoAuditEvents, page, size)) : request<Page<AuditEvent>>(`/audit/events?page=${page}&size=${size}`),
+  workbenchOverview: () => demoMode ? Promise.resolve(demoWorkbenchOverview()) : request<WorkbenchOverview>("/workbench/overview"),
+  workbenchWorkItems: (page = 1, size = 10) => demoMode ? Promise.resolve(demoWorkbenchItems(page, size)) : request<Page<HRWorkItem>>(`/workbench/work-items?page=${page}&size=${size}`),
+  hrRecords: (resource: string, page = 1, size = 10) =>
+    demoMode ? Promise.resolve(demoPaged(demoHRRecords[resource] ?? [], page, size)) : request<Page<HRRecord>>(`/hr/${resource}?page=${page}&size=${size}`),
+  createHRRecord: (resource: string, values: HRRecordInput) => {
+    if (demoMode) {
+      const meta = demoHRResourceMeta[resource];
+      const record = makeDemoHRRecord(resource, Date.now() % 1000, {
+        ...values,
+        id: `${resource}-${Date.now()}`,
+        module: meta.module,
+        recordType: meta.recordType,
+        humanReviewRequired: values.humanReviewRequired ?? meta.defaultHumanReview,
+        riskLevel: values.riskLevel ?? meta.defaultRisk,
+        status: values.status ?? meta.defaultStatus,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      demoHRRecords[resource] = [record, ...(demoHRRecords[resource] ?? [])];
+      appendDemoAudit({
+        eventType: `hr.${resource}.created`,
+        objectType: record.recordType,
+        objectId: record.id,
+        riskLevel: record.riskLevel,
+        newValueSummary: { title: record.title, status: record.status, humanReviewRequired: record.humanReviewRequired },
+      });
+      return Promise.resolve(record);
+    }
+    return request<HRRecord>(`/hr/${resource}`, { method: "POST", body: JSON.stringify(values) });
+  },
+  updateHRRecord: (resource: string, id: string, values: HRRecordInput) => {
+    if (demoMode) {
+      const records = demoHRRecords[resource] ?? [];
+      demoHRRecords[resource] = records.map((record) => record.id === id ? {
+        ...record,
+        ...values,
+        employeeName: demoEmployeeName(values.employeeId ?? record.employeeId),
+        orgUnitName: demoOrgUnitName(values.orgUnitId ?? record.orgUnitId, values.employeeId ?? record.employeeId),
+        payload: values.payload ?? record.payload,
+        updatedAt: new Date().toISOString(),
+      } : record);
+      const saved = demoHRRecords[resource].find((record) => record.id === id);
+      if (!saved) {
+        return Promise.reject(new Error("HR record not found"));
+      }
+      appendDemoAudit({
+        eventType: `hr.${resource}.updated`,
+        objectType: saved.recordType,
+        objectId: saved.id,
+        riskLevel: saved.riskLevel,
+        newValueSummary: { title: saved.title, status: saved.status, humanReviewRequired: saved.humanReviewRequired },
+      });
+      return Promise.resolve(saved);
+    }
+    return request<HRRecord>(`/hr/${resource}/${id}`, { method: "PUT", body: JSON.stringify(values) });
+  },
   ragSources: () => demoMode ? Promise.resolve(demoRAGSources) : request<RAGSource[]>("/rag/sources"),
   createRAGSource: (values: Partial<RAGSource>) => {
     if (demoMode) {

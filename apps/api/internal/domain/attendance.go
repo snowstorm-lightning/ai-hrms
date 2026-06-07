@@ -7,17 +7,26 @@ import (
 )
 
 type AttendanceOverviewSource struct {
-	EmployeeID        string
-	EmployeeName      string
-	Mobile            string
-	OrgUnitName       string
-	AttendanceID      string
-	AttendanceStatus  int
-	AttendanceInTime  *time.Time
-	AttendanceOutTime *time.Time
-	AttendanceInPlace string
-	Day               string
-	Remarks           string
+	EmployeeID              string
+	EmployeeName            string
+	Mobile                  string
+	OrgUnitName             string
+	AttendanceID            string
+	AttendanceStatus        int
+	AttendanceInTime        *time.Time
+	AttendanceOutTime       *time.Time
+	AttendanceInPlace       string
+	Day                     string
+	Remarks                 string
+	ShiftType               string
+	ShiftStartTime          string
+	ShiftEndTime            string
+	LeaveApplicationID      string
+	LeaveType               string
+	LeaveStatus             string
+	AttendanceRequestID     string
+	AttendanceRequestReason string
+	AttendanceRequestStatus string
 }
 
 type AttendanceSummary struct {
@@ -48,20 +57,29 @@ type AttendanceOrgUnitSummary struct {
 }
 
 type AttendanceException struct {
-	ID                string     `json:"id"`
-	EmployeeID        string     `json:"employeeId"`
-	EmployeeName      string     `json:"employeeName"`
-	Mobile            string     `json:"mobile"`
-	OrgUnitName       string     `json:"orgUnitName"`
-	Day               string     `json:"day"`
-	AttendanceStatus  int        `json:"attendanceStatus"`
-	StatusLabel       string     `json:"statusLabel"`
-	ExceptionType     string     `json:"exceptionType"`
-	Severity          string     `json:"severity"`
-	Reason            string     `json:"reason"`
-	AttendanceInTime  *time.Time `json:"attendanceInTime"`
-	AttendanceOutTime *time.Time `json:"attendanceOutTime"`
-	Remarks           string     `json:"remarks"`
+	ID                      string     `json:"id"`
+	EmployeeID              string     `json:"employeeId"`
+	EmployeeName            string     `json:"employeeName"`
+	Mobile                  string     `json:"mobile"`
+	OrgUnitName             string     `json:"orgUnitName"`
+	Day                     string     `json:"day"`
+	AttendanceStatus        int        `json:"attendanceStatus"`
+	StatusLabel             string     `json:"statusLabel"`
+	ExceptionType           string     `json:"exceptionType"`
+	Severity                string     `json:"severity"`
+	Reason                  string     `json:"reason"`
+	AttendanceInTime        *time.Time `json:"attendanceInTime"`
+	AttendanceOutTime       *time.Time `json:"attendanceOutTime"`
+	Remarks                 string     `json:"remarks"`
+	ShiftType               string     `json:"shiftType"`
+	ShiftStartTime          string     `json:"shiftStartTime"`
+	ShiftEndTime            string     `json:"shiftEndTime"`
+	LeaveApplicationID      string     `json:"leaveApplicationId"`
+	LeaveType               string     `json:"leaveType"`
+	LeaveStatus             string     `json:"leaveStatus"`
+	AttendanceRequestID     string     `json:"attendanceRequestId"`
+	AttendanceRequestReason string     `json:"attendanceRequestReason"`
+	AttendanceRequestStatus string     `json:"attendanceRequestStatus"`
 }
 
 type AttendanceOverview struct {
@@ -206,23 +224,49 @@ func addAttendanceException(overview *AttendanceOverview, row AttendanceOverview
 		id = "missing-" + row.EmployeeID
 	}
 	overview.Exceptions = append(overview.Exceptions, AttendanceException{
-		ID:                id + "-" + exceptionType,
-		EmployeeID:        row.EmployeeID,
-		EmployeeName:      row.EmployeeName,
-		Mobile:            row.Mobile,
-		OrgUnitName:       row.OrgUnitName,
-		Day:               row.Day,
-		AttendanceStatus:  row.AttendanceStatus,
-		StatusLabel:       AttendanceStatusLabel(row.AttendanceStatus),
-		ExceptionType:     exceptionType,
-		Severity:          severity,
-		Reason:            reason,
-		AttendanceInTime:  row.AttendanceInTime,
-		AttendanceOutTime: row.AttendanceOutTime,
-		Remarks:           row.Remarks,
+		ID:                      id + "-" + exceptionType,
+		EmployeeID:              row.EmployeeID,
+		EmployeeName:            row.EmployeeName,
+		Mobile:                  row.Mobile,
+		OrgUnitName:             row.OrgUnitName,
+		Day:                     row.Day,
+		AttendanceStatus:        row.AttendanceStatus,
+		StatusLabel:             AttendanceStatusLabel(row.AttendanceStatus),
+		ExceptionType:           exceptionType,
+		Severity:                severity,
+		Reason:                  attendanceContextReason(reason, row),
+		AttendanceInTime:        row.AttendanceInTime,
+		AttendanceOutTime:       row.AttendanceOutTime,
+		Remarks:                 row.Remarks,
+		ShiftType:               row.ShiftType,
+		ShiftStartTime:          row.ShiftStartTime,
+		ShiftEndTime:            row.ShiftEndTime,
+		LeaveApplicationID:      row.LeaveApplicationID,
+		LeaveType:               row.LeaveType,
+		LeaveStatus:             row.LeaveStatus,
+		AttendanceRequestID:     row.AttendanceRequestID,
+		AttendanceRequestReason: row.AttendanceRequestReason,
+		AttendanceRequestStatus: row.AttendanceRequestStatus,
 	})
 	summaryAbnormal[row.EmployeeID] = true
 	orgAbnormal[row.EmployeeID] = true
+}
+
+func attendanceContextReason(reason string, row AttendanceOverviewSource) string {
+	context := []string{}
+	if row.LeaveApplicationID != "" {
+		context = append(context, "关联请假："+firstNonEmpty(row.LeaveType, row.LeaveStatus))
+	}
+	if row.AttendanceRequestID != "" {
+		context = append(context, "关联补卡/外勤："+firstNonEmpty(row.AttendanceRequestReason, row.AttendanceRequestStatus))
+	}
+	if row.ShiftType != "" {
+		context = append(context, "排班："+strings.TrimSpace(row.ShiftType+" "+row.ShiftStartTime+"-"+row.ShiftEndTime))
+	}
+	if len(context) == 0 {
+		return reason
+	}
+	return reason + " 已发现上下文：" + strings.Join(context, "；") + "。"
 }
 
 func AttendanceStatusLabel(status int) string {

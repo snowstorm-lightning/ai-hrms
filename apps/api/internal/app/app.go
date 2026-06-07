@@ -64,6 +64,14 @@ func New(cfg config.Config, db *store.Store) http.Handler {
 	mux.Handle("GET /api/attendance", server.authenticated(http.HandlerFunc(server.listAttendance)))
 	mux.Handle("POST /api/attendance", server.authenticated(http.HandlerFunc(server.createAttendance)))
 	mux.Handle("PUT /api/attendance/{id}/checkout", server.authenticated(http.HandlerFunc(server.checkoutAttendance)))
+	mux.Handle("GET /api/workbench/overview", server.authenticated(http.HandlerFunc(server.workbenchOverview)))
+	mux.Handle("GET /api/workbench/work-items", server.authenticated(http.HandlerFunc(server.workbenchWorkItems)))
+	for _, resource := range store.HRResourceNames() {
+		resource := resource
+		mux.Handle("GET /api/hr/"+resource, server.authenticated(server.listHRRecords(resource)))
+		mux.Handle("POST /api/hr/"+resource, server.authenticated(server.createHRRecord(resource)))
+		mux.Handle("PUT /api/hr/"+resource+"/{id}", server.authenticated(server.updateHRRecord(resource)))
+	}
 	mux.Handle("GET /api/messages", server.authenticated(http.HandlerFunc(server.listMessages)))
 	mux.Handle("POST /api/messages", server.authenticated(http.HandlerFunc(server.createMessage)))
 	mux.Handle("GET /api/messages/{id}/comments", server.authenticated(http.HandlerFunc(server.listComments)))
