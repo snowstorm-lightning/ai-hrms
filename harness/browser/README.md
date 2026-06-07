@@ -64,12 +64,14 @@ Useful environment variables:
 
 Pass criteria:
 
-- `/login`, `/app/dashboard`, `/app/ai-command`, `/app/knowledge`, `/co-growth`, `/app/learning`, `/app/agents`, and `/app/audit` render nonblank content.
+- `/login`, `/app/dashboard`, `/app/ai-command`, `/app/knowledge`,
+  `/app/docs`, `/app/docs/rag-doc-002`, `/app/attendance`, `/co-growth`,
+  `/app/learning`, `/app/agents`, and `/app/audit` render nonblank content.
 - Page markers for the AI-HRMS product narrative are present.
 - Visual Copilot opens without the old side-switch control, supports panel drag
   and resize, performs one governed DOM/business-context selection, reports the
-  no-image-analysis boundary, clears the selection, and closes from both the app
-  shell and `/co-growth`.
+  no-image-analysis boundary, shows a direct answer before expandable details,
+  clears the selection, and closes from both the app shell and `/co-growth`.
 - In real mode, the Visual Copilot submit payload must include the exact
   selected `data-vc-object-type` / `data-vc-object-id`; a generic
   `business_ref>0` count is not enough.

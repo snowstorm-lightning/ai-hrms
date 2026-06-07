@@ -146,6 +146,31 @@ def main() -> None:
         if response.status != 200 or "text/csv" not in content_type or len(csv_body) < 10:  # type: ignore[arg-type]
             raise AssertionError(f"{label} export did not return CSV content")
 
+    attendance_overview = api_json("/attendance/overview?day=2026-05-29", headers=headers)
+    overview_data = get_data(attendance_overview, "/attendance/overview")
+    if not isinstance(overview_data, dict) or not isinstance(overview_data.get("summary"), dict):
+        raise AssertionError("Attendance overview should return a summary object")
+    if overview_data["summary"].get("expected", 0) < 1:  # type: ignore[index,union-attr]
+        raise AssertionError("Attendance overview should include expected headcount")
+    if "orgUnits" not in overview_data or "exceptions" not in overview_data:
+        raise AssertionError("Attendance overview should include orgUnits and exceptions")
+
+    attendance_analysis = api_json(
+        "/attendance/agent-analysis",
+        method="POST",
+        headers=headers,
+        body={"day": "2026-05-29", "focus": "overview"},
+    )
+    analysis_data = get_data(attendance_analysis, "/attendance/agent-analysis")
+    if not isinstance(analysis_data, dict) or not analysis_data.get("run"):
+        raise AssertionError("Attendance agent analysis should create a run preview")
+    tool_preview = analysis_data.get("toolPreview", {})
+    trust_packet = analysis_data.get("trustPacket", {})
+    if not isinstance(tool_preview, dict) or tool_preview.get("toolName") != "attendance_realtime_overview":
+        raise AssertionError("Attendance agent analysis should preview the read-only attendance tool")
+    if not isinstance(trust_packet, dict) or trust_packet.get("humanReviewRequired") is not True:
+        raise AssertionError("Attendance agent analysis should require human review")
+
     entity_headers = auth_headers("100112")
     entity_profile = api_json("/profile", headers=entity_headers)
     profile_data = get_data(entity_profile, "/profile")

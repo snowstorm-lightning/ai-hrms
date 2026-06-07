@@ -27,7 +27,7 @@ const pageChecks = [
   ["/app/org-units", ["组织 scope 图谱", "新增组织单元"]],
   ["/app/users", ["账号与角色治理", "新增用户"]],
   ["/app/employees", ["员工数据层", "新增员工"]],
-  ["/app/attendance", ["考勤信号层", "导出 CSV"]],
+  ["/app/attendance", ["考勤实时态势台", "Agent 实时分析"]],
   ["/app/messages", ["消息与协作证据", "查看评论"]],
   ["/app/settings", ["设置", "侧边栏宽度"]],
 ];
@@ -203,6 +203,11 @@ async function runSuite(context, suite) {
     await goto(page, suite, path);
     await assertText(page, suite, path, markers);
     visited.push(path);
+  }
+  if (suite.demo) {
+    await goto(page, suite, "/app/docs/rag-doc-002");
+    await assertText(page, suite, "/app/docs/rag-doc-002", ["新员工入职指南", "完整正文", "适用场景", "操作流程"]);
+    visited.push("/app/docs/rag-doc-002");
   }
 
   await checkVisualCopilot(page, suite, "/app/knowledge", { requireBusinessRef: true });
@@ -490,11 +495,14 @@ async function checkVisualCopilot(page, suite, path, options = {}) {
   if (capturedRequest && expectedBusinessRef) {
     assertVisualRequestContainsBusinessRef(capturedRequest, expectedBusinessRef, suite, path);
   }
-  await panel.locator(".visual-response-header").waitFor({ state: "visible", timeout: Math.max(timeoutMs, 30000) });
-  await panel.getByText(/no-image-analysis|screenshot-hash-only/).waitFor({ state: "visible", timeout: timeoutMs });
-  await panel.locator("[data-vc-kind='visual-copilot-boundary']").getByText(/DOM \+ 业务对象上下文解释|未上传页面截图/).waitFor({ state: "visible", timeout: timeoutMs });
-  await panel.getByText("执行思路与路径").waitFor({ state: "visible", timeout: timeoutMs });
-  await panel.getByRole("button", { name: /上下文证据/ }).waitFor({ state: "visible", timeout: timeoutMs });
+  const visualResponseCard = panel.locator("[data-vc-kind='visual-copilot-response']");
+  await visualResponseCard.locator(".visual-chat-answer").waitFor({ state: "visible", timeout: Math.max(timeoutMs, 30000) });
+  await visualResponseCard.getByRole("button", { name: "详情" }).click({ timeout: timeoutMs });
+  await visualResponseCard.locator(".visual-response-header").waitFor({ state: "visible", timeout: timeoutMs });
+  await visualResponseCard.getByText(/no-image-analysis|screenshot-hash-only/).waitFor({ state: "visible", timeout: timeoutMs });
+  await visualResponseCard.locator("[data-vc-kind='visual-copilot-boundary']").getByText(/DOM \+ 业务对象上下文解释|未上传页面截图/).waitFor({ state: "visible", timeout: timeoutMs });
+  await visualResponseCard.getByText("执行思路与路径").waitFor({ state: "visible", timeout: timeoutMs });
+  await visualResponseCard.getByRole("button", { name: /上下文证据/ }).waitFor({ state: "visible", timeout: timeoutMs });
   await panel.getByLabel("清空选区").click({ timeout: timeoutMs });
   await panel.getByText("普通问答", { exact: true }).click({ timeout: timeoutMs });
   await panel.getByRole("button", { name: "询问" }).waitFor({ state: "visible", timeout: timeoutMs });

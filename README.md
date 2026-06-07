@@ -41,10 +41,16 @@ Recommended 3-minute path:
 2. `/app/ai-command` - structured HR recommendation with trust metadata.
 3. `/app/knowledge` - governed RAG documents, trust level, sensitivity, scope,
    and citation preview.
-4. `/co-growth` - Co-Growth OS as the AI-HRMS growth engine.
-5. `/app/agents` - human-agent run cards, tool preview, and confirmation.
-6. `/app/audit` - trust, audit, and evidence chain.
-7. `/app/help` - product guide for new users, including Visual Copilot and admin-only operations.
+4. `/app/docs` and `/app/docs/rag-doc-002` - document library reading flow:
+   catalog cards open a dedicated document page, with the page table of contents and
+   citation/governance status in left/right drawers.
+5. `/app/attendance` - real-time attendance cockpit with scoped aggregation,
+   exception drill-down, and preview-only Agent analysis that requires human
+   review.
+6. `/co-growth` - Co-Growth OS as the AI-HRMS growth engine.
+7. `/app/agents` - human-agent run cards, tool preview, and confirmation.
+8. `/app/audit` - trust, audit, and evidence chain.
+9. `/app/help` - product guide for new users, including Visual Copilot and admin-only operations.
 
 When narrating this path, describe any company names, employee records, policies,
 or citations as simulated company data for the AI-HRMS product demo.
@@ -376,6 +382,24 @@ Screenshots are not sent to DeepSeek, and the demo does not claim image OCR or
 pixel-level vision understanding. The browser harness also fails if Visual
 Copilot sends `data:image`, base64 screenshots, image content types, multipart
 uploads, or a `screenshot` payload.
+
+Recent governed surfaces:
+
+- `GET /api/rag/documents/{id}` returns one scoped RAG document for the
+  dedicated document reader. The reader keeps the full body in the main page
+  and moves the local table of contents plus citation/governance metadata into
+  drawers.
+- `GET /api/attendance/overview` returns scoped attendance aggregates,
+  organization summaries, exception queues, and recent records for the real-time
+  attendance cockpit.
+- `POST /api/attendance/agent-analysis` creates a preview-only
+  `attendance_realtime_analyst` run and `attendance_realtime_overview` tool
+  preview. It is a read-only analysis path and always keeps HR follow-up behind
+  human review.
+- Visual Copilot answers now present the direct answer first, with execution
+  details, context packet, and evidence collapsed behind a details control. DOM
+  table row hints can include visible headers/cells, while verified business
+  references still come from Go scope checks.
 
 The P2 workflow demo is available through Go at
 `POST /api/agent/workflows/langgraph/demo`, which proxies the Python LangGraph

@@ -142,6 +142,49 @@ export interface Attendance {
   remarks: string;
 }
 
+export interface AttendanceSummary {
+  expected: number;
+  checkedIn: number;
+  notCheckedIn: number;
+  leave: number;
+  late: number;
+  earlyLeave: number;
+  fieldOrTrip: number;
+  abnormal: number;
+  attendanceRate: number;
+  riskLevel: string;
+}
+
+export interface AttendanceOrgUnitSummary extends AttendanceSummary {
+  orgUnitName: string;
+}
+
+export interface AttendanceException {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  mobile: string;
+  orgUnitName: string;
+  day: string;
+  attendanceStatus: number;
+  statusLabel: string;
+  exceptionType: string;
+  severity: string;
+  reason: string;
+  attendanceInTime?: string | null;
+  attendanceOutTime?: string | null;
+  remarks: string;
+}
+
+export interface AttendanceOverview {
+  day: string;
+  generatedAt: string;
+  summary: AttendanceSummary;
+  orgUnits: AttendanceOrgUnitSummary[];
+  exceptions: AttendanceException[];
+  recentRecords: Attendance[];
+}
+
 export interface MessageItem {
   id: string;
   title: string;
@@ -398,6 +441,17 @@ export interface AgentToolPreviewResponse {
   toolPreview?: ToolPreview;
   executionDecision?: HarnessDecision;
   trustPacket?: TrustPacket;
+}
+
+export interface AttendanceAgentAnalysis {
+  run: AgentRun;
+  toolPreview?: ToolPreview;
+  executionDecision?: HarnessDecision;
+  trustPacket?: TrustPacket;
+  insights: string[];
+  recommendedActions: string[];
+  auditPreview: string[];
+  overview?: AttendanceOverview;
 }
 
 export interface AgentWorkflowDemoResult {

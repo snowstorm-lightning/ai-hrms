@@ -83,10 +83,15 @@ P2 extras are included as code paths: `/api/agent/workflows/langgraph/demo` prox
 2. `/app/dashboard`: explain the operating-system positioning and demo tour.
 3. `/app/ai-command`: generate a governed HR recommendation.
 4. `/app/knowledge`: inspect citations, trust level, sensitivity, and scope.
-5. `/co-growth`: show human-AI co-growth missions and evidence.
-6. `/app/agents`: show agent run control, tool preview, and human confirmation.
-7. `/app/audit`: show the trust and evidence layer.
-8. `/app/help`: show the product guide, Visual Copilot usage, and admin-only operating notes.
+5. `/app/docs`: open a document detail page. The catalog stays lightweight;
+   full reading happens on a dedicated page, with the local table of contents in
+   a left drawer and citation/governance status in a right drawer.
+6. `/app/attendance`: show the real-time attendance cockpit, exception
+   drill-down, and preview-only Agent analysis with human review required.
+7. `/co-growth`: show human-AI co-growth missions and evidence.
+8. `/app/agents`: show agent run control, tool preview, and human confirmation.
+9. `/app/audit`: show the trust and evidence layer.
+10. `/app/help`: show the product guide, Visual Copilot usage, and admin-only operating notes.
 
 For a 3-minute review, introduce `企鹅互联网科技有限公司` only as the sample company dataset so the audience does not read the walkthrough as Tencent or any other real company's HR data.
 
@@ -95,6 +100,8 @@ For a 3-minute review, introduce `企鹅互联网科技有限公司` only as the
 - Command Dashboard
 - Agentic HR Command Center
 - Governed Knowledge Hub
+- Document Library detail reader
+- Attendance real-time cockpit
 - Co-Growth OS
 - Human-Agent Run Center
 - Trust, Audit & Evidence Layer
@@ -109,6 +116,12 @@ For a 3-minute review, introduce `企鹅互联网科技有限公司` only as the
 - The demo does not automate promotion, termination, pay, performance, or hiring decisions.
 - Production architecture keeps Go responsible for authorization, scope, execution, and audit.
 - Visual Copilot does not perform image understanding in the DeepSeek text-provider setup. It explains selections through DOM hints, verified business object references, route context, scope checks, and audit records. Screenshots are not sent to DeepSeek; pixel-level image explanation requires a future vision-capable OpenAI-compatible provider.
+- Attendance Agent analysis is preview-only: it uses scoped attendance aggregates
+  and a read-only `attendance_realtime_overview` tool preview, then requires HR
+  or manager review before any follow-up.
+- RAG document details are a reading surface, not a bypass around retrieval:
+  formal answers still need scoped RAG search, citations, trust metadata, and
+  audit status.
 
 ## Known Boundaries
 

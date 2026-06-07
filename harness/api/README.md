@@ -31,7 +31,8 @@ Current smoke flow:
 ```text
 health -> login -> profile -> legal entities -> org units -> users ->
 roles -> role bindings -> employees -> employee CSV -> attendance ->
-attendance CSV -> messages -> RAG -> AI chat -> agent tools -> Visual Copilot
+attendance CSV -> attendance overview -> attendance Agent analysis preview ->
+messages -> RAG -> AI chat -> agent tools -> Visual Copilot
 ```
 
 Contract reference:
@@ -41,3 +42,7 @@ Contract reference:
 The harness includes scoped-account rejection checks for legal-entity,
 employee, attendance, roles, and user visibility. Future work should broaden
 CRUD coverage without weakening these scope checks.
+
+Attendance Agent analysis checks are intentionally preview-only: the harness
+expects a run plus `attendance_realtime_overview` tool preview and
+`humanReviewRequired=true`, not a write or people-decision result.

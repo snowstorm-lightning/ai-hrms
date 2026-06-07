@@ -184,11 +184,6 @@ select {
   padding: 24px;
 }
 
-.demo-boundary-banner {
-  margin-bottom: 14px;
-  border-radius: 8px;
-}
-
 .page-title {
   margin-bottom: 18px;
 }
@@ -228,6 +223,138 @@ select {
 
 .section-card {
   margin-top: 16px;
+}
+
+.attendance-page {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.attendance-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.attendance-boundary {
+  border-radius: 8px;
+}
+
+.attendance-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 390px);
+  gap: 16px;
+  align-items: start;
+}
+
+.attendance-main {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.attendance-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.attendance-metric {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  min-width: 0;
+  min-height: 112px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.attendance-metric:hover,
+.attendance-org-row:hover {
+  border-color: #1677ff;
+  box-shadow: 0 12px 32px rgb(15 23 42 / 8%);
+}
+
+.attendance-operating-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.attendance-section {
+  min-width: 0;
+}
+
+.attendance-org-list {
+  display: grid;
+  gap: 10px;
+}
+
+.attendance-org-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(140px, 1fr);
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  min-height: 68px;
+  padding: 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: #f8fafc;
+  text-align: left;
+  cursor: pointer;
+}
+
+.attendance-org-row span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.attendance-agent-panel {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 18px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.attendance-agent-panel h4 {
+  margin: 0 0 4px !important;
+}
+
+.attendance-agent-panel .ant-typography {
+  margin-bottom: 0;
+}
+
+.attendance-agent-result,
+.attendance-agent-list {
+  display: grid;
+  gap: 10px;
+}
+
+.attendance-agent-list p {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  line-height: 1.6;
+}
+
+.attendance-drawer-toolbar {
+  margin-bottom: 16px;
 }
 
 .ai-dashboard,
@@ -1018,11 +1145,26 @@ select {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
+}
+
+.visual-citation-chip {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 28px;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #eaf4ff;
+  color: #0958d9;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .visual-copilot-body {
   display: grid;
   gap: 10px;
+  align-content: start;
   min-height: 0;
   padding-right: 4px;
   overflow: auto;
@@ -1067,13 +1209,33 @@ select {
   flex: 0 0 auto;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 8px 0 0;
+  max-height: 92px;
+  padding: 8px 0;
+  overflow: auto;
+  border-bottom: 1px solid #eef2f7;
+  background: #fff;
 }
 
 .visual-selection-list .ant-tag {
   max-width: 100%;
   margin-inline-end: 0;
   cursor: pointer;
+}
+
+.visual-copilot-panel .ant-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  height: auto;
+  min-height: 24px;
+  white-space: normal;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.visual-copilot-panel .ant-tag .ant-tag-close-icon {
+  flex: 0 0 auto;
+  margin-inline-start: 4px;
 }
 
 .visual-copilot-hint {
@@ -1112,6 +1274,7 @@ select {
 .visual-response {
   display: grid;
   gap: 10px;
+  align-content: start;
   min-height: 0;
   color: #374151;
 }
@@ -1153,6 +1316,7 @@ select {
 .visual-response-header > div {
   display: grid;
   gap: 3px;
+  min-width: 0;
 }
 
 .visual-response-explanation,
@@ -1174,6 +1338,7 @@ select {
 .visual-page-chat {
   display: grid;
   gap: 10px;
+  align-content: start;
   padding: 10px;
   border: 1px solid #dbeafe;
   border-radius: 8px;
@@ -1194,14 +1359,121 @@ select {
   overflow-wrap: anywhere;
 }
 
+.visual-chat-answer {
+  margin-bottom: 0 !important;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  font-size: 15px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.visual-answer-details {
+  background: transparent;
+}
+
+.visual-answer-detail-body {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.visual-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+
+.visual-meta-item {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.visual-meta-item dt {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.visual-meta-item dd {
+  min-width: 0;
+  margin: 0;
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.visual-action-list {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.visual-action-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.visual-action-item span,
+.visual-action-item small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.visual-action-item small {
+  color: #64748b;
+}
+
+.visual-action-item.is-blocked {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.visual-answer-detail-body .ant-space {
+  max-width: 100%;
+}
+
+.visual-answer-detail-body .ant-space-item {
+  min-width: 0;
+}
+
 .visual-history-collapse {
   border-color: #e2e8f0;
   background: #fff;
 }
 
+.visual-history-collapse .ant-collapse-header {
+  min-height: 40px;
+  align-items: center !important;
+}
+
+.visual-history-collapse .ant-collapse-content-box {
+  overflow: visible;
+}
+
 .visual-history-list {
   display: grid;
   gap: 10px;
+  align-content: start;
 }
 
 .visual-history-list .visual-response,
@@ -1447,8 +1719,16 @@ select {
   .command-layout,
   .knowledge-hero,
   .agent-hero,
-  .audit-hero {
+  .audit-hero,
+  .attendance-layout,
+  .attendance-operating-grid,
+  .attendance-org-row {
     grid-template-columns: 1fr;
+  }
+
+  .attendance-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .ai-dashboard-hero {

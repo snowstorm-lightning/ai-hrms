@@ -258,7 +258,7 @@ export function KnowledgePage() {
         rowKey="id"
         loading={loading}
         dataSource={documents}
-        pagination={{ total }}
+        pagination={{ total, pageSize: 20 }}
         scroll={{ x: "max-content" }}
         locale={{ emptyText: <EmptyBlock description="暂无知识资料" /> }}
         onRow={(row) => ({

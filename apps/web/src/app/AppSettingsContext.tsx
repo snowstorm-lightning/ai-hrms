@@ -8,7 +8,6 @@ export interface AppSettings {
   language: LanguageCode;
   sidebarWidth: number;
   density: InterfaceDensity;
-  showDemoBanner: boolean;
   copilotDefaultMode: CopilotDefaultMode;
   copilotEvidenceDefaultOpen: boolean;
 }
@@ -31,7 +30,6 @@ const defaultSettings: AppSettings = {
   language: "zh-CN",
   sidebarWidth: defaultSidebarWidth,
   density: "comfortable",
-  showDemoBanner: true,
   copilotDefaultMode: "chat",
   copilotEvidenceDefaultOpen: false,
 };
@@ -89,7 +87,6 @@ function normalizeSettings(value: AppSettings): AppSettings {
     language: value.language === "en-US" ? "en-US" : "zh-CN",
     sidebarWidth: clampSidebarWidth(value.sidebarWidth),
     density: value.density === "compact" ? "compact" : "comfortable",
-    showDemoBanner: value.showDemoBanner !== false,
     copilotDefaultMode: value.copilotDefaultMode === "screenshot" ? "screenshot" : "chat",
     copilotEvidenceDefaultOpen: value.copilotEvidenceDefaultOpen === true,
   };

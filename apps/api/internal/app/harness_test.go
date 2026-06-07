@@ -124,11 +124,12 @@ func TestToolNameForActionPrompt(t *testing.T) {
 
 func TestToolSpecUsesModuleCapabilities(t *testing.T) {
 	tests := map[string]string{
-		"list_employees":           "employee.read",
-		"rag_search":               "rag.search",
-		"audit_read":               "audit.read",
-		"visual.resolve_selection": "visual_copilot.use",
-		"learning.assign_plan":     "learning.manage",
+		"list_employees":               "employee.read",
+		"attendance_realtime_overview": "employee.read",
+		"rag_search":                   "rag.search",
+		"audit_read":                   "audit.read",
+		"visual.resolve_selection":     "visual_copilot.use",
+		"learning.assign_plan":         "learning.manage",
 	}
 	for tool, want := range tests {
 		if got := toolSpec(tool).capability; got != want {
@@ -323,8 +324,8 @@ func TestVisualExplanationBusinessAndPostgresContextBoundary(t *testing.T) {
 		SourceCount: map[string]int{"business_ref": 1},
 	}
 	businessExplanation := visualExplanation("解释这个员工", businessPacket, decision)
-	if !strings.Contains(businessExplanation, "后端已按当前 scope 校验可见性") {
-		t.Fatalf("business ref explanation should mention scope validation:\n%s", businessExplanation)
+	if !strings.Contains(businessExplanation, "这是 1 名员工：张三") || !strings.Contains(businessExplanation, "没有返回岗位、组织或职责字段") {
+		t.Fatalf("business ref explanation should answer with a bounded identity summary:\n%s", businessExplanation)
 	}
 
 	postgresPacket := domain.ContextPacket{
@@ -332,8 +333,8 @@ func TestVisualExplanationBusinessAndPostgresContextBoundary(t *testing.T) {
 		SourceCount: map[string]int{"business_ref": 1, "postgres_context": 1},
 	}
 	postgresExplanation := visualExplanation("解释这个员工", postgresPacket, decision)
-	if !strings.Contains(postgresExplanation, "Postgres") {
-		t.Fatalf("Postgres context explanation should use returned business content:\n%s", postgresExplanation)
+	if strings.Contains(postgresExplanation, "Postgres") || strings.Contains(postgresExplanation, "DOM") {
+		t.Fatalf("main answer should not expose implementation details:\n%s", postgresExplanation)
 	}
 	if !strings.Contains(visualExplanationBoundary(postgresPacket), "只解释已返回字段") {
 		t.Fatalf("Postgres context boundary should state explainability limit")
@@ -362,6 +363,61 @@ func TestVisualExplanationAdminGuideAccessQuestion(t *testing.T) {
 	}
 }
 
+func TestVisualExplanationAccountIdentityIsAnswerFirst(t *testing.T) {
+	packet := domain.ContextPacket{
+		Items: []domain.ContextItem{
+			{Type: "user", ID: "u-1", Label: "Admin CI", Source: "postgres.business_ref", Metadata: map[string]any{"roles": []string{"group_admin"}, "enabled": true}},
+			{Type: "user", ID: "u-2", Label: "demo", Source: "postgres.business_ref", Metadata: map[string]any{"roles": []string{"employee"}, "enabled": true}},
+			{Type: "dom_module", Label: "账号列表", Summary: "表格上下文：列=用户名、手机号、角色、启用、操作", Source: "visual_selection.dom_snapshot_unverified", Metadata: map[string]any{"tableHeaders": []string{"用户名", "手机号", "角色", "启用", "操作"}}},
+		},
+		SourceCount: map[string]int{"business_ref": 2, "postgres_context": 2, "dom_node": 1},
+	}
+	explanation := visualExplanation("这些人是谁", packet, domain.HarnessDecision{ExecutionMode: executionRetrievalOnly, RiskLevel: "medium", HumanReviewRequired: true})
+	if !strings.HasPrefix(explanation, "这是账号与角色治理中的 2 个账号：Admin CI、demo。") {
+		t.Fatalf("account identity answer should start with the requested answer:\n%s", explanation)
+	}
+	for _, forbidden := range []string{"岗位=未返回", "归属=未返回", "layout snapshot", "executionMode"} {
+		if strings.Contains(explanation, forbidden) {
+			t.Fatalf("account identity answer leaked noisy detail %q:\n%s", forbidden, explanation)
+		}
+	}
+}
+
+func TestVisualExplanationFieldQuestionUsesTableContext(t *testing.T) {
+	packet := domain.ContextPacket{
+		Items: []domain.ContextItem{{
+			Type:    "dom_module",
+			Label:   "账号行",
+			Summary: "表格上下文：列=用户名、手机号、角色、启用、操作；可见字段=用户名=demo；手机号=demo；角色=group_admin；启用=启用",
+			Source:  "visual_selection.dom_snapshot_unverified",
+			Metadata: map[string]any{
+				"kind":         "table-row",
+				"tableHeaders": []string{"用户名", "手机号", "角色", "启用", "操作"},
+				"rowCells":     "用户名=demo；手机号=demo；角色=group_admin；启用=启用",
+			},
+		}},
+		SourceCount: map[string]int{"dom_node": 1, "layout_item": 5},
+	}
+	explanation := visualExplanation("这一列是什么意思", packet, domain.HarnessDecision{ExecutionMode: executionRetrievalOnly, RiskLevel: "low"})
+	if !strings.Contains(explanation, "可见列包括：用户名、手机号、角色、启用、操作") || !strings.Contains(explanation, "当前选中行可见字段") {
+		t.Fatalf("field answer should use table headers/cells:\n%s", explanation)
+	}
+}
+
+func TestVisualExplanationEvidenceQuestionSeparatesCitations(t *testing.T) {
+	packet := domain.ContextPacket{
+		Items: []domain.ContextItem{
+			{Type: "rag_citation", Label: "管理员指南与可见性规则", Summary: "管理员指南只对 group_admin 角色可见。", Source: "pgvector.rag"},
+			{Type: "rag_citation", Label: "RAG 发布 SOP", Summary: "发布资料需要 status=published 且 scope 覆盖当前用户。", Source: "pgvector.rag"},
+		},
+		SourceCount: map[string]int{"rag_citation": 2},
+	}
+	explanation := visualExplanation("依据在哪里", packet, domain.HarnessDecision{ExecutionMode: executionLLMExplain, RiskLevel: "low", UseLLM: true})
+	if !strings.Contains(explanation, "已找到 2 条可引用资料") || !strings.Contains(explanation, "《管理员指南与可见性规则》") {
+		t.Fatalf("evidence answer should summarize citations first:\n%s", explanation)
+	}
+}
+
 func TestVisualFilterRAGCitationsForAdminGuide(t *testing.T) {
 	packet := domain.ContextPacket{
 		Items: []domain.ContextItem{{
@@ -387,6 +443,36 @@ func TestVisualFilterRAGCitationsForAdminGuide(t *testing.T) {
 	adminCitations := visualAdminGuideCitations()
 	if len(adminCitations) != 1 || adminCitations[0].DocumentID != "00000000-0000-0000-0000-000000000933" || !strings.Contains(adminCitations[0].Snippet, "group_admin") {
 		t.Fatalf("admin guide citation should point to governed product doc: %#v", adminCitations)
+	}
+}
+
+func TestProductIdentityQuestionRouting(t *testing.T) {
+	positive := []string{"你是谁", "你是谁？", "这是什么系统", "what are you?", "Visual Copilot 是什么"}
+	for _, prompt := range positive {
+		if !isProductIdentityQuestion(prompt) {
+			t.Fatalf("%q should be treated as product identity question", prompt)
+		}
+	}
+	negative := []string{"员工数量是多少", "RAG 资料在哪里发布", "为什么我看不了管理员指南"}
+	for _, prompt := range negative {
+		if isProductIdentityQuestion(prompt) {
+			t.Fatalf("%q should not be treated as product identity question", prompt)
+		}
+	}
+}
+
+func TestDeterministicRAGAnswerIsSpecific(t *testing.T) {
+	citations := []domain.RAGCitation{
+		{Title: "RAG 发布 SOP 与失败排查", Snippet: "发布 RAG 资料的标准步骤是设置 trust_level、sensitivity、scope，复核后切换为 published，触发 chunk 与 embedding 重建。"},
+		{Title: "新人 30 天成长计划模板", Snippet: "第 1 周完成账号、制度、信息安全、协作工具和团队介绍，第 4 周由导师复盘。"},
+	}
+	ragAnswer := deterministicRAGAnswer("RAG 资料发布后为什么问不到？", citations)
+	if !strings.Contains(ragAnswer, "published") || !strings.Contains(ragAnswer, "embedding") {
+		t.Fatalf("RAG fallback should answer with concrete troubleshooting steps, got %q", ragAnswer)
+	}
+	planAnswer := deterministicRAGAnswer("新人 30 天成长计划怎么安排？", citations)
+	if !strings.Contains(planAnswer, "第 1 周") || !strings.Contains(planAnswer, "第 4 周") {
+		t.Fatalf("onboarding fallback should produce a concrete weekly plan, got %q", planAnswer)
 	}
 }
 

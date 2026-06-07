@@ -6,6 +6,8 @@ import type {
   AgentToolPreviewResponse,
   AgentWorkflowDemoResult,
   Attendance,
+  AttendanceAgentAnalysis,
+  AttendanceOverview,
   AuditEvent,
   Capability,
   CommentItem,
@@ -106,7 +108,234 @@ let demoEmployees: Employee[] = [
 let demoAttendance: Attendance[] = [
   { id: "att-001", employeeId: "emp-003", employeeName: "林晨", mobile: "13800000003", orgUnitName: "AI 平台工程部", attendanceStatus: 1, attendanceInTime: "2026-05-29T09:02:00+08:00", attendanceOutTime: null, day: "2026-05-29", remarks: "AI 平台新人完成 Co-Growth mission 签到" },
   { id: "att-002", employeeId: "emp-002", employeeName: "陈向南", mobile: "13800000002", orgUnitName: "企业服务交付与客户成功部", attendanceStatus: 3, attendanceInTime: "2026-05-29T09:18:00+08:00", attendanceOutTime: "2026-05-29T18:15:00+08:00", day: "2026-05-29", remarks: "企业服务交付周会延迟" },
+  { id: "att-003", employeeId: "emp-005", employeeName: "顾明远", mobile: "13800000005", orgUnitName: "协同产品研发部", attendanceStatus: 4, attendanceInTime: "2026-05-29T08:55:00+08:00", attendanceOutTime: "2026-05-29T17:10:00+08:00", day: "2026-05-29", remarks: "提前离场参加客户复盘，待 HRBP 核对外勤记录" },
+  { id: "att-004", employeeId: "emp-004", employeeName: "周雨桐", mobile: "13800000004", orgUnitName: "增长策略部", attendanceStatus: 8, attendanceInTime: null, attendanceOutTime: null, day: "2026-05-29", remarks: "事假已提交，待流程归档" },
+  { id: "att-005", employeeId: "emp-006", employeeName: "沈知衡", mobile: "13800000006", orgUnitName: "风险策略部", attendanceStatus: 6, attendanceInTime: null, attendanceOutTime: null, day: "2026-05-29", remarks: "出差参加 AI 安全评审" },
 ];
+
+function demoLatestAttendanceDay() {
+  return demoAttendance.reduce((latest, item) => item.day > latest ? item.day : latest, demoAttendance[0]?.day ?? new Date().toISOString().slice(0, 10));
+}
+
+function demoAttendanceStatusLabel(status: number) {
+  const labels: Record<number, string> = {
+    1: "正常",
+    2: "旷工",
+    3: "迟到",
+    4: "早退",
+    5: "外出",
+    6: "出差",
+    7: "年假",
+    8: "事假",
+    9: "病假",
+    22: "补签",
+  };
+  return labels[status] ?? "未签到";
+}
+
+function demoAttendanceRiskLevel(abnormal: number, expected: number) {
+  if (!abnormal || !expected) return "low";
+  const ratio = abnormal / expected;
+  if (abnormal >= 5 || ratio >= 0.2) return "high";
+  return "medium";
+}
+
+function buildDemoAttendanceOverview(day?: string): AttendanceOverview {
+  const selectedDay = day || demoLatestAttendanceDay();
+  const generatedAt = new Date().toISOString();
+  const summary = {
+    expected: 0,
+    checkedIn: 0,
+    notCheckedIn: 0,
+    leave: 0,
+    late: 0,
+    earlyLeave: 0,
+    fieldOrTrip: 0,
+    abnormal: 0,
+    attendanceRate: 0,
+    riskLevel: "low",
+  };
+  const orgs = new Map<string, AttendanceOverview["orgUnits"][number]>();
+  const abnormalEmployees = new Set<string>();
+  const orgAbnormal = new Map<string, Set<string>>();
+  const exceptions: AttendanceOverview["exceptions"] = [];
+  const recentRecords: Attendance[] = [];
+
+  const addException = (employee: Employee, record: Attendance | undefined, exceptionType: string, severity: string, reason: string) => {
+    const orgUnitName = employee.primaryAssignment?.orgUnitName ?? record?.orgUnitName ?? "未分配";
+    exceptions.push({
+      id: `${record?.id ?? `missing-${employee.id}`}-${exceptionType}`,
+      employeeId: employee.id,
+      employeeName: employee.name,
+      mobile: employee.mobile,
+      orgUnitName,
+      day: selectedDay,
+      attendanceStatus: record?.attendanceStatus ?? 0,
+      statusLabel: demoAttendanceStatusLabel(record?.attendanceStatus ?? 0),
+      exceptionType,
+      severity,
+      reason,
+      attendanceInTime: record?.attendanceInTime,
+      attendanceOutTime: record?.attendanceOutTime,
+      remarks: record?.remarks ?? "",
+    });
+    abnormalEmployees.add(employee.id);
+    orgAbnormal.get(orgUnitName)?.add(employee.id);
+  };
+
+  demoEmployees.filter((employee) => employee.status === "active").forEach((employee) => {
+    const orgUnitName = employee.primaryAssignment?.orgUnitName ?? "未分配";
+    const org = orgs.get(orgUnitName) ?? {
+      orgUnitName,
+      expected: 0,
+      checkedIn: 0,
+      notCheckedIn: 0,
+      leave: 0,
+      late: 0,
+      earlyLeave: 0,
+      fieldOrTrip: 0,
+      abnormal: 0,
+      attendanceRate: 0,
+      riskLevel: "low",
+    };
+    orgs.set(orgUnitName, org);
+    orgAbnormal.set(orgUnitName, orgAbnormal.get(orgUnitName) ?? new Set<string>());
+    summary.expected += 1;
+    org.expected += 1;
+
+    const record = demoAttendance
+      .filter((item) => item.employeeId === employee.id && item.day === selectedDay)
+      .sort((left, right) => String(right.attendanceInTime ?? "").localeCompare(String(left.attendanceInTime ?? "")))[0];
+
+    if (record) recentRecords.push(record);
+    if (record?.attendanceInTime) {
+      summary.checkedIn += 1;
+      org.checkedIn += 1;
+    }
+    if (!record || record.attendanceStatus === 2) {
+      summary.notCheckedIn += 1;
+      org.notCheckedIn += 1;
+      addException(employee, record, "absence", "high", "未发现当天有效签到记录，需确认是否请假、外勤或补卡。");
+    } else if ([7, 8, 9].includes(record.attendanceStatus)) {
+      summary.leave += 1;
+      org.leave += 1;
+    } else if ([5, 6].includes(record.attendanceStatus)) {
+      summary.fieldOrTrip += 1;
+      org.fieldOrTrip += 1;
+    }
+    if (record?.attendanceStatus === 3) {
+      summary.late += 1;
+      org.late += 1;
+      addException(employee, record, "late", "medium", "迟到信号需要结合排班、交通和请假记录人工复核。");
+    }
+    if (record?.attendanceStatus === 4) {
+      summary.earlyLeave += 1;
+      org.earlyLeave += 1;
+      addException(employee, record, "early_leave", "medium", "早退信号需要结合排班、外勤和请假记录人工复核。");
+    }
+    if (record?.attendanceInTime && !record.attendanceOutTime && selectedDay < new Date().toISOString().slice(0, 10) && ![2, 5, 6, 7, 8, 9].includes(record.attendanceStatus)) {
+      addException(employee, record, "missing_checkout", "medium", "已有签到但未发现签退，需确认是否忘记签退或记录同步延迟。");
+    }
+  });
+
+  summary.abnormal = abnormalEmployees.size;
+  summary.attendanceRate = summary.expected ? (summary.checkedIn * 100) / summary.expected : 0;
+  summary.riskLevel = demoAttendanceRiskLevel(summary.abnormal, summary.expected);
+
+  const orgUnits = Array.from(orgs.values()).map((org) => {
+    const abnormal = orgAbnormal.get(org.orgUnitName)?.size ?? 0;
+    return {
+      ...org,
+      abnormal,
+      attendanceRate: org.expected ? (org.checkedIn * 100) / org.expected : 0,
+      riskLevel: demoAttendanceRiskLevel(abnormal, org.expected),
+    };
+  }).sort((left, right) => right.abnormal - left.abnormal || left.orgUnitName.localeCompare(right.orgUnitName));
+
+  exceptions.sort((left, right) => {
+    const rank: Record<string, number> = { high: 3, medium: 2, low: 1 };
+    return (rank[right.severity] ?? 0) - (rank[left.severity] ?? 0) || left.orgUnitName.localeCompare(right.orgUnitName);
+  });
+  recentRecords.sort((left, right) => String(right.attendanceInTime ?? "").localeCompare(String(left.attendanceInTime ?? "")));
+
+  return { day: selectedDay, generatedAt, summary, orgUnits, exceptions, recentRecords };
+}
+
+function buildDemoAttendanceAgentAnalysis(values: { day?: string; focus?: string; orgUnitName?: string }): AttendanceAgentAnalysis {
+  const overview = buildDemoAttendanceOverview(values.day);
+  const riskLevel = overview.summary.riskLevel === "high" ? "high" : "medium";
+  const run: AgentRun = {
+    id: `agent-run-attendance-${Date.now()}`,
+    runType: "attendance_realtime_analyst",
+    status: riskLevel === "high" ? "waiting_human_review" : "previewed_requires_review",
+    provider: "fake",
+    model: "deterministic-v1",
+    riskLevel,
+    summary: "考勤实时态势 Agent 分析预览，基于 scoped 聚合快照，不执行人事裁决。",
+    createdAt: new Date().toISOString(),
+  };
+  demoAgentRunState = [run, ...demoAgentRunState];
+  appendDemoAudit({
+    eventType: "attendance.agent_analysis.preview",
+    objectType: "attendance",
+    objectId: overview.day,
+    riskLevel,
+    newValueSummary: { day: overview.day, abnormal: overview.summary.abnormal, attendanceRate: overview.summary.attendanceRate, toolPreview: "attendance_realtime_overview", humanReviewRequired: true },
+    source: "agent",
+  });
+  const toolPreview = {
+    toolName: "attendance_realtime_overview",
+    purpose: "只读检索结构化员工或考勤数据",
+    executionMode: "deterministic",
+    riskLevel: "low",
+    decision: "preview_allowed",
+    requiredCapability: "employee.read",
+    accepted: true,
+    previewOnly: false,
+    reversible: true,
+    writes: [],
+    arguments: { day: overview.day, focus: values.focus ?? "overview", orgUnitName: values.orgUnitName ?? "" },
+    reason: "确定性工具：由 Go 白名单 handler 校验参数、权限和 scope。",
+  };
+  const topOrg = overview.orgUnits.find((org) => org.abnormal > 0);
+  return {
+    run,
+    toolPreview,
+    executionDecision: {
+      intent: "attendance_realtime_analysis",
+      executionMode: "single_agent",
+      riskLevel,
+      useLlm: false,
+      useAgent: true,
+      useMultiAgent: false,
+      humanReviewRequired: true,
+      reason: "考勤态势分析使用 scoped 聚合快照和只读工具预览生成，不自动形成旷工、绩效或处分结论。",
+      routedBy: ["attendance.overview", "tool.registry", "agent.preview_first", "human_review.required"],
+    },
+    trustPacket: {
+      riskLevel,
+      confidence: overview.summary.abnormal ? 0.86 : 0.9,
+      humanReviewRequired: true,
+      evidenceCount: 0,
+      toolPreview,
+      auditStatus: "attendance_analysis_previewed",
+      reversible: true,
+      policyChecks: ["rbac.scope.checked", "high_impact_hr_boundary.checked", "tool_schema.preview_first", "audit.event.required"],
+    },
+    insights: [
+      `今日应到 ${overview.summary.expected} 人，已签到 ${overview.summary.checkedIn} 人，到岗率 ${overview.summary.attendanceRate.toFixed(1)}%。`,
+      `请假 ${overview.summary.leave} 人、外出/出差 ${overview.summary.fieldOrTrip} 人、迟到 ${overview.summary.late} 人、早退 ${overview.summary.earlyLeave} 人。`,
+      overview.summary.abnormal
+        ? `发现 ${overview.summary.abnormal} 名员工存在异常信号${topOrg ? `，异常最集中的组织是 ${topOrg.orgUnitName}` : ""}。`
+        : "当前没有需要立即升级的异常信号，仍建议保留当天审计快照。",
+    ],
+    recommendedActions: overview.summary.abnormal
+      ? ["优先核对未签到和缺签退人员是否已有请假、外勤或系统同步记录。", "对迟到/早退只生成提醒和复核清单，不自动判定旷工或绩效影响。", "将需要跟进的异常交给 HR 或部门负责人确认，并保留人工确认结果。"]
+      : ["保留今日考勤快照和审计记录。", "下班后复查是否出现缺签退或补签记录。", "如需发布日报，先由 HR 确认口径。AI 不自动做人事裁决。"],
+    auditPreview: ["attendance.overview.read", "agent.run.create", "agent.tool.preview", "attendance.agent_analysis.preview", "human.review.required"],
+    overview,
+  };
+}
 
 let demoMessages: MessageItem[] = [
   {
@@ -149,6 +378,68 @@ let demoRAGSources: RAGSource[] = [
   { id: "rag-source-002", sourceType: "connector", name: "HR 制度库", uri: "demo://hr-policy", status: "active", createdAt: "2026-05-27" },
   { id: "rag-source-003", sourceType: "upload", name: "AI-HRMS 产品与 Copilot 文档库", uri: "demo://ai-hrms-product-docs", status: "active", createdAt: "2026-06-04" },
 ];
+
+function demoProductRAGDocument(id: string, title: string, trustLevel: string, content: string, publishedAt: string): RAGDocument {
+  return {
+    id,
+    sourceId: "rag-source-003",
+    title,
+    version: "v1",
+    status: "published",
+    trustLevel,
+    sensitivity: "normal",
+    content,
+    publishedAt,
+    createdAt: publishedAt.slice(0, 10),
+    scopes: [{ documentId: id, scopeType: "global", includeDescendants: true }],
+  };
+}
+
+function demoDetailedDocumentContent(title: string, summary: string): string {
+  const cleanSummary = summary.trim() || "该资料用于补充 AI-HRMS 文档库阅读、引用和治理边界。";
+  if (/^#\s+/m.test(cleanSummary) && /^##\s+/m.test(cleanSummary)) {
+    return cleanSummary;
+  }
+  const shortTitle = title.replace(/^AI-HRMS\s*/, "").replace(/^企鹅科技\s*/, "");
+  const domain = shortTitle.includes("考勤")
+    ? "考勤、人事运营和异常复核"
+    : shortTitle.includes("Agent")
+      ? "Agent 运行、工具预览和人工确认"
+      : shortTitle.includes("RAG") || shortTitle.includes("文档") || shortTitle.includes("Citation")
+        ? "知识检索、引用定位和资料治理"
+        : shortTitle.includes("员工") || shortTitle.includes("新人") || shortTitle.includes("入职")
+          ? "员工生命周期、入职协同和成长复盘"
+          : shortTitle.includes("Copilot") || shortTitle.includes("Layout")
+            ? "页面理解、圈选问答和可视化辅助"
+            : "HR 业务流程、AI 协作和审计留痕";
+  return [
+    `# ${title}`,
+    cleanSummary,
+    "## 适用场景",
+    `本资料适用于 ${domain} 相关问题的阅读、检索和解释。用户需要了解制度依据、页面行为、操作路径或风险边界时，应优先阅读本页正文，再通过 RAG 问答获取带 citation 的回答。`,
+    "适用对象包括 HR 运营、组织管理员、业务管理者、知识治理人员、Agent 审核人和需要理解 AI-HRMS 工作方式的普通员工。若用户只需要一句操作提示，可以查看目录卡片摘要；若涉及流程、权限、风险或审计，必须进入完整文档页。",
+    "## 关键原则",
+    `1. 先确认当前任务是否落在“${shortTitle}”覆盖范围内，再判断是否需要检索其他资料。`,
+    "2. 涉及员工、组织、权限、考勤、学习、消息或审计数据时，只能使用当前用户 scope 内可见的信息。",
+    "3. AI 输出应区分事实、推断和建议。事实来自业务数据或已发布资料；推断需要标注置信度；建议需要保留人工复核边界。",
+    "4. 高风险人事场景只允许生成预览、清单、解释或草稿，不允许直接给出录用、淘汰、调薪、处分、解雇等自动裁决。",
+    "## 操作流程",
+    "1. 在文档库目录中按来源、可信等级或标题筛选资料，确认资料状态为 published，敏感级别和可见范围符合当前任务。",
+    "2. 进入文档详情页阅读概览、适用场景、关键原则和操作流程；需要引用时使用页面顶部或文档库首页的 RAG 精准问答。",
+    "3. 系统检索资料时会执行 scope 校验，只返回当前用户可访问的 chunk；未命中可信资料时，应拒绝编造依据。",
+    "4. 如果回答需要调用工具或生成业务变更，Agent 必须先展示 toolPreview、riskLevel、requiredCapability、writes、reversible 和 humanReviewRequired。",
+    "5. 人工确认后才能执行写入；仅阅读、检索和摘要不应产生任何业务处理结果。",
+    "## RAG 引用要求",
+    "正式回答必须展示 citation 或证据摘要，至少包含资料标题、引用片段、可信等级、敏感级别、scope 校验结果和检索审计状态。读者在详情页看到的是完整资料视图，正式回答仍以 RAG 检索命中的片段为准。",
+    "当资料为 restricted 或涉及高影响 HR 事项时，回答需要明确提示人工复核；当资料为 draft、过期或不可见时，不得作为正式依据引用。",
+    "## 审计与留痕",
+    "阅读详情页本身不写业务数据；RAG 问答、工具预览、人工确认、资料发布、embedding 重建和高风险阻断都应写入审计事件。审计摘要应包含请求、操作者、scope、引用资料、风险级别、置信度和最终状态。",
+    "## 常见问题",
+    "问：为什么目录页只显示摘要？答：目录页用于快速筛选资料，完整正文、治理元数据和引用边界在详情页集中阅读。",
+    "问：能否直接复制详情页内容作为正式回答？答：不建议。正式回答应通过 RAG 检索、scope 校验和 citation 记录生成，详情页用于人工阅读和理解上下文。",
+    "问：资料内容看起来不足怎么办？答：在知识治理页补充正文、设置 scope 并重建 chunk 与 embedding；文档库会读取最新发布版本。",
+  ].join("\n\n");
+}
 
 let demoRAGDocuments: RAGDocument[] = [
   {
@@ -294,6 +585,164 @@ let demoRAGDocuments: RAGDocument[] = [
     scopes: [{ documentId: "rag-doc-011", scopeType: "global", includeDescendants: true }],
   },
 ];
+
+demoRAGDocuments = demoRAGDocuments.concat([
+  demoProductRAGDocument(
+    "rag-doc-012",
+    "AI-HRMS 产品身份与使用边界",
+    "official",
+    "AI-HRMS 是面向人力资源、组织数据、学习成长、RAG 知识治理、Agent 运行和审计的企业应用。普通问答可以解释产品能力、页面用途和操作路径；涉及制度依据、员工数据、组织数据或高风险人事建议时，需要基于权限、scope、已发布 RAG 文档、只读业务上下文或经过确认的工具预览。",
+    "2026-06-05T09:00:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-013",
+    "AI-HRMS 页面导航地图",
+    "reviewed",
+    "AI-HRMS 登录后默认进入 /app/dashboard 指挥看板。常用入口包括 /app/ai-command AI 指挥中心、/app/agents Agent 运行中心、/app/knowledge Knowledge Hub、/app/docs 文档库、/app/audit 信任与审计、/app/settings 设置和 /app/help 帮助。",
+    "2026-06-05T09:05:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-014",
+    "设置语言侧边栏与 Copilot 默认项",
+    "reviewed",
+    "设置页用于管理界面语言、界面密度、演示横幅、侧边栏宽度、Visual Copilot 默认模式和证据面板默认展开状态。语言切换来自本地应用设置，当前支持中文和英文；新增语言需要扩展 locale 字典、Ant Design locale 映射和业务文案命名空间。桌面端侧边栏可拖动调整宽度。",
+    "2026-06-05T09:10:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-015",
+    "Visual Copilot 普通问答与圈选问流程",
+    "official",
+    "普通问答只发送用户文字问题和必要业务上下文，适合询问产品功能、页面用途、制度解释和 RAG 引用。圈选问会额外携带用户选择区域、DOM 摘要、可见文本、相对坐标和 layout snapshot，适合询问页面上某块区域、控件、表格列或卡片数据来源。",
+    "2026-06-05T09:15:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-016",
+    "RAG 文档发布检索与引用链",
+    "official",
+    "RAG 文档只有 status=published 且通过当前 scope 校验后才能进入正式检索。知识治理页负责创建来源、发布资料、设置 trust_level、sensitivity 和 scope，并重建 chunk 与 embedding；文档库负责阅读资料和触发带引用的 RAG 问答。没有命中可引用资料时应拒绝编造依据。",
+    "2026-06-05T09:20:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-017",
+    "Agent 工具预览协议",
+    "official",
+    "Agent 在执行工具前必须生成 toolPreview，展示工具名、用途、参数摘要、读取或写入范围、目标 scope、风险级别、可逆性、所需 capability、预计审计事件和是否需要人工确认。写入员工、角色、组织、法人、考勤、消息或学习记录的工具必须先等待确认。",
+    "2026-06-05T09:25:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-018",
+    "人工确认与审计留痕规范",
+    "official",
+    "涉及写入、权限变更、员工资料修改、组织或法人调整、RAG 发布、Agent 执行和高风险建议时，系统需要保留人工确认与审计记录。审计记录应包含操作者、时间、请求摘要、旧值摘要、新值摘要、风险等级、引用或证据、toolPreview、确认结果和阻断原因。",
+    "2026-06-05T09:30:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-019",
+    "高风险人事决策边界",
+    "official",
+    "AI-HRMS 可以辅助整理事实、生成检查清单、解释制度、提示风险和准备需要人工审阅的草稿，但不得自动做出录用、淘汰、调薪、降薪、绩效评级、纪律处分、解雇、医疗、签证、仲裁或其他高影响人事裁决。",
+    "2026-06-05T09:35:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-020",
+    "管理员权限与可见性模型",
+    "reviewed",
+    "group_admin 可以看到管理员指南、账号维护、角色绑定、法人 scope、组织 scope、RAG 发布和高风险审计入口。用户看不到某块功能时，优先检查当前账号角色、capability、scope、登录状态和前端菜单可见性；角色刚调整后需要刷新或重新登录。",
+    "2026-06-05T09:40:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-021",
+    "组织与法人 Scope 使用说明",
+    "reviewed",
+    "AI-HRMS 使用 global、legal_entity、org_unit、role 和 employee scope 控制 RAG 文档、业务数据、角色授权和审计范围。scope 校验应 fail-closed：没有明确授权时不返回数据，不用全局资料替代受限资料。",
+    "2026-06-05T09:45:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-022",
+    "员工数据隐私与最小化原则",
+    "official",
+    "员工数据包括身份信息、联系方式、任职记录、考勤、绩效、薪酬、学习记录、消息、审计记录和可能推断个人状态的信息。系统回答和工具调用应遵循最小必要原则，只返回当前任务需要且用户有权查看的字段；向外部模型或日志发送前应脱敏或摘要化。",
+    "2026-06-05T09:50:00+08:00",
+  ),
+]);
+
+demoRAGDocuments = demoRAGDocuments.concat([
+  demoProductRAGDocument(
+    "rag-doc-023",
+    "AI-HRMS 页面级操作指南合集",
+    "reviewed",
+    "指挥看板用于查看风险、证据和建议概览；AI 指挥中心用于生成受控 HR 工作草稿；Knowledge Hub 用于创建来源、发布资料、设置 scope 并重建 embedding；文档库用于阅读资料、筛选来源和带引用问答；Agent 运行中心用于查看 run 状态、toolPreview 和人工确认；信任与审计用于检索 audit event；设置页用于语言、界面密度、侧边栏宽度和 Copilot 默认项。",
+    "2026-06-05T10:00:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-024",
+    "RAG 发布 SOP 与失败排查",
+    "official",
+    "发布 RAG 资料的标准步骤是：创建或选择 source，录入标题、版本、正文和有效期，设置 trust_level、sensitivity、scope，保存为 draft，复核后切换为 published，触发 chunk 与 embedding 重建，并在文档库用一个真实问题验证 citation。资料问不到时依次检查 published、scope、sensitivity、effective 时间、ingest job、embedding 维度和查询质量。",
+    "2026-06-05T10:05:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-025",
+    "Citation 字段与引用定位说明",
+    "reviewed",
+    "citation 是 RAG 回答的证据定位。documentId 指向资料，chunkId 指向切片，title 是资料标题，snippet 是引用片段，trustLevel 表示资料可信等级，sensitivity 表示敏感级别，score 表示检索相关性，pageRef 和 locationRef 可用于页码、章节、段落或表格位置。",
+    "2026-06-05T10:10:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-026",
+    "Visual Copilot 页面字段字典",
+    "reviewed",
+    "Visual Copilot 解释页面字段时优先使用 DOM label、data-vc-kind、data-vc-field、businessRef、route 和 layout snapshot。按钮通常表示可执行命令；卡片通常表示业务对象摘要；表格行通常对应员工、组织、法人、资料、Agent run 或审计事件；Tag 常用于 riskLevel、confidence、sensitivity、trustLevel、auditStatus、toolPreview 和 humanReviewRequired。",
+    "2026-06-05T10:15:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-027",
+    "角色 Capability 对照与权限申请",
+    "reviewed",
+    "group_admin 拥有账号、角色、scope、RAG 发布、审计和高风险治理入口；group_hr 可处理集团 HR 数据和制度资料；entity_hr 面向法人边界内的人事数据；org_manager 只看授权组织及其下级；employee 只看个人相关记录和公开资料。申请权限时应说明业务目的、需要的 scope、持续时间和审批人。",
+    "2026-06-05T10:20:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-028",
+    "Agent Run 状态与工具调用字段字典",
+    "official",
+    "Agent run 常见状态包括 previewed、waiting_human_review、running、completed、failed、blocked 和 cancelled。用户问某个 run 时，应先解释当前状态和是否等待人工确认，再说明证据、工具预览和下一步，不应把预览当成已执行结果。",
+    "2026-06-05T10:25:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-029",
+    "审计事件类型与筛选导出说明",
+    "official",
+    "审计事件用于追踪 AI 回答、RAG 引用、工具预览、人工确认和业务写入。常见 eventType 包括 ai.chat.answer、rag.citation.used、visual_copilot.preview、agent.tool.preview、human.review.requested、human.review.approved_preview、high_risk.action.blocked、employee.update、role.binding.changed 和 rag.document.published。",
+    "2026-06-05T10:30:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-030",
+    "Embedding 与 Provider 状态排查",
+    "reviewed",
+    "RAG 检索质量依赖 embedding provider、维度、chunk 策略和检索融合。排查顺序是 provider status、API key 或本地 fake provider、RAG_EMBEDDING_DIMENSIONS、ingest job、chunk 数、文档长度、查询质量和 hybrid 低分命中。维度变更后需要重建所有受影响 embedding。",
+    "2026-06-05T10:35:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-031",
+    "员工字段分级与脱敏模板",
+    "official",
+    "低敏字段包括姓名、组织、岗位、任职状态和公开工作职责；中敏字段包括考勤摘要、学习记录、任职变更和内部消息摘要；高敏字段包括手机号、身份证件、家庭地址、薪酬、绩效明细、医疗信息、纪律处分和劳动争议。外发给模型时应优先使用摘要。",
+    "2026-06-05T10:40:00+08:00",
+  ),
+  demoProductRAGDocument(
+    "rag-doc-032",
+    "新人 30 天成长计划模板",
+    "reviewed",
+    "新人 30 天成长计划应以学习和协作为目标。第 1 周完成账号开通、制度、信息安全、协作工具和团队介绍；第 2 周理解岗位职责、业务链路、RAG/Agent/审计基础；第 3 周完成低风险实践任务并记录证据；第 4 周由导师复盘成果、风险、待补知识和下月目标。",
+    "2026-06-05T10:45:00+08:00",
+  ),
+]);
+
+demoRAGDocuments = demoRAGDocuments.map((document) => ({
+  ...document,
+  content: demoDetailedDocumentContent(document.title, document.content ?? ""),
+}));
 
 let demoLearningCourses: LearningCourse[] = [
   { id: "course-ai-principles", title: "AI 原理理解", description: "从 token、上下文、幻觉到 RAG 可靠性。", status: "published", scopeType: "global", createdAt: "2026-05-28", lessonCount: 6 },
@@ -629,6 +1078,166 @@ function isHighImpactHRText(value: string) {
   return /面试|录用|淘汰|降薪|调薪|晋升|绩效|公平|裁员|末位|PIP|奖金|年终奖|调岗|离职|纪律处分|停职|年龄|性别|婚育|病史|hire|fire|salary|promotion|layoff|bonus|disciplinary|protected/i.test(value);
 }
 
+function normalizeDemoQuestion(value: string) {
+  return value.toLowerCase().replace(/[?？。.!！]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function demoQuestionIncludes(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term));
+}
+
+function demoCitationSnippet(content?: string) {
+  const line = (content ?? "")
+    .split(/\r?\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .find((item) => !item.startsWith("#"));
+  if (!line) return "Demo citation preview";
+  return line.length > 180 ? `${line.slice(0, 180)}...` : line;
+}
+
+function demoDocumentCitation(documentId: string, score: number): AIChatResponse["citations"][number] {
+  const document = demoRAGDocuments.find((item) => item.id === documentId);
+  return {
+    documentId,
+    chunkId: `demo-chat-${documentId}`,
+    title: document?.title ?? "AI-HRMS 知识库资料",
+    snippet: demoCitationSnippet(document?.content),
+    trustLevel: document?.trustLevel,
+    sensitivity: document?.sensitivity,
+    score,
+  };
+}
+
+function buildDemoAIChatResponse(message: string): AIChatResponse {
+  const normalized = normalizeDemoQuestion(message);
+  const highRiskMessage = isHighImpactHRText(message);
+  const identityQuestion = ["你是谁", "你是什么", "这是什么", "这是什么系统", "who are you", "what are you", "what is this"].includes(normalized) ||
+    demoQuestionIncludes(normalized, ["ai-hrms 是什么", "visual copilot 是什么", "介绍一下你自己", "介绍下你自己"]);
+  let intent = "knowledge_question";
+  let riskLevel = highRiskMessage ? "high" : "low";
+  let executionMode = "retrieval_only";
+  let citations: AIChatResponse["citations"] = [demoDocumentCitation("rag-doc-012", 0.9)];
+  let answer = "可以。AI-HRMS 会优先基于已发布且当前可见的知识库资料回答，并在详情里保留引用、风险、置信度和审计信息。";
+
+  if (identityQuestion) {
+    intent = "product_identity";
+    answer = "我是 AI-HRMS 里的 Visual Copilot，用来帮助你理解当前人力资源操作系统里的页面、制度资料、RAG 引用、Agent 运行和审计边界。\n\n你可以直接问我页面怎么用、某条制度依据在哪里；如果要解释某个卡片、表格行或按钮，请切换到“截图/圈选问”并圈选那块区域。";
+    citations = [demoDocumentCitation("rag-doc-012", 0.94), demoDocumentCitation("rag-doc-015", 0.88)];
+  } else if (demoQuestionIncludes(normalized, ["这个页面怎么用", "当前页面怎么用", "页面怎么用", "有哪些页面", "导航", "入口"])) {
+    intent = "page_usage";
+    answer = "这个系统的常用入口是：指挥看板看整体风险和证据，AI 指挥中心发起受控任务，Knowledge Hub 发布和治理 RAG 资料，文档库做带引用的问答，Agent 运行中心查看工具预览与执行记录，信任与审计查看证据链，设置页调整语言、侧边栏和 Copilot 默认项。";
+    citations = [demoDocumentCitation("rag-doc-023", 0.93), demoDocumentCitation("rag-doc-013", 0.86)];
+  } else if (demoQuestionIncludes(normalized, ["语言", "英文", "中文", "设置", "侧边栏", "sidebar", "copilot 默认"])) {
+    intent = "settings_help";
+    answer = "到设置页可以切换中文/英文、调整界面密度和演示提示、设置侧边栏宽度、选择 Visual Copilot 默认模式，并决定证据面板是否默认展开。桌面端侧边栏支持拖动改宽度，语言能力通过 locale 字典扩展，后续新增语言不需要改每个页面。";
+    citations = [demoDocumentCitation("rag-doc-014", 0.92), demoDocumentCitation("rag-doc-010", 0.78)];
+  } else if (demoQuestionIncludes(normalized, ["普通问答", "圈选", "截图", "截图/圈选", "layout", "选区"])) {
+    intent = "visual_copilot_mode";
+    answer = "普通问答适合问产品功能、制度解释、资料依据和一般操作路径，只发送文字问题。截图/圈选问会额外带上选区、DOM 摘要、可见文本、相对坐标和 layout snapshot，更适合问“这块区域是什么”“为什么看不到这个按钮”“这列表格列是什么意思”。当前模式不做未脱敏原图识别。";
+    citations = [demoDocumentCitation("rag-doc-015", 0.94), demoDocumentCitation("rag-doc-026", 0.88), demoDocumentCitation("rag-doc-007", 0.82)];
+  } else if (demoQuestionIncludes(normalized, ["rag", "引用", "依据", "发布资料", "文档库", "知识库", "资料在哪里", "重建 embedding"])) {
+    intent = "rag_help";
+    answer = "RAG 资料要先在 Knowledge Hub 创建来源、发布文档、设置可信等级、敏感级别和 scope，并重建 chunk 与 embedding。用户问制度依据或引用位置时，文档库和普通问答会只使用已发布且当前可见的资料；没有命中引用时应明确说未找到，而不是编造依据。";
+    citations = [demoDocumentCitation("rag-doc-024", 0.94), demoDocumentCitation("rag-doc-025", 0.88), demoDocumentCitation("rag-doc-030", 0.8)];
+  } else if (demoQuestionIncludes(normalized, ["人工确认", "humanreview", "toolpreview", "工具预览", "审计", "audit"])) {
+    intent = "audit_and_preview";
+    riskLevel = demoQuestionIncludes(normalized, ["写入", "执行", "修改", "删除"]) ? "medium" : "low";
+    executionMode = riskLevel === "medium" ? "tool_preview" : "retrieval_only";
+    answer = "需要写入、权限变更、员工资料修改、组织或法人调整、RAG 发布、Agent 执行或高风险建议时，系统先生成 toolPreview，说明工具名、参数摘要、读写范围、风险、scope 和是否可逆，再由人确认并写入审计。只读解释可以直接返回，但仍会保留引用和 auditStatus。";
+    citations = [demoDocumentCitation("rag-doc-017", 0.9), demoDocumentCitation("rag-doc-028", 0.88), demoDocumentCitation("rag-doc-029", 0.86)];
+  } else if (highRiskMessage) {
+    intent = "high_impact_hr_boundary";
+    executionMode = "human_review_required";
+    riskLevel = "high";
+    answer = "这类问题涉及高影响人事决策。AI-HRMS 可以帮你整理事实、生成检查清单、解释制度和准备人工审阅草稿，但不能自动给出录用、淘汰、调薪、绩效评级、处分或解雇结论。最终判断必须由有权限的 HR、业务负责人或法务基于可审计证据确认。";
+    citations = [demoDocumentCitation("rag-doc-019", 0.95), demoDocumentCitation("rag-doc-003", 0.72), demoDocumentCitation("rag-doc-004", 0.7)];
+  } else if (demoQuestionIncludes(normalized, ["管理员指南", "看不到", "没有权限", "不可见", "group_admin", "管理员"])) {
+    intent = "admin_visibility";
+    answer = "管理员指南只对 group_admin 可见。看不到时先检查当前账号角色、capability、scope、登录状态和菜单可见性；如果刚调整过角色，刷新或重新登录后再看。普通员工、导师、仅有 group_hr 或 org_manager 的账号不会看到完整管理员入口。";
+    citations = [demoDocumentCitation("rag-doc-020", 0.92), demoDocumentCitation("rag-doc-027", 0.88), demoDocumentCitation("rag-doc-011", 0.82)];
+  } else if (demoQuestionIncludes(normalized, ["scope", "法人", "组织", "数据范围", "权限范围"])) {
+    intent = "scope_help";
+    answer = "AI-HRMS 用 global、legal_entity、org_unit、role 和 employee scope 控制资料、业务数据、角色授权和审计范围。法人 scope 更适合公司主体和合同边界，组织 scope 更适合部门、团队和下级组织。没有明确授权时系统应 fail-closed，不返回受限数据，也不用全局资料替代受限资料。";
+    citations = [demoDocumentCitation("rag-doc-021", 0.93), demoDocumentCitation("rag-doc-020", 0.78)];
+  } else if (demoQuestionIncludes(normalized, ["隐私", "敏感", "个人信息", "员工数据", "脱敏", "外部模型"])) {
+    intent = "privacy_minimization";
+    answer = "员工数据要按最小必要原则使用：只返回当前任务需要且你有权查看的字段。身份、联系方式、任职、考勤、绩效、薪酬、学习、消息和审计记录都可能是敏感上下文，发送给外部模型或写入日志前应脱敏或摘要化。";
+    citations = [demoDocumentCitation("rag-doc-031", 0.94), demoDocumentCitation("rag-doc-022", 0.86), demoDocumentCitation("rag-doc-004", 0.78)];
+  } else if (demoQuestionIncludes(normalized, ["30 天", "30天", "成长计划", "新人计划", "入职计划"])) {
+    intent = "onboarding_plan";
+    executionMode = "llm_explain";
+    riskLevel = "medium";
+    answer = "可以生成新人 30 天成长计划，但应限定为学习、协作和导师复盘草稿：第 1 周完成制度、信息安全和协作课程；第 2 周熟悉团队目标和工具链；第 3 周完成一个低风险实践任务；第 4 周由导师复盘证据、风险和下一步成长目标。涉及评价、淘汰或薪酬的结论必须人工确认。";
+    citations = [demoDocumentCitation("rag-doc-032", 0.94), demoDocumentCitation("rag-doc-002", 0.86), demoDocumentCitation("rag-doc-019", 0.82)];
+  }
+
+  const humanReviewRequired = riskLevel === "high";
+  const executionDecision = {
+    intent,
+    executionMode,
+    riskLevel,
+    useLlm: executionMode === "llm_explain",
+    useAgent: false,
+    useMultiAgent: false,
+    humanReviewRequired,
+    reason: humanReviewRequired
+      ? "命中高影响 HR 边界，Demo 只允许生成解释或人工审阅草稿。"
+      : "Demo 优先使用已发布知识库资料和程序化路由生成回答。",
+    routedBy: ["demo.execution_router", "demo.knowledge_pack", "risk.policy"],
+  };
+  const contextPacket = {
+    intent,
+    subject: message,
+    items: citations.map((citation) => ({
+      type: "rag_citation",
+      id: `${citation.documentId}:${citation.chunkId}`,
+      label: citation.title,
+      summary: citation.snippet,
+      source: "demo.rag",
+      provenance: citation.documentId,
+    })),
+    sourceCount: { rag_citation: citations.length },
+    staleness: "demo_seeded",
+    boundary: "Demo 使用本地知识包模拟 RAG；真实模式由 Go Context Resolver、Postgres RAG、审计和可选 LLM 共同生成。",
+  };
+  const trustPacket = {
+    riskLevel,
+    confidence: citations[0]?.score ?? 0.82,
+    humanReviewRequired,
+    evidenceCount: citations.length,
+    citations,
+    auditStatus: humanReviewRequired ? "blocked_and_logged" : "demo_answer_logged",
+    reversible: !humanReviewRequired,
+    policyChecks: ["citation.required", "scope.checked", "audit.required"],
+  };
+  appendDemoAudit({
+    eventType: humanReviewRequired ? "high_risk.action.blocked" : "ai.chat.demo_answer",
+    objectType: "ai_chat",
+    objectId: `chat-${Date.now()}`,
+    riskLevel,
+    newValueSummary: {
+      promptPreview: redactDemoText(message),
+      citations: citations.map((citation) => citation.documentId),
+      humanReviewRequired,
+      intent,
+    },
+  });
+  return {
+    message: answer,
+    citations,
+    confidence: trustPacket.confidence,
+    riskLevel,
+    humanReviewRequired,
+    auditStatus: trustPacket.auditStatus,
+    provider: "demo-rag",
+    model: executionDecision.useLlm ? "knowledge-pack-llm-preview" : "knowledge-pack-v1",
+    executionDecision,
+    contextPacket,
+    trustPacket,
+  };
+}
+
 export function getToken() {
   try {
     return localStorage.getItem(tokenKey) ?? memoryToken;
@@ -883,6 +1492,12 @@ export const api = {
     return download("/employees/export", "employees.csv");
   },
   attendance: (page = 1, size = 10) => demoMode ? Promise.resolve(demoPaged(demoAttendance, page, size)) : request<Page<Attendance>>(`/attendance?page=${page}&size=${size}`),
+  attendanceOverview: (day?: string) => demoMode
+    ? Promise.resolve(buildDemoAttendanceOverview(day))
+    : request<AttendanceOverview>(`/attendance/overview${day ? `?day=${encodeURIComponent(day)}` : ""}`),
+  attendanceAgentAnalysis: (values: { day?: string; focus?: string; orgUnitName?: string }) => demoMode
+    ? Promise.resolve(buildDemoAttendanceAgentAnalysis(values))
+    : request<AttendanceAgentAnalysis>("/attendance/agent-analysis", { method: "POST", body: JSON.stringify(values) }),
   checkin: (employeeId: string, attendanceStatus = 1) => {
     if (demoMode) {
       const employee = demoEmployees.find((item) => item.id === employeeId) ?? demoEmployees[0];
@@ -971,6 +1586,13 @@ export const api = {
     return request<RAGSource>("/rag/sources", { method: "POST", body: JSON.stringify(values) });
   },
   ragDocuments: (page = 1, size = 10) => demoMode ? Promise.resolve(demoPaged(demoRAGDocuments, page, size)) : request<Page<RAGDocument>>(`/rag/documents?page=${page}&size=${size}`),
+  ragDocument: (id: string) => {
+    if (demoMode) {
+      const document = demoRAGDocuments.find((item) => item.id === id);
+      return document ? Promise.resolve(document) : Promise.reject(new Error("文档不存在或不可见"));
+    }
+    return request<RAGDocument>(`/rag/documents/${encodeURIComponent(id)}`);
+  },
   createRAGDocument: (values: Partial<RAGDocument>) => {
     if (demoMode) {
       const document: RAGDocument = {
@@ -1092,7 +1714,7 @@ export const api = {
         documentId: document.id,
         chunkId: `demo-${limit}-${document.id}-${index}`,
         title: document.title,
-        snippet: document.content ?? "Demo citation preview",
+        snippet: demoCitationSnippet(document.content),
         trustLevel: document.trustLevel,
         sensitivity: document.sensitivity,
         score: highRiskQuery ? 0.76 : 0.86 - index * 0.04,
@@ -1118,81 +1740,9 @@ export const api = {
         auditStatus: "demo_retrieval_logged",
       };
     })()) : request<RAGSearchResult>("/rag/search", { method: "POST", body: JSON.stringify({ query, limit }) }),
-  aiChat: (message: string) => demoMode ? Promise.resolve((() => {
-    const highRiskMessage = isHighImpactHRText(message);
-    const flexibleMessage = /解释|生成|总结|分析|建议|计划|拆/.test(message);
-    const riskLevel = highRiskMessage ? "high" : flexibleMessage ? "medium" : "low";
-    const citations = highRiskMessage
-      ? [{ documentId: "rag-doc-004", chunkId: "ai-demo-safety", title: "AI 使用安全规范", snippet: "高风险 HR 建议必须保留人工确认，不得自动产生人事裁决。" }]
-      : [{ documentId: "rag-doc-002", chunkId: "ai-demo-onboarding", title: "新员工入职指南", snippet: "入职计划需要包含制度、信息安全、组织协作和导师复盘。" }];
-    const executionDecision = {
-      intent: highRiskMessage ? "high_impact_hr_boundary" : flexibleMessage ? "explain_or_generate" : "lookup_or_status",
-      executionMode: highRiskMessage ? "human_review_required" : flexibleMessage ? "llm_explain" : "retrieval_only",
-      riskLevel,
-      useLlm: flexibleMessage && !highRiskMessage,
-      useAgent: false,
-      useMultiAgent: false,
-      humanReviewRequired: riskLevel !== "low",
-      reason: highRiskMessage
-        ? "命中高影响 HR 边界，Demo harness 阻断自动结论。"
-        : flexibleMessage
-          ? "需要自然语言解释或草案生成，允许使用 LLM 但执行仍由系统控制。"
-          : "可由确定性检索和程序流程完成，不需要调用大模型。",
-      routedBy: ["demo.execution_router", "risk.policy", "program.first"],
-    };
-    const contextPacket = {
-      intent: executionDecision.intent,
-      subject: message,
-      items: citations.map((citation) => ({
-        type: "rag_citation",
-        id: `${citation.documentId}:${citation.chunkId}`,
-        label: citation.title,
-        summary: citation.snippet,
-        source: "demo.rag",
-        provenance: citation.documentId,
-      })),
-      sourceCount: { rag_citation: citations.length },
-      staleness: "demo_seeded",
-      boundary: "Demo 使用确定性 mock context；真实模式由 Go Context Resolver 组合 DB/RAG/audit。",
-    };
-    const trustPacket = {
-      riskLevel,
-      confidence: highRiskMessage ? 0.76 : 0.87,
-      humanReviewRequired: riskLevel !== "low",
-      evidenceCount: citations.length,
-      citations,
-      auditStatus: highRiskMessage ? "blocked_and_logged" : "agent_preview_logged",
-      reversible: !highRiskMessage,
-      policyChecks: ["citation.required", "high_impact_hr_boundary.checked", "audit.required"],
-    };
-    appendDemoAudit({
-      eventType: "ai.command.recommendation.preview",
-      objectType: "ai_recommendation",
-      objectId: `cmd-${Date.now()}`,
-      riskLevel,
-      newValueSummary: {
-        promptPreview: redactDemoText(message),
-        citations: citations.map((citation) => citation.documentId),
-        humanReviewRequired: true,
-        restrictedPolicyMatched: highRiskMessage,
-      },
-    });
-    return {
-      message: highRiskMessage
-        ? `Demo AI：该请求涉及高风险 HR 场景。系统只生成风险检查框架和证据要求，不输出录用、淘汰、降薪或绩效结论。`
-        : `Demo AI：已将“${message}”转化为可解释 HR 工作计划。请确认业务目标、授权范围、evidence、riskLevel、confidence、toolPreview 与 humanReviewRequired。`,
-      citations,
-      confidence: trustPacket.confidence,
-      riskLevel,
-      humanReviewRequired: trustPacket.humanReviewRequired,
-      auditStatus: trustPacket.auditStatus,
-      provider: "demo",
-      model: executionDecision.useLlm ? "deterministic-llm-mock" : "program",
-      executionDecision,
-      contextPacket,
-      trustPacket,
-    };
-  })()) : request<AIChatResponse>("/ai/chat", { method: "POST", body: JSON.stringify({ message }) }),
+  aiChat: (message: string) => demoMode
+    ? Promise.resolve(buildDemoAIChatResponse(message))
+    : request<AIChatResponse>("/ai/chat", { method: "POST", body: JSON.stringify({ message }) }),
   providerStatus: () => demoMode ? Promise.resolve({
     agentBoundaryConfigured: false,
     chatProvider: "fake",
@@ -1276,7 +1826,7 @@ export const api = {
     })()) : request<AgentRun>("/agent/runs", { method: "POST", body: JSON.stringify(values) }),
   previewAgentTool: (values: { runId?: string; toolName: string; arguments: Record<string, unknown> }) =>
     demoMode ? Promise.resolve((() => {
-      const accepted = ["list_employees", "rag_search", "learning_recommend"].includes(values.toolName);
+      const accepted = ["list_employees", "list_attendance", "attendance_realtime_overview", "rag_search", "learning_recommend"].includes(values.toolName);
       appendDemoAudit({
         eventType: accepted ? "agent.tool.preview" : "high_risk.action.blocked",
         objectType: "agent_tool_call",

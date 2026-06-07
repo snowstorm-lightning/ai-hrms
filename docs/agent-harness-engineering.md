@@ -20,6 +20,9 @@ LLM calls are used only when language flexibility is valuable:
 Agent runs are reserved for bounded multi-step work:
 
 - Cross-module analysis across RAG, learning, audit, and agent traces.
+- Scoped aggregate analysis such as attendance real-time overview, where the
+  agent may summarize signals and suggest review steps but cannot execute a
+  people decision.
 - Workflow drafting and evidence completeness checks.
 - Independent risk review for high-complexity but non-executing HR analysis.
 
@@ -69,6 +72,7 @@ Screenshots, if present, are accepted only when redacted and are used for hashin
 | Request type | Route |
 | --- | --- |
 | Count/list/status/open | Program or retrieval only |
+| Attendance real-time overview | Program aggregate plus preview-only single agent |
 | Knowledge question with citation | RAG retrieval, optional LLM explanation |
 | Plan/explain/summarize | LLM explain with ContextPacket |
 | Cross-module risk/workflow analysis | Bounded single agent |
@@ -80,6 +84,7 @@ Screenshots, if present, are accepted only when redacted and are used for hashin
 
 - Go domain: `TrustPacket`, `ContextPacket`, `HarnessDecision`, `ToolPreview`.
 - Go app: `harness.go` centralizes intent routing and tool registry.
-- Go store: Visual resolver reads selected business refs from PostgreSQL.
+- Go store: Visual resolver reads selected business refs from PostgreSQL;
+  attendance overview builds scoped aggregates before any Agent analysis.
 - Web: `AiTrust.tsx` renders trust packet, execution decision, and context packet.
 - Agent service: remains a bounded language boundary; it does not own permissions or writes.

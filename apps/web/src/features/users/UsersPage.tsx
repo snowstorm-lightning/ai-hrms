@@ -74,7 +74,7 @@ export function UsersPage() {
         rowKey="id"
         loading={loading}
         dataSource={items}
-        pagination={{ total, current: page, onChange: reload }}
+        pagination={{ total, current: page, onChange: reload, pageSize: 10 }}
         locale={{ emptyText: <EmptyBlock description="暂无用户" /> }}
         onRow={(row) => ({
           "data-vc-kind": "table-row",

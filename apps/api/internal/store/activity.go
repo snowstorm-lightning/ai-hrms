@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"strings"
+	"time"
 
 	"ai-hrms/apps/api/internal/domain"
 )
@@ -49,6 +50,66 @@ func (s *Store) ListAttendance(ctx context.Context, scope Scope, page, size int)
 		items = append(items, item)
 	}
 	return items, total, rows.Err()
+}
+
+func (s *Store) AttendanceOverview(ctx context.Context, scope Scope, day string) (*domain.AttendanceOverview, error) {
+	generatedAt := time.Now()
+	if strings.TrimSpace(day) == "" {
+		day = generatedAt.Format("2006-01-02")
+	}
+	where, args := assignmentScopeWhere(scope, "pa", 2)
+	if where == "FALSE" {
+		overview := domain.BuildAttendanceOverview(day, generatedAt, nil)
+		return &overview, nil
+	}
+
+	queryArgs := []any{day}
+	queryArgs = append(queryArgs, args...)
+	query := `
+		SELECT e.id::text, e.name, e.mobile, COALESCE(ou.name, ''),
+			COALESCE(ar.id::text, ''), COALESCE(ar.attendance_status, 0),
+			ar.attendance_in_time, ar.attendance_out_time,
+			COALESCE(ar.attendance_in_place, ''), COALESCE(ar.day, $1), COALESCE(ar.remarks, '')
+		FROM employees e
+		LEFT JOIN employee_assignments pa ON pa.employee_id=e.id AND pa.is_primary AND pa.end_date IS NULL
+		LEFT JOIN org_units ou ON ou.id = pa.org_unit_id
+		LEFT JOIN LATERAL (
+			SELECT id, attendance_status, attendance_in_time, attendance_out_time, attendance_in_place, day, remarks, created_at
+			FROM attendance_records
+			WHERE employee_id = e.id AND day = $1
+			ORDER BY created_at DESC, attendance_in_time DESC NULLS LAST
+			LIMIT 1
+		) ar ON true
+		WHERE e.status = 'active'
+	`
+	if where != "" {
+		query += " AND " + where
+	}
+	query += " ORDER BY COALESCE(ou.name, ''), e.name"
+	rows, err := s.pool.Query(ctx, query, queryArgs...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sourceRows []domain.AttendanceOverviewSource
+	for rows.Next() {
+		var row domain.AttendanceOverviewSource
+		if err := rows.Scan(
+			&row.EmployeeID, &row.EmployeeName, &row.Mobile, &row.OrgUnitName,
+			&row.AttendanceID, &row.AttendanceStatus,
+			&row.AttendanceInTime, &row.AttendanceOutTime,
+			&row.AttendanceInPlace, &row.Day, &row.Remarks,
+		); err != nil {
+			return nil, err
+		}
+		sourceRows = append(sourceRows, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	overview := domain.BuildAttendanceOverview(day, generatedAt, sourceRows)
+	return &overview, nil
 }
 
 func (s *Store) CreateAttendance(ctx context.Context, scope Scope, item domain.Attendance) (*domain.Attendance, error) {

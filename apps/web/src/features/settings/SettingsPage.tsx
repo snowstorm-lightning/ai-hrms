@@ -57,10 +57,6 @@ export function SettingsPage() {
                 ]}
               />
             </div>
-            <div className="settings-row">
-              <Typography.Text strong>{t("settings.showDemoBanner")}</Typography.Text>
-              <Switch checked={settings.showDemoBanner} onChange={(checked) => updateSettings({ showDemoBanner: checked })} />
-            </div>
           </Space>
         </Card>
 

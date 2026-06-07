@@ -100,6 +100,23 @@ func (s *Server) listRAGDocuments(w http.ResponseWriter, r *http.Request) {
 	httpx.OK(w, httpx.Page[domain.RAGDocument]{Total: total, Rows: rows})
 }
 
+func (s *Server) getRAGDocument(w http.ResponseWriter, r *http.Request) {
+	if !requireCapability(w, r, "rag.search") {
+		return
+	}
+	scope, ok := s.scope(r)
+	if !ok {
+		httpx.Error(w, http.StatusInternalServerError, 5000, "解析权限失败")
+		return
+	}
+	doc, err := s.store.GetRAGDocument(r.Context(), scope, principal(r), r.PathValue("id"))
+	if err != nil {
+		s.respondErr(w, err)
+		return
+	}
+	httpx.OK(w, doc)
+}
+
 func (s *Server) createRAGDocument(w http.ResponseWriter, r *http.Request) {
 	if !requireCapability(w, r, "rag.publish") {
 		return
@@ -454,6 +471,10 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 	if !requireAIChatDecisionCapability(w, r, decision.Intent) {
 		return
 	}
+	if isProductIdentityQuestion(req.Message) {
+		s.respondAIChatProductIdentity(w, r, decision, req.Message)
+		return
+	}
 	if decision.Intent == "employee_status_lookup" {
 		total, counts, err := s.store.EmployeeStatusCounts(r.Context(), scope)
 		if err != nil {
@@ -545,18 +566,21 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if decision.ExecutionMode == executionHumanReviewRequired {
+		boundaryCitations := s.highImpactBoundaryCitations(r.Context(), scope, principal(r))
+		citationPacket := contextPacketFromCitations(req.Message, decision, boundaryCitations)
 		contextPacket := domain.ContextPacket{
 			Intent:      decision.Intent,
 			Subject:     "blocked_high_impact_hr_request",
-			Items:       []domain.ContextItem{},
-			SourceCount: map[string]int{},
+			Items:       citationPacket.Items,
+			SourceCount: map[string]int{"rag_citation": len(boundaryCitations)},
 			Staleness:   "not_retrieved",
-			Boundary:    "高风险人事裁决请求在外部 embedding/chat 前被本地策略阻断，避免把敏感 prompt 发送给模型 provider。",
+			Boundary:    "高风险人事裁决请求在外部 embedding/chat 前被本地策略阻断；边界说明只使用本地已发布 RAG 资料。",
 		}
-		trust := buildTrustPacket(decision, 0.9, nil, "blocked_before_external_call", nil)
+		trust := buildTrustPacket(decision, 0.9, boundaryCitations, "blocked_before_external_call", nil)
 		summary := promptAuditSummary(req.Message, decision)
 		summary["blockedReason"] = decision.Reason
 		summary["actionExecuted"] = false
+		summary["citations"] = citationIDs(boundaryCitations)
 		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
 			ActorUserID:     principal(r).UserID,
 			EventType:       "ai.chat.blocked",
@@ -567,7 +591,8 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 			NewValueSummary: summary,
 		})
 		httpx.OK(w, domain.AIChatResponse{
-			Message:             "该请求触及高风险人事裁决边界。AI-HRMS 已在调用外部模型前阻断，不会生成录用、淘汰、降薪、晋升或绩效裁决。",
+			Message:             "不能。AI-HRMS 可以帮你整理事实、生成检查清单、解释制度和准备人工审阅草稿，但不会自动做出录用、淘汰、调薪、降薪、绩效评级、处分或解雇等高影响人事裁决。最终判断必须由有权限的 HR、业务负责人或法务基于可审计证据确认。",
+			Citations:           boundaryCitations,
 			Confidence:          trust.Confidence,
 			RiskLevel:           decision.RiskLevel,
 			HumanReviewRequired: true,
@@ -725,9 +750,8 @@ func (s *Server) aiChat(w http.ResponseWriter, r *http.Request) {
 		RiskLevel:       decision.RiskLevel,
 		NewValueSummary: summary,
 	})
-	message := result.Answer
+	message := deterministicRAGAnswer(req.Message, result.Citations)
 	if llmFallback {
-		message = "DeepSeek 当前未在时限内返回，AI-HRMS 已降级为基于 scoped RAG citation 的确定性回答：\n\n" + result.Answer
 		auditStatus = "llm_unavailable_rag_fallback_logged"
 		trust.AuditStatus = auditStatus
 	}
@@ -783,6 +807,77 @@ func (s *Server) respondDeterministicAIChat(w http.ResponseWriter, r *http.Reque
 		RiskLevel:           "low",
 		HumanReviewRequired: false,
 		AuditStatus:         "program_sql_logged",
+		ExecutionDecision:   &decision,
+		ContextPacket:       &contextPacket,
+		TrustPacket:         &trust,
+	})
+}
+
+func isProductIdentityQuestion(message string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(message))
+	normalized = strings.Trim(normalized, " \t\r\n?？。.!！")
+	if normalized == "" {
+		return false
+	}
+	exact := map[string]bool{
+		"你是谁":             true,
+		"你是什么":            true,
+		"这是什么":            true,
+		"这是什么系统":          true,
+		"这个系统是什么":         true,
+		"who are you":     true,
+		"what are you":    true,
+		"what is this":    true,
+		"what is ai-hrms": true,
+	}
+	if exact[normalized] {
+		return true
+	}
+	return containsAny(normalized, []string{"ai-hrms 是什么", "visual copilot 是什么", "介绍一下你自己", "介绍下你自己"})
+}
+
+func (s *Server) respondAIChatProductIdentity(w http.ResponseWriter, r *http.Request, decision domain.HarnessDecision, prompt string) {
+	decision.Intent = "product_identity"
+	decision.ExecutionMode = executionDeterministic
+	decision.UseLLM = false
+	decision.UseAgent = false
+	decision.UseMultiAgent = false
+	decision.RiskLevel = "low"
+	decision.HumanReviewRequired = false
+	decision.RoutedBy = append(decision.RoutedBy, "program.product_identity")
+	message := "我是 AI-HRMS 里的 Visual Copilot，用来帮助你理解当前人力资源操作系统里的页面、制度资料、RAG 引用、Agent 运行和审计边界。\n\n你可以直接问我页面怎么用、某条制度依据在哪里；如果要解释某个卡片、表格行或按钮，请切换到“截图/圈选问”并圈选那块区域。"
+	contextPacket := domain.ContextPacket{
+		Intent:  decision.Intent,
+		Subject: "AI-HRMS Visual Copilot",
+		Items: []domain.ContextItem{{
+			Type:       "product_identity",
+			Label:      "AI-HRMS Visual Copilot",
+			Summary:    "产品内 Copilot，用于页面解释、RAG 问答、Agent/审计边界说明和圈选上下文解释。",
+			Source:     "program.product_profile",
+			Provenance: "ai_chat.identity",
+		}},
+		SourceCount: map[string]int{"program.product_profile": 1},
+		Staleness:   "product_runtime",
+		Boundary:    "身份类问题由产品配置直接回答，不进行 RAG 检索，不调用外部模型。",
+	}
+	trust := buildTrustPacket(decision, 0.98, nil, "program_identity_logged", nil)
+	summary := promptAuditSummary(prompt, decision)
+	summary["actionExecuted"] = false
+	_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+		ActorUserID:     principal(r).UserID,
+		EventType:       "ai.chat.product_identity",
+		ObjectType:      "ai_chat",
+		ObjectID:        requestID(r),
+		RequestID:       requestID(r),
+		RiskLevel:       "low",
+		NewValueSummary: summary,
+	})
+	httpx.OK(w, domain.AIChatResponse{
+		Message:             message,
+		Confidence:          trust.Confidence,
+		RiskLevel:           "low",
+		HumanReviewRequired: false,
+		AuditStatus:         "program_identity_logged",
 		ExecutionDecision:   &decision,
 		ContextPacket:       &contextPacket,
 		TrustPacket:         &trust,
@@ -971,6 +1066,86 @@ func (s *Server) searchRAGResult(ctx context.Context, scope store.Scope, actor r
 		return s.store.SearchRAG(ctx, scope, actor, req)
 	}
 	return result, nil
+}
+
+func (s *Server) highImpactBoundaryCitations(ctx context.Context, scope store.Scope, actor rbac.Principal) []domain.RAGCitation {
+	result, err := s.store.SearchRAG(ctx, scope, actor, domain.RAGSearchRequest{
+		Query: "高风险人事决策边界 调薪 薪酬 绩效 人事裁决",
+		Limit: 3,
+	})
+	if err != nil || result == nil {
+		return nil
+	}
+	return result.Citations
+}
+
+func deterministicRAGAnswer(query string, citations []domain.RAGCitation) string {
+	lower := strings.ToLower(strings.TrimSpace(query))
+	if len(citations) == 0 {
+		return "没有找到当前用户可见的引用资料，因此不能给出确定回答。"
+	}
+	switch {
+	case containsAny(lower, []string{"普通问答", "圈选", "截图", "选区", "layout", "这块", "这部分"}):
+		return "普通问答适合问产品功能、制度解释、资料依据和一般操作路径，只发送文字问题；截图/圈选问会额外带上选区、DOM 摘要、可见文本、相对坐标和 layout snapshot，适合解释某个卡片、表格行、按钮或页面区域。当前系统不做未脱敏原图识别，证据不足时会要求你补充信息。"
+	case containsAny(lower, []string{"发布", "问不到", "问不出", "资料", "知识库", "文档库", "引用", "citation", "rag", "embedding"}):
+		return "如果 RAG 资料发布后问不到，按这个顺序排查：先确认文档是 published，不是 draft；再看 scope 是否覆盖当前用户、sensitivity 是否允许进入检索、有效期是否生效；然后检查 chunk 和 embedding 是否重建完成、embedding 维度是否和配置一致；最后用文档库里的真实问题验证 citation。没有命中可引用资料时，系统应该说明未找到依据，而不是编造答案。"
+	case containsAny(lower, []string{"30 天", "30天", "成长计划", "新人计划", "入职计划"}):
+		return "新人 30 天计划应当是学习和协作草稿：第 1 周完成账号、制度、信息安全、协作工具和团队介绍；第 2 周理解岗位职责、业务链路、RAG、Agent 和审计基础；第 3 周完成一个低风险实践任务并记录证据；第 4 周由导师复盘成果、风险、待补知识和下月目标。它不能直接用于淘汰、降薪或绩效评级。"
+	case containsAny(lower, []string{"语言", "英文", "中文", "设置", "侧边栏", "sidebar", "默认模式"}):
+		return "到设置页可以切换中文/英文、调整界面密度和演示提示、设置侧边栏宽度、选择 Visual Copilot 默认模式，并决定证据面板是否默认展开。桌面端侧边栏支持拖动改宽度；语言能力通过 locale 字典和 Ant Design locale 映射扩展，后续新增语言不需要逐页硬改文案。"
+	case containsAny(lower, []string{"管理员指南", "看不到", "看不了", "没有权限", "不可见", "group_admin"}):
+		return "管理员指南只对 group_admin 可见。看不到时先检查当前账号角色、capability、scope、登录状态和菜单可见性；如果刚调整过角色，刷新或重新登录后再看。普通员工、导师、仅有 group_hr 或 org_manager 的账号不会看到完整管理员入口。"
+	case containsAny(lower, []string{"scope", "法人", "组织", "权限范围", "数据范围"}):
+		return "scope 决定你能看到哪些 RAG 文档、业务数据、角色授权和审计记录。legal_entity 是法人实体边界，适合公司主体和合同边界；org_unit 是组织树节点，适合部门、团队和下级组织。系统应 fail-closed：没有明确授权时不返回受限数据，也不用全局资料替代受限资料。"
+	case containsAny(lower, []string{"人工确认", "toolpreview", "工具预览", "审计", "audit", "agent run", "agent"}):
+		return "涉及写入、权限变更、员工资料修改、组织或法人调整、RAG 发布、Agent 执行或高风险建议时，系统先生成 toolPreview，说明工具、参数摘要、读写范围、风险、scope、是否可逆和所需 capability，再等待人工确认并记录审计。只读解释可以直接返回，但仍会保留引用、置信度和 auditStatus。"
+	case containsAny(lower, []string{"隐私", "敏感", "个人信息", "员工数据", "脱敏", "外部模型"}):
+		return "员工数据要按最小必要原则使用：只返回当前任务需要且你有权查看的字段。手机号、证件、地址、薪酬、绩效明细、医疗、纪律处分和劳动争议属于高敏信息；外发给模型或写入日志前应脱敏或摘要化。"
+	}
+	return "可以。当前可见资料的核心结论是：" + citationSynthesis(citations, 3)
+}
+
+func citationSynthesis(citations []domain.RAGCitation, limit int) string {
+	if limit <= 0 || limit > len(citations) {
+		limit = len(citations)
+	}
+	parts := make([]string, 0, limit)
+	seen := map[string]bool{}
+	for _, citation := range citations {
+		if len(parts) >= limit {
+			break
+		}
+		title := strings.TrimSpace(citation.Title)
+		if title == "" || seen[title] {
+			continue
+		}
+		seen[title] = true
+		snippet := shortCitationSnippet(citation.Snippet, 96)
+		if snippet == "" {
+			parts = append(parts, "《"+title+"》提供了可引用依据")
+			continue
+		}
+		parts = append(parts, "《"+title+"》说明："+snippet)
+	}
+	if len(parts) == 0 {
+		return "已有可见引用资料，但片段为空，请打开引用详情查看原文。"
+	}
+	return strings.Join(parts, "；")
+}
+
+func shortCitationSnippet(value string, limit int) string {
+	text := strings.Join(strings.Fields(value), " ")
+	if text == "" {
+		return ""
+	}
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	if limit < 4 {
+		limit = 4
+	}
+	return string(runes[:limit-3]) + "..."
 }
 
 func (s *Server) externalEmbeddingProvider(ctx context.Context) bool {
@@ -2116,7 +2291,7 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 		return
 	}
 	if len(resolvedItems) > 0 {
-		contextPacket.Items = resolvedItems
+		contextPacket.Items = mergeContextItems(resolvedItems, visualSupplementalContextItems(contextPacket.Items))
 		contextPacket.SourceCount["postgres_context"] = len(resolvedItems)
 		contextPacket.Boundary = "业务对象详情由 Go Context Resolver 按当前用户 scope 从数据库读取；DeepSeek 不直接访问数据库或页面。"
 	}

@@ -86,6 +86,26 @@ if ($attendanceCsv.StatusCode -ne 200 -or $attendanceCsv.Headers["Content-Type"]
   throw "考勤 export did not return CSV content"
 }
 
+$attendanceOverview = Invoke-ApiJson -Path "/attendance/overview?day=2026-05-29" -Headers $headers
+if ($null -eq $attendanceOverview.data.summary -or $attendanceOverview.data.summary.expected -lt 1) {
+  throw "Attendance overview should include expected headcount"
+}
+if ($null -eq $attendanceOverview.data.orgUnits -or $null -eq $attendanceOverview.data.exceptions) {
+  throw "Attendance overview should include orgUnits and exceptions"
+}
+
+$attendanceAnalysisBody = @{ day = "2026-05-29"; focus = "overview" } | ConvertTo-Json
+$attendanceAnalysis = Invoke-ApiJson -Method Post -Path "/attendance/agent-analysis" -Headers $headers -Body $attendanceAnalysisBody
+if ($null -eq $attendanceAnalysis.data.run) {
+  throw "Attendance agent analysis should create a run preview"
+}
+if ($attendanceAnalysis.data.toolPreview.toolName -ne "attendance_realtime_overview") {
+  throw "Attendance agent analysis should preview the read-only attendance tool"
+}
+if ($attendanceAnalysis.data.trustPacket.humanReviewRequired -ne $true) {
+  throw "Attendance agent analysis should require human review"
+}
+
 $entityLoginBody = @{ mobile = "100112"; password = "password" } | ConvertTo-Json
 $entityLogin = Invoke-ApiJson -Method Post -Path "/auth/login" -Body $entityLoginBody
 $entityHeaders = @{ Authorization = "Bearer $($entityLogin.data.token)" }

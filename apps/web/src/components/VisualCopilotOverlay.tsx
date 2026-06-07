@@ -1,6 +1,6 @@
-import { AimOutlined, CameraOutlined, CheckCircleOutlined, CloseOutlined, DeleteOutlined, DragOutlined, InfoCircleOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MessageOutlined, SendOutlined } from "@ant-design/icons";
+import { AimOutlined, CameraOutlined, CheckCircleOutlined, CloseOutlined, DeleteOutlined, DragOutlined, MenuFoldOutlined, MenuUnfoldOutlined, MessageOutlined, SendOutlined } from "@ant-design/icons";
 import { Alert, Button, Collapse, Input, Segmented, Space, Tag, Tooltip, Typography, message } from "antd";
-import type { Dispatch, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, SetStateAction } from "react";
+import type { Dispatch, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
@@ -8,7 +8,7 @@ import { api, getErrorMessage } from "../api/client";
 import type { AIChatResponse, BusinessRef, ScreenRegion, VisualCopilotResponse } from "../api/types";
 import { useAppSettings, type CopilotDefaultMode } from "../app/AppSettingsContext";
 import { useI18n } from "../i18n";
-import { ContextPacketPanel, ExecutionDecisionPanel, TrustPacketBar } from "./AiTrust";
+import { ContextPacketPanel, ExecutionDecisionPanel } from "./AiTrust";
 
 type DraftRect = ScreenRegion["rect"] | null;
 type PanelRect = { x: number; y: number; width: number; height: number };
@@ -472,6 +472,24 @@ export function VisualCopilotOverlay() {
               </Button>
               <Button aria-label="清空选区" title="清空选区" icon={<DeleteOutlined />} onClick={() => { setRegions([]); setCaptureMode(false); }} />
             </div>
+            {regions.length ? (
+              <div className="visual-selection-list">
+                <Tag color="blue">{selectedObjectsSummary(regions)}</Tag>
+                {regions.map((region, index) => (
+                  <Tag
+                    key={region.id}
+                    closable
+                    onClose={(event) => {
+                      event.preventDefault();
+                      setRegions((current) => current.filter((item) => item.id !== region.id));
+                    }}
+                    onClick={() => window.scrollTo({ top: Math.max(region.rect.y - 120, 0), behavior: "smooth" })}
+                  >
+                    选区 {index + 1} · {regionLabel(region)}
+                  </Tag>
+                ))}
+              </div>
+            ) : null}
             <div className="visual-copilot-body">
               {currentTurn ? <CopilotTurnCard turn={currentTurn} current /> : null}
               {historyTurns.length ? (
@@ -489,28 +507,13 @@ export function VisualCopilotOverlay() {
                   }]}
                 />
               ) : null}
-              {regions.length ? (
-                <div className="visual-selection-list">
-                  <Tag color="blue">{selectedObjectsSummary(regions)}</Tag>
-                  {regions.map((region, index) => (
-                    <Tag
-                      key={region.id}
-                      closable
-                      onClose={(event) => {
-                        event.preventDefault();
-                        setRegions((current) => current.filter((item) => item.id !== region.id));
-                      }}
-                      onClick={() => window.scrollTo({ top: Math.max(region.rect.y - 120, 0), behavior: "smooth" })}
-                    >
-                      选区 {index + 1} · {regionLabel(region)}
-                    </Tag>
-                  ))}
-                </div>
-              ) : mode === "screenshot" ? (
-                <Alert className="visual-copilot-hint" type="info" showIcon title="先点击“开始圈选”，面板会收缩成窄侧栏，然后拖拽选择卡片、行、字段或按钮；侧栏准星可随时退出圈选并恢复页面输入。当前只使用 DOM 与业务对象上下文，不启用图像识别。" />
-              ) : (
-                <Alert className="visual-copilot-hint" type="info" showIcon title="普通问答不会采集坐标或截图；需要解释页面区域时切换到“截图/圈选问”。涉及引用位置和制度依据的问题会走 RAG 检索并展示 citations。" />
-              )}
+              {!regions.length && !currentTurn ? (
+                mode === "screenshot" ? (
+                  <Alert className="visual-copilot-hint" type="info" showIcon title="先点击“开始圈选”，面板会收缩成窄侧栏，然后拖拽选择卡片、行、字段或按钮；侧栏准星可随时退出圈选并恢复页面输入。当前只使用 DOM 与业务对象上下文，不启用图像识别。" />
+                ) : (
+                  <Alert className="visual-copilot-hint" type="info" showIcon title="普通问答不会采集坐标或截图；需要解释页面区域时切换到“截图/圈选问”。涉及引用位置和制度依据的问题会走 RAG 检索并展示 citations。" />
+                )
+              ) : null}
             </div>
             <button
               aria-label="调整 Visual Copilot 面板大小"
@@ -534,59 +537,111 @@ function CopilotTurnCard({ turn, current = false }: { turn: CopilotTurn; current
     : <ChatTurnCard turn={turn} current={current} />;
 }
 
+function VisualMetaGrid({ items }: { items: Array<{ label: string; value: ReactNode }> }) {
+  return (
+    <dl className="visual-meta-grid">
+      {items.filter((item) => item.value !== null && item.value !== undefined && item.value !== "").map((item) => (
+        <div className="visual-meta-item" key={item.label}>
+          <dt>{item.label}</dt>
+          <dd>{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function ActionList({ actions }: { actions: VisualCopilotResponse["result"]["actions"] }) {
+  if (!actions.length) {
+    return null;
+  }
+  return (
+    <div className="visual-action-list">
+      {actions.map((action, index) => (
+        <div className={action.blocked ? "visual-action-item is-blocked" : "visual-action-item"} key={`${String(action.type ?? "action")}-${index}`}>
+          <span>{String(action.label ?? action.type)}</span>
+          <small>risk={String(action.riskLevel ?? action.risk ?? "low")}{action.blocked ? " · blocked" : ""}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CitationChips({ citations }: { citations?: AIChatResponse["citations"] | null }) {
+  if (!citations?.length) {
+    return null;
+  }
+  return (
+    <div className="visual-citation-list">
+      {citations.map((citation) => (
+        <span className="visual-citation-chip" key={`${citation.documentId}:${citation.chunkId}`}>{citation.title}</span>
+      ))}
+    </div>
+  );
+}
+
 function SelectionTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kind: "selection" }>; current: boolean }) {
   const response = turn.response;
   const decision = response.executionDecision ?? response.result.executionDecision;
   const packet = response.contextPacket ?? response.result.contextPacket;
   const trust = response.trustPacket ?? response.result.trustPacket;
+  const answer = (response.result.explanation || response.result.preview).trim();
+  const confidence = Math.round((response.result.confidence ?? response.event.confidence) * 100);
   return (
     <div className={current ? "visual-response is-current" : "visual-response"} data-vc-kind={current ? "visual-copilot-response" : undefined}>
+      <Typography.Paragraph className="visual-chat-answer">
+        {answer}
+      </Typography.Paragraph>
       <div className="visual-turn-meta">
         <Tag color="processing">选区解释</Tag>
         <Typography.Text type="secondary">{formatTurnTime(turn.createdAt)}</Typography.Text>
         <Typography.Text className="visual-chat-question">{turn.question}</Typography.Text>
       </div>
-      <div className="visual-response-header">
-        <CheckCircleOutlined />
-        <div>
-          <Typography.Text strong>{response.result.title || "解释已生成"}</Typography.Text>
-          <Typography.Text type="secondary">
-            {response.result.preview}
-          </Typography.Text>
-        </div>
-      </div>
-      <Typography.Paragraph className="visual-response-explanation">
-        {response.result.explanation || response.result.preview}
-      </Typography.Paragraph>
-      {response.result.selectedSummary ? (
-        <Typography.Paragraph className="visual-response-summary">
-          {response.result.selectedSummary}
-        </Typography.Paragraph>
-      ) : null}
-      <Space wrap>
-        <TrustPacketBar packet={trust} />
-        <Tag color={riskColor(response.result.riskLevel)}>risk={response.result.riskLevel || "low"}</Tag>
-        <Tag color="geekblue">confidence={Math.round((response.result.confidence ?? response.event.confidence) * 100)}%</Tag>
-        {response.result.provider ? <Tag color="purple">LLM={response.result.provider}/{response.result.model || "unknown"}</Tag> : null}
-        <Tag icon={<InfoCircleOutlined />} color="default">{response.result.imageMode || "no-image-analysis"}</Tag>
-        {response.result.actions.map((action, index) => (
-          <Tag
-            key={`${String(action.type ?? "action")}-${index}`}
-            color={action.blocked ? "red" : riskColor(String(action.riskLevel ?? action.risk ?? "low"))}
-          >
-            {String(action.label ?? action.type)} · risk={String(action.riskLevel ?? action.risk ?? "low")}{action.blocked ? " · blocked" : ""}
-          </Tag>
-        ))}
-      </Space>
-      <Alert
-        className="visual-response-boundary"
-        data-vc-kind={current ? "visual-copilot-boundary" : undefined}
-        type="info"
-        showIcon
-        title={response.result.trustBoundary || "当前解释基于页面上下文和业务对象引用，不代表已完成图片视觉识别。"}
+      <Collapse
+        className="visual-history-collapse visual-answer-details"
+        size="small"
+        defaultActiveKey={[]}
+        items={[{
+          key: "details",
+          label: "详情",
+          children: (
+            <div className="visual-answer-detail-body">
+              <div className="visual-response-header">
+                <CheckCircleOutlined />
+                <div>
+                  <Typography.Text strong>{response.result.title || "解释已生成"}</Typography.Text>
+                  <Typography.Text type="secondary">
+                    {response.result.preview}
+                  </Typography.Text>
+                </div>
+              </div>
+              {response.result.selectedSummary ? (
+                <Typography.Paragraph className="visual-response-summary">
+                  {response.result.selectedSummary}
+                </Typography.Paragraph>
+              ) : null}
+              <VisualMetaGrid items={[
+                { label: "风险", value: response.result.riskLevel || trust?.riskLevel || "low" },
+                { label: "置信度", value: `${confidence}%` },
+                { label: "证据数", value: trust?.evidenceCount ?? packet?.items.length ?? 0 },
+                { label: "人工确认", value: String(Boolean(trust?.humanReviewRequired || decision?.humanReviewRequired)) },
+                { label: "审计状态", value: trust?.auditStatus || response.event.status },
+                { label: "图像模式", value: response.result.imageMode || "no-image-analysis" },
+                { label: "模型", value: response.result.provider ? `${response.result.provider}/${response.result.model || "unknown"}` : "program/routing" },
+              ]} />
+              <ActionList actions={response.result.actions} />
+              <Alert
+                className="visual-response-boundary"
+                data-vc-kind={current ? "visual-copilot-boundary" : undefined}
+                type="info"
+                showIcon
+                title={response.result.trustBoundary || "当前解释基于页面上下文和业务对象引用，不代表已完成图片视觉识别。"}
+              />
+              <ExecutionDecisionPanel decision={decision} />
+              <ContextPacketPanel packet={packet} />
+            </div>
+          ),
+        }]}
       />
-      <ExecutionDecisionPanel decision={decision} />
-      <ContextPacketPanel packet={packet} />
     </div>
   );
 }
@@ -598,52 +653,53 @@ function ChatTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kind: "c
   const trust = response.trustPacket;
   return (
     <article className={current ? "visual-page-chat is-current" : "visual-page-chat"} data-vc-kind={current ? "visual-page-chat" : undefined}>
+      <Typography.Paragraph className="visual-chat-answer">
+        {response.message || "没有返回可展示的回答正文。"}
+      </Typography.Paragraph>
       <div className="visual-turn-meta">
         <Tag color="cyan">普通问答</Tag>
         <Typography.Text type="secondary">{formatTurnTime(turn.createdAt)}</Typography.Text>
         <Typography.Text className="visual-chat-question">{turn.question}</Typography.Text>
       </div>
-      <div className="visual-response-header">
-        <CheckCircleOutlined />
-        <div>
-          <Typography.Text strong>RAG / AI Chat 回答已生成</Typography.Text>
-          <Typography.Text type="secondary">{response.provider || "program"}/{response.model || "routing"}</Typography.Text>
-        </div>
-      </div>
-      <Typography.Paragraph>{response.message}</Typography.Paragraph>
-      <Space wrap>
-        <TrustPacketBar packet={trust} />
-        <Tag color={riskColor(response.riskLevel)}>risk={response.riskLevel ?? "low"}</Tag>
-        <Tag>confidence={Math.round((response.confidence ?? 0.72) * 100)}%</Tag>
-        <Tag color={response.provider === "deepseek" ? "purple" : "default"}>{response.provider || "program"}/{response.model || "routing"}</Tag>
-        {(trust?.humanReviewRequired || decision?.humanReviewRequired) ? <Tag color="red">humanReviewRequired=true</Tag> : null}
-      </Space>
       <Collapse
-        className="visual-history-collapse"
+        className="visual-history-collapse visual-answer-details"
         size="small"
         defaultActiveKey={[]}
         items={[{
-          key: "citations",
-          label: `引用 ${response.citations?.length ?? 0}`,
+          key: "details",
+          label: "详情",
           children: (
-            <div className="visual-citation-list">
-              {(response.citations ?? []).map((citation) => (
-                <Tag key={`${citation.documentId}:${citation.chunkId}`} color="blue">{citation.title}</Tag>
-              ))}
+            <div className="visual-answer-detail-body">
+              <div className="visual-response-header">
+                <CheckCircleOutlined />
+                <div>
+                  <Typography.Text strong>回答已生成</Typography.Text>
+                  <Typography.Text type="secondary">{response.provider || "program"}/{response.model || "routing"}</Typography.Text>
+                </div>
+              </div>
+              <VisualMetaGrid items={[
+                { label: "风险", value: response.riskLevel || trust?.riskLevel || "low" },
+                { label: "置信度", value: `${Math.round((response.confidence ?? 0.72) * 100)}%` },
+                { label: "证据数", value: trust?.evidenceCount ?? response.citations?.length ?? 0 },
+                { label: "人工确认", value: String(Boolean(trust?.humanReviewRequired || decision?.humanReviewRequired)) },
+                { label: "审计状态", value: trust?.auditStatus || response.auditStatus || "logged" },
+                { label: "模型", value: `${response.provider || "program"}/${response.model || "routing"}` },
+              ]} />
+              <CitationChips citations={response.citations} />
+              {packet?.boundary ? (
+                <Alert
+                  className="visual-response-boundary"
+                  type="info"
+                  showIcon
+                  title={packet.boundary}
+                />
+              ) : null}
+              <ExecutionDecisionPanel decision={decision} />
+              <ContextPacketPanel packet={packet} />
             </div>
           ),
         }]}
       />
-      {packet?.boundary ? (
-        <Alert
-          className="visual-response-boundary"
-          type="info"
-          showIcon
-          title={packet.boundary}
-        />
-      ) : null}
-      <ExecutionDecisionPanel decision={decision} />
-      <ContextPacketPanel packet={packet} />
     </article>
   );
 }
@@ -1079,6 +1135,9 @@ function domSnapshot(regions: ScreenRegion[]) {
         objectId: element.dataset.vcObjectId,
         label: compactLabel(element),
         text: compactText(element),
+        page: pageMarkerForElement(element),
+        tableHeaders: tableHeadersForElement(element),
+        rowCells: tableRowCellsForElement(element),
         tag: element.tagName.toLowerCase(),
         visible: element.offsetParent !== null,
         rect: { x: box.x, y: box.y, width: box.width, height: box.height },
@@ -1261,7 +1320,7 @@ function routePageLabel(route: string) {
   if (route.includes("legal-entities")) return "法人 scope 底座";
   if (route.includes("org-units")) return "组织 scope 图谱";
   if (route.includes("users")) return "账号与角色";
-  if (route.includes("attendance")) return "考勤信号";
+  if (route.includes("attendance")) return "考勤态势";
   if (route.includes("messages")) return "消息证据";
   if (route.includes("knowledge")) return "知识治理";
   if (route.includes("docs")) return "文档库";
@@ -1287,7 +1346,12 @@ function dedupe(values: string[]) {
 }
 
 function compactVisualText(value: string, limit: number) {
-  const text = value.replace(/\s+/g, " ").trim();
+  let text = value
+    .replace(/\s+/g, " ")
+    .trim();
+  if (/^\p{Script=Han}(?:\s+\p{Script=Han})+$/u.test(text)) {
+    text = text.replace(/\s+/g, "");
+  }
   return text.length > limit ? `${text.slice(0, limit)}...` : text;
 }
 
@@ -1304,14 +1368,43 @@ function redactLayoutText(value: string) {
 
 function compactText(element: HTMLElement) {
   const formText = formControlText(element);
-  const text = (formText || element.innerText || element.textContent || "")
+  let text = (formText || element.innerText || element.textContent || "")
     .replace(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g, "[email]")
     .replace(/\b1[3-9]\d{9}\b/g, "[mobile]")
     .replace(/\b\d{12,19}\b/g, "[number]")
     .replace(/\b\d{15}(\d{2}[0-9Xx])?\b/g, "[id]")
     .replace(/\s+/g, " ")
     .trim();
+  if (/^\p{Script=Han}(?:\s+\p{Script=Han})+$/u.test(text)) {
+    text = text.replace(/\s+/g, "");
+  }
   return text.length > 120 ? `${text.slice(0, 120)}...` : text;
+}
+
+function pageMarkerForElement(element: HTMLElement) {
+  return element.closest<HTMLElement>("[data-vc-page]")?.dataset.vcPage || "";
+}
+
+function tableHeadersForElement(element: HTMLElement) {
+  const table = element.closest("table");
+  if (!table) return [];
+  return dedupe(Array.from(table.querySelectorAll<HTMLElement>("thead th"))
+    .map((cell) => compactVisualText(compactText(cell), 32))
+    .filter(Boolean))
+    .slice(0, 12);
+}
+
+function tableRowCellsForElement(element: HTMLElement) {
+  const row = element.closest("tr");
+  if (!row) return [];
+  const headers = tableHeadersForElement(row);
+  return Array.from(row.querySelectorAll<HTMLElement>("th, td"))
+    .map((cell, index) => ({
+      header: headers[index] || `第${index + 1}列`,
+      text: compactVisualText(compactText(cell), 48),
+    }))
+    .filter((cell) => cell.text)
+    .slice(0, 10);
 }
 
 function compactLabel(element: HTMLElement) {
@@ -1547,10 +1640,4 @@ function hasVisibleBusinessOverlay() {
     const box = element.getBoundingClientRect();
     return style.display !== "none" && style.visibility !== "hidden" && box.width > 0 && box.height > 0;
   });
-}
-
-function riskColor(risk?: string) {
-  if (risk === "high") return "red";
-  if (risk === "medium") return "orange";
-  return "blue";
 }

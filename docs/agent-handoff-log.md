@@ -126,6 +126,14 @@ Executive Orchestrator established the AI-HRMS submission target and read the ma
 - Follow-up demo account fix: append-only migration `013_demo_user.sql` adds a local `demo/password` walkthrough user when demo seed data exists; frontend demo display user is also `demo`.
 - Latest verification: `npm run web:check`, `npm run web:build`, `go test ./apps/api/...`, `node --check harness/browser/check.mjs`, `npm run browser:check`, and an API create/delete org-unit smoke passed after this pass.
 
+## 2026-06-07 Docs/Attendance/Copilot Follow-up
+
+- Document Library now opens catalog items into dedicated document detail pages. The main page focuses on full-body reading, while the local table of contents and citation/governance status move into left/right drawers.
+- Added scoped attendance real-time overview and preview-only attendance Agent analysis. The Agent creates an `attendance_realtime_overview` read-only tool preview and requires human review before any follow-up.
+- Visual Copilot answer layout now leads with the direct answer and keeps execution details, context evidence, and trust metadata behind expandable details.
+- AI chat has program-first product identity answers, deterministic RAG synthesis for common product/RAG questions, and high-impact HR boundary replies backed by local scoped citations.
+- OpenAPI, README, demo guide, demo script, assignment solution, API harness docs, and browser harness docs were updated for the new document detail, attendance overview/analysis, and Visual Copilot answer shape.
+
 ## Merge Rule
 
 The orchestrator serially edits shared files and resolves conflicts. Subagents provide focused review and implementation advice; final integration remains centralized.

@@ -17,7 +17,7 @@ import {
   TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { Alert, Avatar, Button, Drawer, Dropdown, Layout, Menu, Tag, theme, Typography } from "antd";
+import { Avatar, Button, Drawer, Dropdown, Layout, Menu, Tag, theme, Typography } from "antd";
 import { Suspense, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
@@ -183,15 +183,6 @@ export function AppShell() {
           </Dropdown>
         </Header>
         <Content className="app-content">
-          {settings.showDemoBanner ? (
-            <Alert
-              className="demo-boundary-banner"
-              type="info"
-              showIcon
-              title={t("shell.demoBoundaryTitle")}
-              description={t("shell.demoBoundaryDescription")}
-            />
-          ) : null}
           <Suspense fallback={<PageLoading />}>
             <Outlet />
           </Suspense>

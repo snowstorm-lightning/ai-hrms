@@ -59,6 +59,8 @@ func New(cfg config.Config, db *store.Store) http.Handler {
 	mux.Handle("GET /api/employees/{id}/assignments", server.authenticated(http.HandlerFunc(server.listEmployeeAssignments)))
 	mux.Handle("PUT /api/employees/{id}/assignments", server.authenticated(http.HandlerFunc(server.replaceEmployeeAssignments)))
 	mux.Handle("GET /api/attendance/export", server.authenticated(http.HandlerFunc(server.exportAttendance)))
+	mux.Handle("GET /api/attendance/overview", server.authenticated(http.HandlerFunc(server.attendanceOverview)))
+	mux.Handle("POST /api/attendance/agent-analysis", server.authenticated(http.HandlerFunc(server.attendanceAgentAnalysis)))
 	mux.Handle("GET /api/attendance", server.authenticated(http.HandlerFunc(server.listAttendance)))
 	mux.Handle("POST /api/attendance", server.authenticated(http.HandlerFunc(server.createAttendance)))
 	mux.Handle("PUT /api/attendance/{id}/checkout", server.authenticated(http.HandlerFunc(server.checkoutAttendance)))
@@ -71,6 +73,7 @@ func New(cfg config.Config, db *store.Store) http.Handler {
 	mux.Handle("GET /api/rag/sources", server.authenticated(http.HandlerFunc(server.listRAGSources)))
 	mux.Handle("POST /api/rag/documents", server.authenticated(http.HandlerFunc(server.createRAGDocument)))
 	mux.Handle("GET /api/rag/documents", server.authenticated(http.HandlerFunc(server.listRAGDocuments)))
+	mux.Handle("GET /api/rag/documents/{id}", server.authenticated(http.HandlerFunc(server.getRAGDocument)))
 	mux.Handle("POST /api/rag/documents/{id}/rebuild", server.authenticated(http.HandlerFunc(server.rebuildRAGDocument)))
 	mux.Handle("POST /api/rag/ingest-jobs", server.authenticated(http.HandlerFunc(server.createRAGIngestJob)))
 	mux.Handle("GET /api/rag/ingest-jobs/{id}", server.authenticated(http.HandlerFunc(server.getRAGIngestJob)))
@@ -304,7 +307,7 @@ func (s *Server) deleteOrgUnit(w http.ResponseWriter, r *http.Request) {
 		RequestID:   requestID(r),
 		RiskLevel:   "medium",
 		NewValueSummary: map[string]any{
-			"deleted": true,
+			"deleted":  true,
 			"boundary": "delete allowed only when no child org, employee assignment, message, role scope, or RAG scope references remain",
 		},
 	})

@@ -85,14 +85,7 @@ export function ExecutionDecisionPanel({ decision }: { decision?: HarnessDecisio
       size="small"
       items={[{
         key: "execution",
-        label: (
-          <Space wrap>
-            <Typography.Text strong>执行思路与路径</Typography.Text>
-            <Tag color={riskColor(decision.riskLevel)}>risk={decision.riskLevel}</Tag>
-            <Tag>{decision.executionMode}</Tag>
-            <Tag color={decision.humanReviewRequired ? "red" : "green"}>humanReview={String(decision.humanReviewRequired)}</Tag>
-          </Space>
-        ),
+        label: <Typography.Text strong>执行思路与路径</Typography.Text>,
         children: (
           <Alert
             className="harness-decision-panel"
@@ -126,13 +119,7 @@ export function ContextPacketPanel({ packet }: { packet?: ContextPacket | null }
       size="small"
       items={[{
         key: "context",
-        label: (
-          <Space wrap>
-            <Typography.Text strong>上下文证据</Typography.Text>
-            <Tag>{packet.items.length} objects</Tag>
-            <Tag>{packet.staleness}</Tag>
-          </Space>
-        ),
+        label: <Typography.Text strong>上下文证据</Typography.Text>,
         children: (
           <div className="context-packet-panel" data-vc-kind="context-packet">
             <Typography.Paragraph type="secondary">{packet.boundary}</Typography.Paragraph>

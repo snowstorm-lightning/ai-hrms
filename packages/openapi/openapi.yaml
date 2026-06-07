@@ -559,6 +559,64 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /attendance/overview:
+    get:
+      tags: [Attendance]
+      operationId: getAttendanceOverview
+      summary: Get scoped attendance real-time overview
+      description: >
+        Returns scoped attendance aggregation for a day, including summary
+        metrics, organization summaries, exception queue, and recent records.
+        The result is for workflow explanation and human review, not automatic
+        people decisions.
+      parameters:
+        - name: day
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Scoped attendance overview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceOverviewEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /attendance/agent-analysis:
+    post:
+      tags: [Attendance]
+      operationId: createAttendanceAgentAnalysis
+      summary: Create preview-only attendance Agent analysis
+      description: >
+        Creates an attendance_realtime_analyst run and a read-only
+        attendance_realtime_overview tool preview. Follow-up HR actions remain
+        behind human review.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceAgentAnalysisRequest"
+      responses:
+        "200":
+          description: Attendance Agent analysis preview.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttendanceAgentAnalysisEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /attendance/{id}/checkout:
     put:
       tags: [Attendance]
@@ -717,6 +775,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiEnvelope"
+
+  /rag/documents/{id}:
+    get:
+      tags: [RAG]
+      operationId: getRagDocument
+      summary: Get one scoped RAG document
+      description: >
+        Returns a published or otherwise visible document for the document
+        library reader. Formal AI answers still need scoped RAG search,
+        citations, and audit status.
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Scoped RAG document.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RagDocumentEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /rag/documents/{id}/rebuild:
     post:
@@ -968,7 +1051,7 @@ paths:
     post:
       tags: [VisualCopilot]
       operationId: executeVisualAction
-      summary: Deprecated: return blocked preview for visual action execution
+      summary: "Deprecated: return blocked preview for visual action execution"
       description: >
         Current Visual Copilot does not execute business writes from screen selection.
         This endpoint is retained for compatibility and returns a blocked preview.
@@ -1212,6 +1295,33 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/Attendance"
+
+    AttendanceOverviewEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/AttendanceOverview"
+
+    AttendanceAgentAnalysisEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/AttendanceAgentAnalysis"
+
+    RagDocumentEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/RagDocument"
 
     MessageEnvelope:
       allOf:
@@ -1526,6 +1636,19 @@ components:
         remarks:
           type: string
 
+    AttendanceAgentAnalysisRequest:
+      type: object
+      properties:
+        day:
+          type: string
+          format: date
+        focus:
+          type: string
+          enum: [overview, exceptions, org_unit]
+          default: overview
+        orgUnitName:
+          type: string
+
     CreateMessageRequest:
       type: object
       required: [title, content]
@@ -1726,6 +1849,371 @@ components:
           type: string
         remarks:
           type: string
+
+    AttendanceSummary:
+      type: object
+      required:
+        - expected
+        - checkedIn
+        - notCheckedIn
+        - leave
+        - late
+        - earlyLeave
+        - fieldOrTrip
+        - abnormal
+        - attendanceRate
+        - riskLevel
+      properties:
+        expected:
+          type: integer
+        checkedIn:
+          type: integer
+        notCheckedIn:
+          type: integer
+        leave:
+          type: integer
+        late:
+          type: integer
+        earlyLeave:
+          type: integer
+        fieldOrTrip:
+          type: integer
+        abnormal:
+          type: integer
+        attendanceRate:
+          type: number
+          format: double
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+
+    AttendanceOrgUnitSummary:
+      allOf:
+        - $ref: "#/components/schemas/AttendanceSummary"
+        - type: object
+          required: [orgUnitName]
+          properties:
+            orgUnitName:
+              type: string
+
+    AttendanceException:
+      type: object
+      required:
+        - id
+        - employeeId
+        - employeeName
+        - mobile
+        - orgUnitName
+        - day
+        - attendanceStatus
+        - statusLabel
+        - exceptionType
+        - severity
+        - reason
+      properties:
+        id:
+          type: string
+        employeeId:
+          type: string
+          format: uuid
+        employeeName:
+          type: string
+        mobile:
+          type: string
+        orgUnitName:
+          type: string
+        day:
+          type: string
+          format: date
+        attendanceStatus:
+          type: integer
+        statusLabel:
+          type: string
+        exceptionType:
+          type: string
+          enum: [absence, late, early_leave, missing_checkout]
+        severity:
+          type: string
+          enum: [low, medium, high]
+        reason:
+          type: string
+        attendanceInTime:
+          type: [string, "null"]
+          format: date-time
+        attendanceOutTime:
+          type: [string, "null"]
+          format: date-time
+        remarks:
+          type: string
+
+    AttendanceOverview:
+      type: object
+      required: [day, generatedAt, summary, orgUnits, exceptions, recentRecords]
+      properties:
+        day:
+          type: string
+          format: date
+        generatedAt:
+          type: string
+          format: date-time
+        summary:
+          $ref: "#/components/schemas/AttendanceSummary"
+        orgUnits:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendanceOrgUnitSummary"
+        exceptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendanceException"
+        recentRecords:
+          type: array
+          items:
+            $ref: "#/components/schemas/Attendance"
+
+    AttendanceAgentAnalysis:
+      type: object
+      required: [run, insights, recommendedActions, auditPreview]
+      properties:
+        run:
+          $ref: "#/components/schemas/AgentRun"
+        toolPreview:
+          $ref: "#/components/schemas/ToolPreview"
+        executionDecision:
+          $ref: "#/components/schemas/HarnessDecision"
+        trustPacket:
+          $ref: "#/components/schemas/TrustPacket"
+        insights:
+          type: array
+          items:
+            type: string
+        recommendedActions:
+          type: array
+          items:
+            type: string
+        auditPreview:
+          type: array
+          items:
+            type: string
+        overview:
+          $ref: "#/components/schemas/AttendanceOverview"
+
+    AgentRun:
+      type: object
+      required: [id, runType, status, provider, model, riskLevel, summary, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        runType:
+          type: string
+        status:
+          type: string
+        actorUserId:
+          type: [string, "null"]
+          format: uuid
+        provider:
+          type: string
+        model:
+          type: string
+        riskLevel:
+          type: string
+        summary:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    HarnessDecision:
+      type: object
+      required:
+        - intent
+        - executionMode
+        - riskLevel
+        - useLlm
+        - useAgent
+        - useMultiAgent
+        - humanReviewRequired
+        - reason
+        - routedBy
+      properties:
+        intent:
+          type: string
+        executionMode:
+          type: string
+        riskLevel:
+          type: string
+        useLlm:
+          type: boolean
+        useAgent:
+          type: boolean
+        useMultiAgent:
+          type: boolean
+        humanReviewRequired:
+          type: boolean
+        reason:
+          type: string
+        routedBy:
+          type: array
+          items:
+            type: string
+
+    ToolPreview:
+      type: object
+      required:
+        - toolName
+        - purpose
+        - executionMode
+        - riskLevel
+        - decision
+        - accepted
+        - previewOnly
+        - reversible
+        - writes
+        - reason
+      properties:
+        toolName:
+          type: string
+        purpose:
+          type: string
+        executionMode:
+          type: string
+        riskLevel:
+          type: string
+        decision:
+          type: string
+        requiredCapability:
+          type: string
+        accepted:
+          type: boolean
+        previewOnly:
+          type: boolean
+        reversible:
+          type: boolean
+        writes:
+          type: array
+          items:
+            type: string
+        arguments:
+          type: object
+          additionalProperties: true
+        reason:
+          type: string
+
+    RAGCitation:
+      type: object
+      required: [documentId, chunkId, title, snippet]
+      properties:
+        documentId:
+          type: string
+        chunkId:
+          type: string
+        title:
+          type: string
+        snippet:
+          type: string
+        trustLevel:
+          type: string
+        sensitivity:
+          type: string
+        score:
+          type: number
+          format: double
+
+    TrustPacket:
+      type: object
+      required:
+        - riskLevel
+        - confidence
+        - humanReviewRequired
+        - evidenceCount
+        - auditStatus
+        - reversible
+        - policyChecks
+      properties:
+        riskLevel:
+          type: string
+        confidence:
+          type: number
+          format: double
+        humanReviewRequired:
+          type: boolean
+        evidenceCount:
+          type: integer
+        citations:
+          type: array
+          items:
+            $ref: "#/components/schemas/RAGCitation"
+        toolPreview:
+          $ref: "#/components/schemas/ToolPreview"
+        auditStatus:
+          type: string
+        reversible:
+          type: boolean
+        policyChecks:
+          type: array
+          items:
+            type: string
+
+    RagDocumentScope:
+      type: object
+      required: [scopeType, includeDescendants]
+      properties:
+        documentId:
+          type: string
+        scopeType:
+          type: string
+          enum: [global, legal_entity, org_unit, role, employee]
+        scopeId:
+          type: [string, "null"]
+          format: uuid
+        roleCode:
+          type: [string, "null"]
+        employeeId:
+          type: [string, "null"]
+          format: uuid
+        includeDescendants:
+          type: boolean
+
+    RagDocument:
+      type: object
+      required: [id, title, version, status, trustLevel, sensitivity, createdAt]
+      properties:
+        id:
+          type: string
+        sourceId:
+          type: [string, "null"]
+        title:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+        trustLevel:
+          type: string
+        sensitivity:
+          type: string
+        content:
+          type: string
+        effectiveFrom:
+          type: [string, "null"]
+          format: date-time
+        effectiveTo:
+          type: [string, "null"]
+          format: date-time
+        publishedAt:
+          type: [string, "null"]
+          format: date-time
+        createdByUserId:
+          type: [string, "null"]
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/RagDocumentScope"
 
     Message:
       type: object

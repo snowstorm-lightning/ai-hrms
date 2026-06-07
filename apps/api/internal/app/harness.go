@@ -19,6 +19,7 @@ var (
 	demoPersonPattern      = regexp.MustCompile(`林晨|周雨桐|许安宁|顾明远|沈知衡|陈向南|罗启明|许海川`)
 	workforcePromptPattern = regexp.MustCompile(`(?i)(为|给|针对|面向)[^，。；\n]{0,32}(员工|新人|导师|候选人|面试者|HRBP|employee|candidate|mentor)`)
 	visualSpacePattern     = regexp.MustCompile(`\s+`)
+	isolatedCJKPattern     = regexp.MustCompile(`^\p{Han}(?:\s+\p{Han})+$`)
 )
 
 const (
@@ -29,6 +30,17 @@ const (
 	executionMultiAgent          = "multi_agent"
 	executionActionPreview       = "action_preview"
 	executionHumanReviewRequired = "human_review_required"
+)
+
+const (
+	visualIntentIdentify         = "identify_selection"
+	visualIntentBusinessExplain  = "business_explain"
+	visualIntentModuleExplain    = "module_explain"
+	visualIntentFieldExplain     = "field_explain"
+	visualIntentAccessDiagnostic = "access_diagnostic"
+	visualIntentActionPreview    = "action_preview"
+	visualIntentEvidence         = "evidence_lookup"
+	visualIntentLayout           = "layout_explain"
 )
 
 func decidePromptHarness(message string) domain.HarnessDecision {
@@ -239,8 +251,12 @@ func visualContextPacket(req domain.VisualContextRequest, decision domain.Harnes
 			Provenance: req.Route,
 		})
 	}
+	domItems := domContextItems(req)
+	if len(refs) > 0 && len(domItems) > 0 {
+		items = mergeContextItems(items, domItems)
+	}
 	if len(items) == 0 {
-		items = append(items, domContextItems(req)...)
+		items = append(items, domItems...)
 	}
 	if len(items) == 0 {
 		items = append(items, domain.ContextItem{
@@ -301,6 +317,23 @@ func domContextItems(req domain.VisualContextRequest) []domain.ContextItem {
 		}
 		label = compactVisualText(label, 40)
 		summary := compactVisualText(text, 72)
+		headers := stringSliceValue(node["tableHeaders"])
+		cells := tableCellSummary(node["rowCells"])
+		if len(headers) > 0 || cells != "" {
+			if kind == "" {
+				kind = "table-row"
+			}
+			var parts []string
+			if len(headers) > 0 {
+				parts = append(parts, "列="+strings.Join(headers, "、"))
+			}
+			if cells != "" {
+				parts = append(parts, "可见字段="+cells)
+			} else if summary != "" {
+				parts = append(parts, "可见文本="+summary)
+			}
+			summary = "表格上下文：" + strings.Join(parts, "；")
+		}
 		if summary == "" {
 			summary = fmt.Sprintf("页面模块 kind=%s，位于当前圈选区域内。", kind)
 		}
@@ -313,6 +346,9 @@ func domContextItems(req domain.VisualContextRequest) []domain.ContextItem {
 			Metadata: map[string]any{
 				"kind":             kind,
 				"tag":              stringValue(node["tag"]),
+				"page":             stringValue(node["page"]),
+				"tableHeaders":     headers,
+				"rowCells":         cells,
 				"verifiedEvidence": false,
 			},
 		})
@@ -340,6 +376,61 @@ func domNodeIntersectsRegions(node map[string]any, regions []domain.ScreenRegion
 	return false
 }
 
+func stringSliceValue(value any) []string {
+	values, ok := value.([]any)
+	if !ok {
+		if typed, ok := value.([]string); ok {
+			values = make([]any, 0, len(typed))
+			for _, item := range typed {
+				values = append(values, item)
+			}
+		} else {
+			return nil
+		}
+	}
+	out := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, item := range values {
+		text := compactVisualText(stringValue(item), 28)
+		if text == "" || seen[text] {
+			continue
+		}
+		seen[text] = true
+		out = append(out, text)
+		if len(out) >= 10 {
+			break
+		}
+	}
+	return out
+}
+
+func tableCellSummary(value any) string {
+	values, ok := value.([]any)
+	if !ok {
+		return ""
+	}
+	parts := make([]string, 0, len(values))
+	for _, item := range values {
+		cell, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		header := compactVisualText(stringValue(cell["header"]), 18)
+		text := compactVisualText(stringValue(cell["text"]), 32)
+		if text == "" {
+			continue
+		}
+		if header == "" {
+			header = "字段"
+		}
+		parts = append(parts, header+"="+text)
+		if len(parts) >= 8 {
+			break
+		}
+	}
+	return strings.Join(parts, "；")
+}
+
 func routeSummary(route string) string {
 	switch {
 	case strings.Contains(route, "dashboard"):
@@ -356,6 +447,14 @@ func routeSummary(route string) string {
 		return "这是 Audit & Evidence，用于追踪建议、工具调用、人工确认和证据链。"
 	case strings.Contains(route, "settings"):
 		return "这是设置页面，用于管理语言、侧边栏宽度、界面密度和 Visual Copilot 默认行为。"
+	case strings.Contains(route, "users"):
+		return "这是账号与角色治理页，用于维护登录账号、角色绑定、权限 scope 和审计责任归属。"
+	case strings.Contains(route, "legal-entities"):
+		return "这是法人 scope 页面，用于维护法人实体、地区和合同主体边界。"
+	case strings.Contains(route, "org-units"):
+		return "这是组织 scope 页面，用于维护组织树、负责人和下级可见范围。"
+	case strings.Contains(route, "employees"):
+		return "这是员工数据层页面，用于查看当前 scope 内员工和主任职归属。"
 	default:
 		return "这是 AI-HRMS 页面的一部分。"
 	}
@@ -370,6 +469,9 @@ func stringValue(value any) string {
 
 func compactVisualText(value string, limit int) string {
 	value = strings.TrimSpace(visualSpacePattern.ReplaceAllString(value, " "))
+	if isolatedCJKPattern.MatchString(value) {
+		value = strings.ReplaceAll(value, " ", "")
+	}
 	if limit <= 0 {
 		return value
 	}
@@ -483,7 +585,7 @@ type toolCatalogSpec struct {
 
 func toolSpec(tool string) toolCatalogSpec {
 	switch tool {
-	case "list_employees", "get_employee", "list_attendance":
+	case "list_employees", "get_employee", "list_attendance", "attendance_realtime_overview":
 		return toolCatalogSpec{purpose: "只读检索结构化员工或考勤数据", riskLevel: "low", capability: "employee.read", reversible: true}
 	case "rag_search":
 		return toolCatalogSpec{purpose: "只读检索 scoped RAG 引用", riskLevel: "low", capability: "rag.search", reversible: true}
@@ -597,65 +699,452 @@ func joinLimited(items []string, limit int) string {
 }
 
 func visualExplanation(requested string, packet domain.ContextPacket, decision domain.HarnessDecision) string {
-	requested = compactVisualText(requested, 80)
-	lines := []string{visualDirectAnswer(requested, packet)}
-	employeeItems := visualItemsByType(packet.Items, "employee", "user")
-	if len(employeeItems) > 0 {
-		lines = append(lines, visualEmployeeExplanationLines(employeeItems)...)
+	requested = compactVisualText(strings.TrimSpace(requested), 120)
+	intent := classifyVisualQuestion(requested, packet, decision)
+	lines := visualPlannedAnswer(intent, requested, packet, decision)
+	if len(lines) == 0 {
+		lines = []string{"我没有拿到足够的页面语义。请圈选具体表格行、卡片、按钮或字段，再说明你想知道“是谁、是什么、为什么、怎么做或依据在哪里”。"}
 	}
-	visibleItems := visualItemsExceptTypes(packet.Items, "employee", "user")
-	if len(visibleItems) > 4 {
-		visibleItems = visibleItems[:4]
+	if decision.ExecutionMode == executionActionPreview {
+		lines = append(lines, "这类请求只生成工具预览；真实执行必须经过权限复核、人工确认和审计记录。")
+	} else if decision.ExecutionMode == executionHumanReviewRequired || decision.RiskLevel == "high" {
+		lines = append(lines, "这类问题触及高影响人事边界，系统只能解释依据和风险，不能自动形成录用、晋升、降薪、淘汰或处罚结论。")
 	}
-	for _, item := range visibleItems {
-		label := item.Label
-		if label == "" {
-			label = item.Type + ":" + item.ID
-		}
-		label = compactVisualText(label, 40)
-		summary := compactVisualText(item.Summary, 120)
-		switch item.Type {
-		case "legal_entity":
-			lines = append(lines, fmt.Sprintf("法人实体「%s」：%s 它主要用于确定合同主体、权限 scope、知识资料可见范围和审计责任归属。", label, summary))
-		case "org_unit":
-			lines = append(lines, fmt.Sprintf("组织单元「%s」：%s 它决定员工、RAG 资料、Agent 工具预览和审计事件的组织范围。", label, summary))
-		case "user":
-			lines = append(lines, fmt.Sprintf("账号「%s」：%s 它用于登录身份、角色绑定、权限 scope 和审计责任归属，不代表员工绩效或岗位事实。", label, summary))
-		case "attendance":
-			lines = append(lines, fmt.Sprintf("考勤信号「%s」：%s 该信号只能用于流程解释和人工复核，不得自动形成绩效、淘汰或处罚结论。", label, summary))
-		case "message":
-			lines = append(lines, fmt.Sprintf("消息证据「%s」：%s 它可作为组织沟通上下文和审计线索，但不能作为无边界训练数据。", label, summary))
-		case "dom_module":
-			lines = append(lines, visualDOMModuleExplanation(label, summary, item.Metadata))
-		case "screen_region":
-			lines = append(lines, "这个选区没有命中可验证的业务对象；建议圈选具体表格行、卡片、按钮或字段，系统才能读取数据库上下文。")
-		default:
-			lines = append(lines, fmt.Sprintf("业务对象「%s」：%s", label, summary))
-		}
-	}
-	shown := len(visibleItems) + minInt(len(employeeItems), 8)
-	if len(packet.Items) > shown {
-		lines = append(lines, fmt.Sprintf("另外还识别到 %d 个上下文对象；详情可展开“上下文证据”查看。", len(packet.Items)-shown))
-	}
-	if decision.RiskLevel != "low" || decision.HumanReviewRequired {
-		if decision.ExecutionMode == executionActionPreview {
-			lines = append(lines, "该请求包含动作意图，系统只生成工具预览；真实执行必须经过人工确认、权限复核和审计。")
-		} else {
-			lines = append(lines, "该解释包含中高风险上下文，系统不会自动执行动作；进入工具预览、人工确认或审计流转前仍需人工复核。")
-		}
-	}
-	return strings.Join(lines, "\n")
+	return strings.Join(compactAnswerLines(lines), "\n")
 }
 
-func visualDirectAnswer(requested string, packet domain.ContextPacket) string {
-	lowerRequest := strings.ToLower(requested)
-	if visualPacketHasAdminGuide(packet) && containsAny(lowerRequest, []string{"为什么", "看不了", "看不到", "无法", "不能", "why", "cannot", "can't", "not see"}) {
-		return "看不了这块通常是权限原因：管理员指南只对 group_admin 角色显示。请确认当前账号是否已绑定 group_admin；如果刚调整过角色，重新登录或刷新页面后再试。普通用户不会看到账号、角色、法人 scope、组织 scope 和 RAG 发布等治理入口。"
+func classifyVisualQuestion(requested string, packet domain.ContextPacket, decision domain.HarnessDecision) string {
+	lower := strings.ToLower(strings.TrimSpace(requested))
+	if decision.ExecutionMode == executionActionPreview || decision.Intent == "action_request" {
+		return visualIntentActionPreview
 	}
-	if strings.TrimSpace(requested) == "" {
-		return "我按当前选区解释如下。"
+	if visualPacketHasAdminGuide(packet) && containsAny(lower, []string{"为什么", "看不了", "看不到", "无法", "不能", "why", "cannot", "can't", "not see"}) {
+		return visualIntentAccessDiagnostic
 	}
-	return fmt.Sprintf("我按“%s”来解释这块内容。", requested)
+	if containsAny(lower, []string{"为什么", "看不了", "看不到", "无法", "不能", "没有权限", "why", "cannot", "can't", "not see", "permission"}) {
+		return visualIntentAccessDiagnostic
+	}
+	if containsAny(lower, []string{"点击", "按钮", "提交", "保存", "删除", "新增", "编辑", "权限", "执行", "会做什么", "干嘛", "action", "button", "submit", "save", "delete", "create", "edit"}) {
+		return visualIntentActionPreview
+	}
+	if containsAny(lower, []string{"字段", "这一列", "这列", "列名", "是什么意思", "什么意思", "column", "field"}) {
+		return visualIntentFieldExplain
+	}
+	if containsAny(lower, []string{"引用", "依据", "证据", "来源", "制度", "政策", "参考", "citation", "evidence", "source", "policy"}) {
+		return visualIntentEvidence
+	}
+	if containsAny(lower, []string{"位置", "左边", "右边", "上面", "下面", "布局", "挡住", "重叠", "看不清", "layout", "position", "overlap"}) {
+		return visualIntentLayout
+	}
+	if containsAny(lower, []string{"谁", "哪些人", "这些人", "这几个人", "名单", "哪个", "which", "who"}) {
+		return visualIntentIdentify
+	}
+	if containsAny(lower, []string{"业务内容", "负责什么", "职责", "归属", "scope", "角色", "role", "owner", "responsibility"}) {
+		return visualIntentBusinessExplain
+	}
+	if containsAny(lower, []string{"这是什么", "这部分", "这个页面", "这个模块", "解释", "说明", "what is this", "explain"}) {
+		return visualIntentModuleExplain
+	}
+	if len(visualItemsByType(packet.Items, "user", "employee", "legal_entity", "org_unit", "rag_document", "agent_run", "audit_event", "attendance", "message")) > 0 {
+		return visualIntentIdentify
+	}
+	return visualIntentModuleExplain
+}
+
+func visualPlannedAnswer(intent, requested string, packet domain.ContextPacket, decision domain.HarnessDecision) []string {
+	switch intent {
+	case visualIntentAccessDiagnostic:
+		return visualAccessDiagnosticAnswer(packet)
+	case visualIntentActionPreview:
+		return visualActionAnswer(packet, decision)
+	case visualIntentFieldExplain:
+		return visualFieldAnswer(packet)
+	case visualIntentEvidence:
+		return visualEvidenceAnswer(packet)
+	case visualIntentLayout:
+		return visualLayoutAnswer(packet)
+	case visualIntentBusinessExplain:
+		return visualBusinessAnswer(packet)
+	case visualIntentIdentify:
+		return visualIdentifyAnswer(packet)
+	default:
+		return visualModuleAnswer(packet, requested)
+	}
+}
+
+func visualIdentifyAnswer(packet domain.ContextPacket) []string {
+	users := visualItemsByType(packet.Items, "user")
+	employees := visualItemsByType(packet.Items, "employee")
+	if len(users) > 0 {
+		lines := []string{fmt.Sprintf("这是账号与角色治理中的 %d 个账号：%s。", len(users), strings.Join(itemLabels(users, 12), "、"))}
+		if details := accountDetails(users, 8); len(details) > 0 {
+			lines = append(lines, details...)
+		}
+		lines = append(lines, "这些对象表示登录账号和角色绑定，不等同于员工绩效、岗位评价或任用结论。")
+		return lines
+	}
+	if len(employees) > 0 {
+		lines := []string{fmt.Sprintf("这是 %d 名员工：%s。", len(employees), strings.Join(itemLabels(employees, 12), "、"))}
+		if details := employeeBriefDetails(employees, 6); len(details) > 0 {
+			lines = append(lines, details...)
+		} else {
+			lines = append(lines, "当前只识别到员工身份，没有返回岗位、组织或职责字段；如果需要这些信息，请圈选员工详情或包含组织/岗位列的表格。")
+		}
+		return lines
+	}
+	businessItems := visualPrimaryBusinessItems(packet.Items)
+	if len(businessItems) > 0 {
+		return []string{fmt.Sprintf("这个选区关联 %d 个业务对象：%s。", len(businessItems), strings.Join(itemTypeLabels(businessItems, 10), "、"))}
+	}
+	return visualModuleAnswer(packet, "")
+}
+
+func visualBusinessAnswer(packet domain.ContextPacket) []string {
+	users := visualItemsByType(packet.Items, "user")
+	employees := visualItemsByType(packet.Items, "employee")
+	if len(users) > 0 {
+		lines := []string{fmt.Sprintf("这些是账号对象，共 %d 个，主要用于登录、角色绑定、scope 授权和审计归属。", len(users))}
+		lines = append(lines, accountDetails(users, 8)...)
+		return lines
+	}
+	if len(employees) > 0 {
+		return visualEmployeeExplanationLines(employees)
+	}
+	items := visualPrimaryBusinessItems(packet.Items)
+	if len(items) == 0 {
+		return visualModuleAnswer(packet, "")
+	}
+	lines := []string{fmt.Sprintf("选区关联 %d 个业务对象，主要含义如下。", len(items))}
+	for _, item := range items[:minInt(len(items), 6)] {
+		lines = append(lines, businessItemLine(item))
+	}
+	return lines
+}
+
+func visualModuleAnswer(packet domain.ContextPacket, requested string) []string {
+	if visualPacketHasAdminGuide(packet) {
+		return []string{"这部分是管理员指南，覆盖账号维护、角色绑定、法人 scope、组织 scope、RAG 资料发布和高风险审计检查。它只对 group_admin 角色开放。"}
+	}
+	if modules := visualItemsByType(packet.Items, "dom_module", "screen_region"); len(modules) > 0 {
+		lines := make([]string, 0, minInt(len(modules), 4))
+		for _, item := range modules[:minInt(len(modules), 4)] {
+			label := compactVisualText(item.Label, 40)
+			summary := compactVisualText(item.Summary, 160)
+			if item.Type == "screen_region" {
+				lines = append(lines, "这个选区没有命中具名业务对象；请圈选具体表格行、卡片、按钮或字段，回答会更准确。")
+				continue
+			}
+			lines = append(lines, visualDOMModuleExplanation(label, summary, item.Metadata))
+		}
+		return lines
+	}
+	if items := visualPrimaryBusinessItems(packet.Items); len(items) > 0 {
+		return visualIdentifyAnswer(packet)
+	}
+	if requested != "" {
+		return []string{fmt.Sprintf("我没有从这块区域拿到足够的业务语义来回答“%s”。请扩大或缩小选区到具体标题、字段、表格行或按钮。", requested)}
+	}
+	return nil
+}
+
+func visualFieldAnswer(packet domain.ContextPacket) []string {
+	if rows := visualItemsByType(packet.Items, "dom_module"); len(rows) > 0 {
+		for _, row := range rows {
+			headers := stringSliceFromMetadata(row.Metadata, "tableHeaders")
+			cells := metadataString(row.Metadata, "rowCells")
+			if len(headers) == 0 && cells == "" {
+				continue
+			}
+			lines := []string{}
+			if len(headers) > 0 {
+				lines = append(lines, "这个选区属于表格区域。可见列包括："+strings.Join(headers, "、")+"。")
+			}
+			if cells != "" {
+				lines = append(lines, "当前选中行可见字段："+cells+"。")
+			}
+			lines = append(lines, "如果你要问某一列，请只圈选表头或该列单元格，我会按字段名解释。")
+			return lines
+		}
+	}
+	if users := visualItemsByType(packet.Items, "user"); len(users) > 0 {
+		return []string{"当前表格的核心字段是用户名、手机号、角色和启用状态。用户名是登录账号显示名；手机号是登录标识或联系标识；角色决定 capability 与 scope；启用状态表示账号能否登录。"}
+	}
+	return []string{"我没有识别到明确的字段或列名。请圈选表头、单元格或表单字段。"}
+}
+
+func visualAccessDiagnosticAnswer(packet domain.ContextPacket) []string {
+	if visualPacketHasAdminGuide(packet) {
+		return []string{"看不了这块通常是权限原因：管理员指南只对 group_admin 角色显示。请确认当前账号是否已绑定 group_admin；如果刚调整过角色，重新登录或刷新页面后再试。普通用户不会看到账号、角色、法人 scope、组织 scope 和 RAG 发布等治理入口。"}
+	}
+	lines := []string{"如果页面区域不可见，优先检查当前账号的角色、scope、登录状态和页面筛选条件。"}
+	if labels := itemTypeLabels(visualPrimaryBusinessItems(packet.Items), 6); len(labels) > 0 {
+		lines = append(lines, "本次选区关联对象："+strings.Join(labels, "、")+"。若这些对象消失或不可编辑，通常是 scope 或 capability 不覆盖。")
+	}
+	lines = append(lines, "角色或 scope 刚调整后，需要刷新页面或重新登录，后端才会重新解析权限。")
+	return lines
+}
+
+func visualActionAnswer(packet domain.ContextPacket, decision domain.HarnessDecision) []string {
+	actionItems := visualActionItems(packet.Items)
+	if len(actionItems) > 0 {
+		lines := []string{fmt.Sprintf("这块区域包含 %d 个可操作入口：%s。", len(actionItems), strings.Join(itemLabels(actionItems, 6), "、"))}
+		lines = append(lines, "我可以解释它们的用途和风险，但不会在截图问答里直接执行写操作。")
+		return lines
+	}
+	if users := visualItemsByType(packet.Items, "user"); len(users) > 0 {
+		return []string{fmt.Sprintf("如果你要对这 %d 个账号执行编辑、权限变更或禁用操作，系统必须先生成工具预览，再由有权限的人确认。", len(users))}
+	}
+	if decision.ExecutionMode == executionActionPreview {
+		return []string{"这个请求被识别为动作意图。系统会先展示工具预览、影响范围、风险和所需权限，不会直接写入数据。"}
+	}
+	return []string{"我没有识别到明确按钮或动作。请圈选按钮、菜单项或表单提交区域。"}
+}
+
+func visualEvidenceAnswer(packet domain.ContextPacket) []string {
+	citations := visualItemsByType(packet.Items, "rag_citation")
+	if len(citations) > 0 {
+		lines := []string{fmt.Sprintf("已找到 %d 条可引用资料，正文回答应以这些 citation 为准。", len(citations))}
+		for _, item := range citations[:minInt(len(citations), 4)] {
+			lines = append(lines, fmt.Sprintf("《%s》：%s", compactVisualText(item.Label, 48), compactVisualText(item.Summary, 120)))
+		}
+		return lines
+	}
+	if docs := visualItemsByType(packet.Items, "rag_document"); len(docs) > 0 {
+		return []string{fmt.Sprintf("选区关联 %d 份知识资料：%s。要确认依据，请打开资料详情或在文档库中用具体问题检索 citation。", len(docs), strings.Join(itemLabels(docs, 6), "、"))}
+	}
+	return []string{"这次没有命中可引用资料。涉及制度、政策或依据时，应先在文档库/RAG 中检索到 citation，再给正式回答。"}
+}
+
+func visualLayoutAnswer(packet domain.ContextPacket) []string {
+	lines := []string{"我只能基于 DOM、表格语义和 layout snapshot 判断区域关系，不做未脱敏截图的像素级识别。"}
+	if packet.SourceCount["layout_item"] > 0 {
+		lines = append(lines, fmt.Sprintf("本次选区带有 %d 个 layout 文本片段，可用于解释相对位置、遮挡和换行问题。", packet.SourceCount["layout_item"]))
+	}
+	if modules := visualItemsByType(packet.Items, "dom_module"); len(modules) > 0 {
+		lines = append(lines, "命中的页面模块："+strings.Join(itemLabels(modules, 5), "、")+"。")
+	}
+	return lines
+}
+
+func visualActionItems(items []domain.ContextItem) []domain.ContextItem {
+	out := make([]domain.ContextItem, 0, len(items))
+	for _, item := range items {
+		kind := strings.ToLower(item.Type + " " + item.Label + " " + metadataString(item.Metadata, "kind"))
+		if strings.Contains(kind, "action") || strings.Contains(kind, "button") || strings.Contains(kind, "edit") || strings.Contains(kind, "create") || strings.Contains(kind, "delete") || strings.Contains(kind, "提交") || strings.Contains(kind, "按钮") {
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func visualPrimaryBusinessItems(items []domain.ContextItem) []domain.ContextItem {
+	out := make([]domain.ContextItem, 0, len(items))
+	for _, item := range items {
+		switch item.Type {
+		case "user", "employee", "legal_entity", "org_unit", "rag_document", "learning", "learning_signal", "learning_mission", "learning_principle", "growth_evidence", "workflow_node", "agent_run", "audit_event", "attendance", "message":
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func accountDetails(items []domain.ContextItem, limit int) []string {
+	lines := make([]string, 0, minInt(len(items), limit))
+	for _, item := range items[:minInt(len(items), limit)] {
+		roleText := stringSliceFromMetadata(item.Metadata, "roles")
+		enabled := metadataBoolText(item.Metadata, "enabled")
+		var parts []string
+		if len(roleText) > 0 {
+			parts = append(parts, "角色="+strings.Join(roleText, "、"))
+		}
+		if enabled != "" {
+			parts = append(parts, "状态="+enabled)
+		}
+		if len(parts) == 0 {
+			lines = append(lines, compactVisualText(item.Label, 40))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s：%s。", compactVisualText(item.Label, 40), strings.Join(parts, "，")))
+	}
+	return lines
+}
+
+func employeeBriefDetails(items []domain.ContextItem, limit int) []string {
+	lines := make([]string, 0, minInt(len(items), limit))
+	for _, item := range items[:minInt(len(items), limit)] {
+		var parts []string
+		if value := metadataString(item.Metadata, "position"); usableMetadataValue(value) {
+			parts = append(parts, "岗位="+value)
+		}
+		if value := metadataString(item.Metadata, "orgUnit"); usableMetadataValue(value) {
+			parts = append(parts, "组织="+value)
+		}
+		if value := metadataString(item.Metadata, "legalEntity"); usableMetadataValue(value) {
+			parts = append(parts, "法人="+value)
+		}
+		if len(parts) == 0 {
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s：%s。", compactVisualText(item.Label, 40), strings.Join(parts, "，")))
+	}
+	return lines
+}
+
+func businessItemLine(item domain.ContextItem) string {
+	label := compactVisualText(item.Label, 48)
+	summary := compactVisualText(item.Summary, 160)
+	switch item.Type {
+	case "legal_entity":
+		return fmt.Sprintf("法人实体「%s」：%s", label, summary)
+	case "org_unit":
+		return fmt.Sprintf("组织单元「%s」：%s", label, summary)
+	case "rag_document":
+		return fmt.Sprintf("知识资料「%s」：%s", label, summary)
+	case "agent_run":
+		return fmt.Sprintf("Agent run「%s」：%s", label, summary)
+	case "audit_event":
+		return fmt.Sprintf("审计事件「%s」：%s", label, summary)
+	default:
+		return fmt.Sprintf("%s「%s」：%s", visualTypeLabel(item.Type), label, summary)
+	}
+}
+
+func itemLabels(items []domain.ContextItem, limit int) []string {
+	labels := make([]string, 0, minInt(len(items), limit))
+	seen := map[string]bool{}
+	for _, item := range items {
+		label := compactVisualText(item.Label, 40)
+		if label == "" || seen[label] {
+			continue
+		}
+		seen[label] = true
+		labels = append(labels, label)
+		if len(labels) >= limit {
+			break
+		}
+	}
+	return labels
+}
+
+func itemTypeLabels(items []domain.ContextItem, limit int) []string {
+	labels := make([]string, 0, minInt(len(items), limit))
+	for _, item := range items {
+		label := compactVisualText(item.Label, 36)
+		if label == "" {
+			continue
+		}
+		labels = append(labels, visualTypeLabel(item.Type)+"「"+label+"」")
+		if len(labels) >= limit {
+			break
+		}
+	}
+	return labels
+}
+
+func visualTypeLabel(itemType string) string {
+	switch itemType {
+	case "user":
+		return "账号"
+	case "employee":
+		return "员工"
+	case "legal_entity":
+		return "法人"
+	case "org_unit":
+		return "组织"
+	case "rag_document":
+		return "资料"
+	case "agent_run":
+		return "Agent 运行"
+	case "audit_event":
+		return "审计事件"
+	case "attendance":
+		return "考勤信号"
+	case "message":
+		return "消息"
+	default:
+		return "对象"
+	}
+}
+
+func metadataBoolText(metadata map[string]any, key string) string {
+	if metadata == nil {
+		return ""
+	}
+	value, ok := metadata[key]
+	if !ok {
+		return ""
+	}
+	typed, ok := value.(bool)
+	if !ok {
+		return ""
+	}
+	if typed {
+		return "启用"
+	}
+	return "禁用"
+}
+
+func stringSliceFromMetadata(metadata map[string]any, key string) []string {
+	if metadata == nil {
+		return nil
+	}
+	return stringSliceValue(metadata[key])
+}
+
+func usableMetadataValue(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "<nil>" || value == "未返回" || value == "未分配" || value == "未绑定主岗位" {
+		return false
+	}
+	return true
+}
+
+func compactAnswerLines(lines []string) []string {
+	out := make([]string, 0, len(lines))
+	seen := map[string]bool{}
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || seen[line] {
+			continue
+		}
+		seen[line] = true
+		out = append(out, line)
+	}
+	return out
+}
+
+func visualSupplementalContextItems(items []domain.ContextItem) []domain.ContextItem {
+	out := make([]domain.ContextItem, 0, len(items))
+	for _, item := range items {
+		if item.Source == "visual_selection.dom_ref" {
+			continue
+		}
+		switch item.Type {
+		case "dom_module", "screen_region":
+			out = append(out, item)
+		}
+	}
+	return out
+}
+
+func mergeContextItems(primary []domain.ContextItem, secondary []domain.ContextItem) []domain.ContextItem {
+	out := make([]domain.ContextItem, 0, len(primary)+len(secondary))
+	seen := map[string]bool{}
+	add := func(item domain.ContextItem) {
+		key := item.Source + ":" + item.Type + ":" + item.ID + ":" + item.Label + ":" + item.Summary
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		out = append(out, item)
+	}
+	for _, item := range primary {
+		add(item)
+	}
+	for _, item := range secondary {
+		add(item)
+	}
+	return out
 }
 
 func visualPacketHasAdminGuide(packet domain.ContextPacket) bool {
@@ -707,14 +1196,21 @@ func visualEmployeeExplanationLines(items []domain.ContextItem) []string {
 		if business == "" {
 			business = compactVisualText(item.Summary, 160)
 		}
-		lines = append(lines, fmt.Sprintf(
-			"%s：岗位=%s，归属=%s / %s；业务内容=%s。",
-			label,
-			valueOrUnknown(position),
-			valueOrUnknown(legalEntity),
-			valueOrUnknown(orgUnit),
-			valueOrUnknown(compactVisualText(business, 120)),
-		))
+		var parts []string
+		if usableMetadataValue(position) {
+			parts = append(parts, "岗位="+position)
+		}
+		if usableMetadataValue(legalEntity) || usableMetadataValue(orgUnit) {
+			parts = append(parts, "归属="+strings.Join(nonEmptyValues(legalEntity, orgUnit), " / "))
+		}
+		if usableMetadataValue(business) {
+			parts = append(parts, "业务内容="+compactVisualText(business, 120))
+		}
+		if len(parts) == 0 {
+			lines = append(lines, fmt.Sprintf("%s：当前只返回了可见员工身份，没有返回岗位、组织或职责字段。", label))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s：%s。", label, strings.Join(parts, "；")))
 	}
 	if len(items) > limit {
 		lines = append(lines, fmt.Sprintf("另有 %d 名员工未在正文逐条展开；可展开“上下文证据”查看完整对象。", len(items)-limit))
@@ -769,6 +1265,16 @@ func valueOrUnknown(value string) string {
 	return value
 }
 
+func nonEmptyValues(values ...string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if usableMetadataValue(value) {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
 func minInt(left, right int) int {
 	if left < right {
 		return left
@@ -787,9 +1293,13 @@ func visualExplanationBoundary(packet domain.ContextPacket) string {
 }
 
 func visualSelectedSummary(regionCount int, refLabels []string, packet domain.ContextPacket) string {
-	employeeLabels := trustedVisualItemLabels(packet.Items, "employee", "user")
+	userLabels := trustedVisualItemLabels(packet.Items, "user")
+	if len(userLabels) > 0 {
+		return fmt.Sprintf("已识别 %d 个圈选区域，关联 %d 个账号：%s。账号用于登录、角色绑定、scope 授权和审计责任归属。", regionCount, len(userLabels), strings.Join(compactVisualLabels(userLabels), "、"))
+	}
+	employeeLabels := trustedVisualItemLabels(packet.Items, "employee")
 	if len(employeeLabels) > 0 {
-		return fmt.Sprintf("已识别 %d 个圈选区域，关联 %d 名员工：%s。业务解释按主任职法人/组织归属生成，不代表个人绩效或真实工作产出判断。", regionCount, len(employeeLabels), strings.Join(compactVisualLabels(employeeLabels), "、"))
+		return fmt.Sprintf("已识别 %d 个圈选区域，关联 %d 名员工：%s。业务解释按主职法人/组织归属生成，不代表个人绩效或真实工作产出判断。", regionCount, len(employeeLabels), strings.Join(compactVisualLabels(employeeLabels), "、"))
 	}
 	if len(refLabels) > 0 {
 		return fmt.Sprintf("已识别 %d 个圈选区域，关联业务对象：%s。", regionCount, strings.Join(compactVisualLabels(refLabels), "、"))
