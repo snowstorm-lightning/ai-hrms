@@ -245,7 +245,8 @@ select {
 }
 
 .settings-page,
-.docs-library-page {
+.docs-library-page,
+.docs-detail-page {
   display: grid;
   gap: 16px;
   min-width: 0;
@@ -335,6 +336,91 @@ select {
   -webkit-line-clamp: 3;
 }
 
+.docs-card-title {
+  display: grid;
+  gap: 4px;
+}
+
+.docs-back-button {
+  justify-self: start;
+}
+
+.docs-detail-loading {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+}
+
+.docs-detail-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: start;
+  padding: 24px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.docs-detail-header .page-title {
+  margin-bottom: 14px;
+}
+
+.docs-detail-actions {
+  justify-content: flex-end;
+}
+
+.docs-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.docs-detail-toc-list {
+  display: grid;
+  gap: 8px;
+}
+
+.docs-detail-toc-list a {
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.docs-detail-toc-list a:hover {
+  background: #f1f5f9;
+  color: #1677ff;
+}
+
+.docs-reader-main {
+  display: grid;
+  gap: 14px;
+  width: min(100%, 960px);
+  min-width: 0;
+  justify-self: center;
+}
+
+.docs-reader-section {
+  padding: 22px;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.docs-reader-section h2.ant-typography {
+  margin-top: 0;
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.docs-reader-section .ant-typography {
+  color: #334155;
+  font-size: 15px;
+  line-height: 1.85;
+}
+
 .docs-reader-content {
   padding: 14px;
   border: 1px solid #e5e7eb;
@@ -342,6 +428,19 @@ select {
   background: #f8fafc;
   line-height: 1.8;
   white-space: pre-wrap;
+}
+
+.docs-governance-drawer .ant-descriptions-item-label {
+  width: 112px;
+}
+
+.docs-governance-drawer .ant-descriptions-view table {
+  table-layout: fixed;
+}
+
+.docs-governance-drawer .ant-descriptions-item-content {
+  min-width: 0;
+  word-break: break-word;
 }
 
 .ai-dashboard-hero {
@@ -1335,6 +1434,8 @@ select {
   .settings-grid,
   .docs-library-hero,
   .docs-document-grid,
+  .docs-detail-header,
+  .docs-detail-layout,
   .result-section-grid,
   .tool-preview-grid,
   .knowledge-document-grid,
