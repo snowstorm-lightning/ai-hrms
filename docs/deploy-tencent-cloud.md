@@ -188,6 +188,25 @@ openssl rand -hex 32
 If real AI mode is enabled, also fill `DEEPSEEK_API_KEY` and embedding provider
 settings in `infra/.env`.
 
+Optional local embedding on CVM is opt-in. First mirror
+`ghcr.io/ggml-org/llama.cpp:server` to TCR, set
+`AI_HRMS_EMBEDDING_IMAGE`, then configure:
+
+```dotenv
+AI_HRMS_ENABLE_EMBEDDING=true
+AI_EMBEDDING_PROVIDER=local-openai-compatible
+LOCAL_EMBEDDING_API_KEY=<openssl-rand-hex-32>
+OPENAI_COMPATIBLE_EMBEDDING_API_KEY=<same-as-LOCAL_EMBEDDING_API_KEY>
+OPENAI_COMPATIBLE_EMBEDDING_BASE_URL=http://embedding:80/v1
+OPENAI_COMPATIBLE_EMBEDDING_MODEL=Qwen3-Embedding-0.6B-Q8_0
+RAG_EMBEDDING_DIMENSIONS=1024
+AI_HRMS_AGENT_SERVICE_TOKEN=<openssl-rand-hex-32>
+```
+
+The first embedding start can take several minutes while the model cache is
+initialized. Existing fake 8-dimensional RAG vectors must be rebuilt from
+Knowledge Hub before vector search uses the 1024-dimensional local model.
+
 ## First Deploy
 
 After the GitHub workflow has pushed images, run this once on the server if you

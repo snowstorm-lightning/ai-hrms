@@ -12,19 +12,74 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
+env_file_value() {
+  local key="$1"
+  local line value
+  line="$(grep -E "^[[:space:]]*$key[[:space:]]*=" "$ENV_FILE" | tail -n 1 || true)"
+  value="${line#*=}"
+  value="${value%%#*}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  value="${value%\"}"
+  value="${value#\"}"
+  value="${value%\'}"
+  value="${value#\'}"
+  printf '%s' "$value"
+}
+
+ENABLE_EMBEDDING="${AI_HRMS_ENABLE_EMBEDDING:-}"
+if [[ -z "$ENABLE_EMBEDDING" ]]; then
+  ENABLE_EMBEDDING="$(env_file_value AI_HRMS_ENABLE_EMBEDDING)"
+fi
+ENABLE_EMBEDDING="${ENABLE_EMBEDDING:-false}"
+
 compose=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+runtime_services=(postgres)
+stack_services=(postgres agent api web)
+
+case "${ENABLE_EMBEDDING,,}" in
+  1|true|yes|on)
+    compose+=(--profile embedding)
+    runtime_services+=(embedding)
+    stack_services=(postgres embedding agent api web)
+    ;;
+esac
 
 echo "Validating production compose config..."
 "${compose[@]}" config >/dev/null
 
 echo "Ensuring runtime images are available..."
-"${compose[@]}" pull --policy missing postgres
+"${compose[@]}" pull --policy missing "${runtime_services[@]}"
 
 echo "Pulling application images..."
 "${compose[@]}" pull api web agent
 
 echo "Starting production stack..."
-"${compose[@]}" up -d --remove-orphans --pull never postgres agent api web
+"${compose[@]}" up -d --remove-orphans --pull never "${stack_services[@]}"
+
+if [[ "${ENABLE_EMBEDDING,,}" =~ ^(1|true|yes|on)$ ]]; then
+  embedding_endpoint="$("${compose[@]}" port embedding 80 | tail -n 1)"
+  if [[ -z "$embedding_endpoint" ]]; then
+    echo "Could not resolve published embedding port from Docker Compose."
+    "${compose[@]}" ps
+    exit 1
+  fi
+
+  echo "Waiting for embedding health at http://$embedding_endpoint/health ..."
+  for _ in $(seq 1 120); do
+    if curl -fsS "http://$embedding_endpoint/health" >/dev/null; then
+      embedding_ok=true
+      break
+    fi
+    sleep 5
+  done
+
+  if [[ "${embedding_ok:-false}" != "true" ]]; then
+    echo "Embedding health check failed."
+    "${compose[@]}" ps
+    exit 1
+  fi
+fi
 
 api_endpoint="$("${compose[@]}" port api 8080 | tail -n 1)"
 web_endpoint="$("${compose[@]}" port web 80 | tail -n 1)"
