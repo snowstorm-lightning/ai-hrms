@@ -18,7 +18,7 @@ services:
 
   api:
     image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-api:${IMAGE_TAG:-latest}
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     environment:
       DATABASE_URL: ${DOCKER_DATABASE_URL:?DOCKER_DATABASE_URL is required}
@@ -55,7 +55,7 @@ services:
   bootstrap-admin:
     profiles: ["bootstrap"]
     image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-api:${IMAGE_TAG:-latest}
-    pull_policy: always
+    pull_policy: missing
     restart: "no"
     entrypoint: ["ai-hrms-admin", "bootstrap-admin"]
     environment:
@@ -70,7 +70,7 @@ services:
   seed-sample-company:
     profiles: ["sample-data"]
     image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-api:${IMAGE_TAG:-latest}
-    pull_policy: always
+    pull_policy: missing
     restart: "no"
     entrypoint: ["ai-hrms-admin", "seed-sample-company", "--yes"]
     environment:
@@ -84,7 +84,7 @@ services:
 
   web:
     image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-web:${IMAGE_TAG:-latest}
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     ports:
       - target: 80
@@ -97,7 +97,7 @@ services:
 
   agent:
     image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-agent:${IMAGE_TAG:-latest}
-    pull_policy: always
+    pull_policy: missing
     restart: unless-stopped
     environment:
       AI_HRMS_INGEST_ROOT: ${DOCKER_AI_HRMS_INGEST_ROOT:-}

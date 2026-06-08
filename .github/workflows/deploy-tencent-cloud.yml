@@ -56,6 +56,8 @@ jobs:
           tags: |
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-api:${{ env.IMAGE_TAG }}
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-api:latest
+          cache-from: type=gha,scope=ai-hrms-api
+          cache-to: type=gha,mode=max,scope=ai-hrms-api
 
       - name: Build and push Web image
         uses: docker/build-push-action@v6
@@ -69,6 +71,8 @@ jobs:
           tags: |
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-web:${{ env.IMAGE_TAG }}
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-web:latest
+          cache-from: type=gha,scope=ai-hrms-web
+          cache-to: type=gha,mode=max,scope=ai-hrms-web
 
       - name: Build and push Agent image
         uses: docker/build-push-action@v6
@@ -79,6 +83,8 @@ jobs:
           tags: |
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-agent:${{ env.IMAGE_TAG }}
             ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-agent:latest
+          cache-from: type=gha,scope=ai-hrms-agent
+          cache-to: type=gha,mode=max,scope=ai-hrms-agent
 
   deploy:
     name: Deploy on Tencent Cloud CVM
@@ -92,7 +98,7 @@ jobs:
       DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
       DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
       DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/ai-hrms' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/opt/projects/ai-hrms' }}
       DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH || github.ref_name }}
 
     steps:

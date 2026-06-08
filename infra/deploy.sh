@@ -17,11 +17,14 @@ compose=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
 echo "Validating production compose config..."
 "${compose[@]}" config >/dev/null
 
-echo "Pulling production images..."
-"${compose[@]}" pull
+echo "Ensuring runtime images are available..."
+"${compose[@]}" pull --policy missing postgres
+
+echo "Pulling application images..."
+"${compose[@]}" pull api web agent
 
 echo "Starting production stack..."
-"${compose[@]}" up -d --remove-orphans
+"${compose[@]}" up -d --remove-orphans --pull never postgres agent api web
 
 api_endpoint="$("${compose[@]}" port api 8080 | tail -n 1)"
 web_endpoint="$("${compose[@]}" port web 80 | tail -n 1)"
