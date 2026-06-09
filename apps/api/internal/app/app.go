@@ -71,6 +71,7 @@ func New(cfg config.Config, db *store.Store) http.Handler {
 		mux.Handle("GET /api/hr/"+resource, server.authenticated(server.listHRRecords(resource)))
 		mux.Handle("POST /api/hr/"+resource, server.authenticated(server.createHRRecord(resource)))
 		mux.Handle("PUT /api/hr/"+resource+"/{id}", server.authenticated(server.updateHRRecord(resource)))
+		mux.Handle("DELETE /api/hr/"+resource+"/{id}", server.authenticated(server.deleteHRRecord(resource)))
 	}
 	mux.Handle("GET /api/messages", server.authenticated(http.HandlerFunc(server.listMessages)))
 	mux.Handle("POST /api/messages", server.authenticated(http.HandlerFunc(server.createMessage)))

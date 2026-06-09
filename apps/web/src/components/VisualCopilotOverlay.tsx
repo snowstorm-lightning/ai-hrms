@@ -252,6 +252,19 @@ export function VisualCopilotOverlay() {
   const currentTurn = turns[0];
   const historyTurns = turns.slice(1);
   const canSubmit = mode === "chat" ? Boolean(instruction.trim()) : Boolean(regions.length);
+  const hasCopilotContent = Boolean(regions.length || turns.length || instruction.trim());
+
+  function clearCopilotContent() {
+    if (!hasCopilotContent) {
+      message.info("暂无可清空内容");
+      return;
+    }
+    resetCapture();
+    setRegions([]);
+    setInstruction("");
+    setTurns([]);
+    message.success("Visual Copilot 已清空");
+  }
 
   const submit = async () => {
     const requested = instruction.trim();
@@ -431,8 +444,15 @@ export function VisualCopilotOverlay() {
                   }}
                 />
               </Tooltip>
-              <Tooltip title="清空选区">
-                <Button shape="circle" aria-label="清空选区" title="清空选区" icon={<DeleteOutlined />} onClick={() => { setRegions([]); }} />
+              <Tooltip title="清空 Visual Copilot 内容">
+                <Button
+                  shape="circle"
+                  aria-label="清空 Visual Copilot 内容"
+                  title="清空 Visual Copilot 内容"
+                  icon={<DeleteOutlined />}
+                  disabled={submitting || !hasCopilotContent}
+                  onClick={clearCopilotContent}
+                />
               </Tooltip>
               <Tooltip title="关闭">
                   <Button shape="circle" aria-label="关闭 Visual Copilot" title="关闭" icon={<CloseOutlined />} onClick={closeOverlay} />
@@ -507,7 +527,13 @@ export function VisualCopilotOverlay() {
               <Button icon={<SendOutlined />} type="primary" loading={submitting} onClick={submit} disabled={!canSubmit}>
                 {mode === "chat" ? t("copilot.ask") : t("copilot.submit")}
               </Button>
-              <Button aria-label="清空选区" title="清空选区" icon={<DeleteOutlined />} onClick={() => { setRegions([]); setCaptureMode(false); }} />
+              <Button
+                aria-label="清空 Visual Copilot 内容"
+                title="清空 Visual Copilot 内容"
+                icon={<DeleteOutlined />}
+                disabled={submitting || !hasCopilotContent}
+                onClick={clearCopilotContent}
+              />
             </div>
             {regions.length ? (
               <div className="visual-selection-list">
@@ -1180,7 +1206,7 @@ function intersectionArea(rect: ScreenRegion["rect"], box: { x: number; y: numbe
 function domSnapshot(regions: ScreenRegion[]) {
   return Array.from(document.querySelectorAll<HTMLElement>("[data-vc-kind], [data-vc-action], [data-vc-field], [data-vc-object-type]"))
     .filter((element) => !element.closest(".visual-copilot-panel, .visual-copilot-rail, .visual-copilot-layer"))
-    .filter((element) => !element.matches(".app-shell") && !element.closest(".app-sider, .ant-layout-sider, .ant-menu"))
+    .filter((element) => !element.matches(".app-shell"))
     .map((element) => {
       const box = docRect(element);
       const selectedArea = regions.reduce((sum, region) => sum + intersectionArea(region.rect, box), 0);
@@ -1214,7 +1240,7 @@ function domSnapshot(regions: ScreenRegion[]) {
         1,
       );
       const isHugeContainer = nodeArea > selectedRegionArea * 3 && node.specificity < 2;
-      const looksLikeShell = /app-shell|app-sider|ant-layout-sider|ant-menu|visual-copilot/i.test(node.label || "");
+      const looksLikeShell = /app-shell|visual-copilot/i.test(node.label || "");
       return !isHugeContainer && !looksLikeShell;
     })
     .sort((left, right) => (right.specificity * 1000 + right.selectedArea) - (left.specificity * 1000 + left.selectedArea))
@@ -1223,6 +1249,7 @@ function domSnapshot(regions: ScreenRegion[]) {
 }
 
 function layoutSnapshot(regions: ScreenRegion[]) {
+  const selection = selectedRegionContext(regions);
   const container = {
     width: window.innerWidth,
     height: window.innerHeight,
@@ -1239,7 +1266,7 @@ function layoutSnapshot(regions: ScreenRegion[]) {
       acceptNode(node) {
         const parent = node.parentElement;
         if (!parent || !node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
-        if (parent.closest(".visual-copilot-panel, .visual-copilot-rail, .visual-copilot-layer, .app-sider, .ant-layout-sider, .ant-menu")) {
+        if (parent.closest(".visual-copilot-panel, .visual-copilot-rail, .visual-copilot-layer")) {
           return NodeFilter.FILTER_REJECT;
         }
         if (parent.offsetParent === null) return NodeFilter.FILTER_REJECT;
@@ -1289,6 +1316,8 @@ function layoutSnapshot(regions: ScreenRegion[]) {
   }
   return {
     container,
+    selectionText: selection.text,
+    semanticHint: selection.semanticHint,
     regions: regions.map((region) => ({
       id: region.id,
       x: region.rect.x,
@@ -1303,6 +1332,114 @@ function layoutSnapshot(regions: ScreenRegion[]) {
     })),
     items,
   };
+}
+
+function selectedRegionContext(regions: ScreenRegion[]) {
+  const items: Array<{ text: string; top: number; left: number; semanticHint: string }> = [];
+  const walker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent || !node.textContent?.trim()) return NodeFilter.FILTER_REJECT;
+        if (parent.closest(".visual-copilot-panel, .visual-copilot-rail, .visual-copilot-layer")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        if (parent.offsetParent === null) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    },
+  );
+  while (walker.nextNode() && items.length < 80) {
+    const textNode = walker.currentNode;
+    const parent = textNode.parentElement;
+    if (!parent) continue;
+    const range = document.createRange();
+    range.selectNodeContents(textNode);
+    for (const rect of Array.from(range.getClientRects())) {
+      const docBox = {
+        x: rect.left + window.scrollX,
+        y: rect.top + window.scrollY,
+        width: rect.width,
+        height: rect.height,
+      };
+      if (!regions.some((region) => intersectionArea(region.rect, docBox) > 4)) {
+        continue;
+      }
+      const text = redactLayoutText(textNode.textContent || "");
+      if (text) {
+        items.push({
+          text,
+          top: docBox.y,
+          left: docBox.x,
+          semanticHint: visualSemanticHintForElement(parent),
+        });
+      }
+      break;
+    }
+    range.detach();
+  }
+  const seen = new Set<string>();
+  const ordered = items
+    .sort((left, right) => left.top - right.top || left.left - right.left)
+    .map((item) => item.text)
+    .filter((text) => {
+      const normalized = text.replace(/\s+/g, " ").trim();
+      if (!normalized || seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
+  const text = compactVisualText(ordered.join(" "), 360);
+  return {
+    text,
+    semanticHint: prioritizedVisualSemanticHint(items.map((item) => item.semanticHint), text),
+  };
+}
+
+function visualSemanticHintForElement(element: HTMLElement) {
+  if (element.closest(".app-sider, .ant-layout-sider, [data-vc-kind='main-navigation']")) {
+    return "main_navigation";
+  }
+  const container = element.closest<HTMLElement>("[data-vc-kind], [data-vc-page]");
+  const kind = container?.dataset.vcKind || "";
+  if (/hr-lifecycle-strip|recruitment|candidate|interview|offer/i.test(kind)) {
+    return "recruitment_lifecycle_flow";
+  }
+  if (/rag|docs|document|knowledge|citation/i.test(kind)) {
+    return "knowledge_or_docs";
+  }
+  if (/agent|workflow|human-review|audit/i.test(kind)) {
+    return "agent_or_review";
+  }
+  return "";
+}
+
+function prioritizedVisualSemanticHint(hints: string[], text: string) {
+  const hintSet = new Set(hints.filter(Boolean));
+  for (const hint of ["main_navigation", "recruitment_lifecycle_flow", "knowledge_or_docs", "agent_or_review"]) {
+    if (hintSet.has(hint)) {
+      return hint;
+    }
+  }
+  return visualSemanticHintFromText(text);
+}
+
+function visualSemanticHintFromText(text: string) {
+  const compact = text.replace(/\s+/g, "");
+  if (compact.includes("AI-HRMS") && compact.includes("指挥看板") && compact.includes("设置")) {
+    return "main_navigation";
+  }
+  if (/招聘需求|职位发布|候选人|面试|Offer/.test(text)) {
+    return "recruitment_lifecycle_flow";
+  }
+  if (/知识|RAG|引用|资料|文档/.test(text)) {
+    return "knowledge_or_docs";
+  }
+  if (/Agent|运行|工具预览|人工确认/.test(text)) {
+    return "agent_or_review";
+  }
+  return "selected_content";
 }
 
 function pageChatRegion(): ScreenRegion {

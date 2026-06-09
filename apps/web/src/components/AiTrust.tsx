@@ -213,7 +213,7 @@ export function CollaborationWorkflow() {
     <div className="workflow-strip" data-vc-kind="human-agent-workflow">
       {steps.map((step, index) => (
         <div className="workflow-strip-step" key={step}>
-          <span>{index + 1}</span>
+          <span className="workflow-strip-index">{index + 1}</span>
           <Typography.Text strong>{step}</Typography.Text>
         </div>
       ))}

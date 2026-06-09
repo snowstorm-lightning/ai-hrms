@@ -46,14 +46,14 @@ export function LoginPage() {
           showIcon
           icon={<SafetyCertificateOutlined />}
           type="info"
-          title={demoMode ? "Demo 使用 deterministic mock AI" : "真实后端模式：DeepSeek / Agent / RAG 由本地环境变量控制"}
-          description={demoMode ? "不调用外部 LLM，不发送个人敏感数据；高风险 HR 建议只生成预览并要求人工确认。" : "当前登录进入本机种子环境。外部 LLM 与 embedding 只通过 agent boundary 调用，高风险 HR 建议仍必须人工确认。"}
+          title={demoMode ? "可信 AI-HR 协作体验" : "企业部署模式：模型、RAG 与 Agent 编排可配置"}
+          description={demoMode ? "统一展示知识引用、权限范围、Agent 预览、人工复核和审计证据链。" : "当前登录进入本机种子环境，可验证模型编排、知识治理、权限范围和审计闭环。"}
         />
       </section>
       <section className="login-panel">
         <Typography.Title level={2}>{demoMode ? "进入 AI-HRMS Demo" : "进入 AI-HRMS 本地环境"}</Typography.Title>
         <Typography.Paragraph type="secondary">
-          推荐从 Command Dashboard 开始，3 分钟内浏览 AI 指挥、知识治理、Co-Growth、Agent Run 和审计证据链。
+          推荐从 Command Dashboard 开始，依次浏览 AI 指挥、知识治理、Co-Growth、Agent Run 和审计证据链。
         </Typography.Paragraph>
         {error ? <Alert type="error" title={error} showIcon /> : null}
         <Form

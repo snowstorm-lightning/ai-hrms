@@ -5,6 +5,7 @@ import {
   Col,
   Descriptions,
   Drawer,
+  Popconfirm,
   Row,
   Space,
   Statistic,
@@ -12,6 +13,7 @@ import {
   Tabs,
   Tag,
   Typography,
+  message,
 } from "antd";
 import {
   ApartmentOutlined,
@@ -21,6 +23,7 @@ import {
   CheckCircleOutlined,
   ClockCircleOutlined,
   DatabaseOutlined,
+  DeleteOutlined,
   FileSearchOutlined,
   IdcardOutlined,
   PlusOutlined,
@@ -187,6 +190,21 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
     }
   };
 
+  const deleteRecord = async (record: HRRecord) => {
+    setSaving(true);
+    setError("");
+    try {
+      await api.deleteHRRecord(resource, record.id);
+      setSelected(null);
+      await reload();
+      message.success("记录已删除");
+    } catch (err) {
+      setError(getErrorMessage(err, "删除记录失败"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="domain-resource-panel" data-vc-kind="hr-resource-panel" data-vc-resource={resource}>
       <div className="domain-section-heading">
@@ -254,6 +272,18 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
               <Button loading={saving} onClick={() => updateStatus(selected, "waiting_human_review")} data-vc-action={`hr.${resource}.human-review`}>
                 请求人工复核
               </Button>
+              <Popconfirm
+                title="删除这条记录？"
+                description="删除后将从当前列表移除，并保留审计事件。"
+                okText="删除"
+                cancelText="取消"
+                okButtonProps={{ danger: true, loading: saving }}
+                onConfirm={() => deleteRecord(selected)}
+              >
+                <Button danger icon={<DeleteOutlined />} loading={saving} data-vc-action={`hr.${resource}.delete`}>
+                  删除
+                </Button>
+              </Popconfirm>
             </Space>
           </Space>
         ) : null}
@@ -275,6 +305,38 @@ function QuickLinkGrid({ items }: { items: Array<{ icon: ReactNode; title: strin
           </span>
           {typeof item.count === "number" ? <Tag>{item.count}</Tag> : null}
         </button>
+      ))}
+    </div>
+  );
+}
+
+function WorkbenchCueStrip({ items }: { items: Array<{ icon: ReactNode; title: string; description: string; tag: string }> }) {
+  return (
+    <div className="domain-cue-strip" data-vc-kind="domain-workbench-cues">
+      {items.map((item) => (
+        <article className="domain-cue-card" key={item.title}>
+          <span className="domain-cue-icon">{item.icon}</span>
+          <span className="domain-cue-copy">
+            <Typography.Text strong>{item.title}</Typography.Text>
+            <Typography.Text type="secondary">{item.description}</Typography.Text>
+          </span>
+          <Tag>{item.tag}</Tag>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function LifecycleStrip({ steps }: { steps: Array<{ title: string; description: string; risk: string }> }) {
+  return (
+    <div className="domain-lifecycle-strip" data-vc-kind="hr-lifecycle-strip">
+      {steps.map((step, index) => (
+        <article className="domain-lifecycle-step" key={step.title}>
+          <span className="domain-lifecycle-index">{index + 1}</span>
+          <Typography.Text strong>{step.title}</Typography.Text>
+          <Typography.Text type="secondary">{step.description}</Typography.Text>
+          <Tag color={riskColor(step.risk)}>{step.risk}</Tag>
+        </article>
       ))}
     </div>
   );
@@ -348,6 +410,13 @@ export function EmployeeOpsPage() {
       module="employee_ops"
       alert={<Alert className="domain-alert" showIcon type="warning" title="薪资和异常考勤不会自动裁决" description="AI 只展示异常上下文、RAG 证据和建议动作；正式审批、薪资发放和员工影响动作必须人工确认。" />}
     >
+      <WorkbenchCueStrip
+        items={[
+          { icon: <UserOutlined />, title: "My Requests", description: "请假、补卡、报销和工资单草稿先进入个人请求队列。", tag: "employee self-service" },
+          { icon: <TeamOutlined />, title: "Team Requests", description: "团队待审批事项按风险、状态和人工复核要求集中处理。", tag: "mentor / manager" },
+          { icon: <SafetyCertificateOutlined />, title: "Protected Payroll Preview", description: "薪资只展示受保护预览和审计线索，不自动发放或裁决。", tag: "high-risk guarded" },
+        ]}
+      />
       <Tabs
         items={[
           { key: "quick", label: "Quick Links", children: <QuickLinkGrid items={[
@@ -375,6 +444,15 @@ export function RecruitmentLifecyclePage() {
       module="recruitment_lifecycle"
       alert={<Alert className="domain-alert" showIcon type="warning" title="招聘公平性边界" description="候选人筛选、面试评分和 Offer 建议属于高风险人事影响场景，AI 只能辅助整理证据并请求人工复核。" />}
     >
+      <LifecycleStrip
+        steps={[
+          { title: "招聘需求", description: "确认 HC、预算和业务必要性。", risk: "medium" },
+          { title: "职位发布", description: "沉淀岗位要求、渠道和范围。", risk: "medium" },
+          { title: "候选人", description: "记录阶段、来源和公平性检查。", risk: "high" },
+          { title: "面试", description: "只整理证据与反馈，不自动评分裁决。", risk: "high" },
+          { title: "Offer", description: "生成草案并等待薪酬与 HR 人工确认。", risk: "high" },
+        ]}
+      />
       <Tabs
         items={[
           { key: "requisitions", label: "招聘需求", children: <HRResourcePanel resource="job-requisitions" description="HC、预算、期望入职时间和审批状态。" /> },
@@ -396,6 +474,13 @@ export function GrowthPerformancePage() {
       module="growth_performance"
       alert={<Alert className="domain-alert" showIcon type="info" title="绩效只做证据化预览" description="绩效评分、校准和最终结论不得由 AI 自动裁决；系统保留目标、反馈、引用和审计轨迹。" />}
     >
+      <WorkbenchCueStrip
+        items={[
+          { icon: <BookOutlined />, title: "Training", description: "培训活动与制度资料、学习结果和参与范围绑定。", tag: "learning evidence" },
+          { icon: <SafetyCertificateOutlined />, title: "Co-Growth", description: "AI literacy、mission、work journal 和成长证据沉淀。", tag: "human-agent growth" },
+          { icon: <CheckCircleOutlined />, title: "Goals & Appraisals", description: "目标、反馈和绩效材料只做证据化预览。", tag: "human decision" },
+        ]}
+      />
       <Tabs
         items={[
           { key: "quick", label: "成长入口", children: <QuickLinkGrid items={[

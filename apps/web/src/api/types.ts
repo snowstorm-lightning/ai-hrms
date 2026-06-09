@@ -565,6 +565,8 @@ export interface VisualContextRequest {
   screenshot?: { mime: "image/png"; dataBase64?: string; redacted: boolean; mode?: string };
   layout?: {
     container: Record<string, unknown>;
+    selectionText?: string;
+    semanticHint?: string;
     regions: Array<Record<string, unknown>>;
     items: Array<Record<string, unknown>>;
   };

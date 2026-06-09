@@ -742,6 +742,31 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [HR]
+      operationId: deleteHRRecord
+      summary: Delete an HRMS work-domain record
+      description: Deletes the scoped record from the resource-specific SQL table and records audit evidence.
+      parameters:
+        - $ref: "#/components/parameters/HRResource"
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Deleted HR record.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties:
+                  deleted:
+                    type: boolean
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /messages:
     get:

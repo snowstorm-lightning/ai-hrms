@@ -506,18 +506,22 @@ async function checkVisualCopilot(page, suite, path, options = {}) {
   await visualResponseCard.locator(".visual-chat-answer").waitFor({ state: "visible", timeout: Math.max(timeoutMs, 30000) });
   await visualResponseCard.getByRole("button", { name: "详情" }).click({ timeout: timeoutMs });
   await visualResponseCard.locator(".visual-response-header").waitFor({ state: "visible", timeout: timeoutMs });
-  await visualResponseCard.getByText(/no-image-analysis|screenshot-hash-only/).waitFor({ state: "visible", timeout: timeoutMs });
-  await visualResponseCard.locator("[data-vc-kind='visual-copilot-boundary']").getByText(/DOM \+ 业务对象上下文解释|未上传页面截图/).waitFor({ state: "visible", timeout: timeoutMs });
+  await visualResponseCard.getByText(/selection-context|text-context|no-image-analysis|screenshot-hash-only/).waitFor({ state: "visible", timeout: timeoutMs });
+  await visualResponseCard.locator("[data-vc-kind='visual-copilot-boundary']").getByText(/受控上下文|业务对象上下文解释|未上传页面截图/).waitFor({ state: "visible", timeout: timeoutMs });
   await visualResponseCard.getByText("执行思路与路径").waitFor({ state: "visible", timeout: timeoutMs });
   await visualResponseCard.getByRole("button", { name: /上下文证据/ }).waitFor({ state: "visible", timeout: timeoutMs });
-  await panel.getByLabel("清空选区").click({ timeout: timeoutMs });
+  await panel.getByLabel("清空 Visual Copilot 内容").click({ timeout: timeoutMs });
+  await page.getByText("Visual Copilot 已清空").waitFor({ state: "visible", timeout: timeoutMs });
+  await visualResponseCard.waitFor({ state: "detached", timeout: timeoutMs });
   await panel.getByText("普通问答", { exact: true }).click({ timeout: timeoutMs });
   await panel.getByRole("button", { name: "询问" }).waitFor({ state: "visible", timeout: timeoutMs });
   const input = page.locator("[data-vc-field='visual_copilot.instruction']");
   await input.fill("这个页面怎么用", { timeout: timeoutMs });
   await panel.getByRole("button", { name: "询问" }).click({ timeout: timeoutMs });
   await panel.locator("[data-vc-kind='visual-page-chat']").waitFor({ state: "visible", timeout: Math.max(timeoutMs, 30000) });
-  await panel.getByText(/历史记录/).waitFor({ state: "visible", timeout: timeoutMs });
+  if (await panel.getByText(/历史记录/).count()) {
+    throw new Error(`[${suite.name}] ${path} Visual Copilot clear should remove previous turns from history`);
+  }
   await input.fill("", { timeout: timeoutMs });
   await expectDisabled(panel.getByRole("button", { name: "询问" }), suite, path);
   await panel.getByLabel("关闭 Visual Copilot").click({ timeout: timeoutMs });

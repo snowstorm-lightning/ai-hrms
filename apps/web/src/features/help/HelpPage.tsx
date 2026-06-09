@@ -49,7 +49,7 @@ export function HelpPage() {
 
       <section className="guide-hero">
         <div>
-          <Typography.Title level={2}>AI-HRMS 不是聊天框，而是人和 Agent 协作的操作系统</Typography.Title>
+          <Typography.Title level={2}>AI-HRMS 人机协作操作系统</Typography.Title>
           <Typography.Paragraph>
             程序负责稳定流程、权限、scope、审计和可重复计算；LLM 负责解释、总结、计划生成和跨上下文表达；人负责判断、确认、复盘和纠偏。
           </Typography.Paragraph>
@@ -70,7 +70,7 @@ export function HelpPage() {
         </div>
       </section>
 
-      <Card title="3 分钟推荐路径" className="guide-card">
+      <Card title="推荐体验路径" className="guide-card">
         <Steps current={0} items={dailyPath} />
       </Card>
 

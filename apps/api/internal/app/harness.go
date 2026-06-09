@@ -236,6 +236,7 @@ func contextPacketFromCitations(subject string, decision domain.HarnessDecision,
 func visualContextPacket(req domain.VisualContextRequest, decision domain.HarnessDecision) domain.ContextPacket {
 	refs := collectRefs(req.Regions)
 	items := make([]domain.ContextItem, 0, len(refs)+1)
+	selectionText := visualSelectionText(req.Layout)
 	for _, ref := range refs {
 		label := ref.Label
 		if label == "" {
@@ -258,28 +259,51 @@ func visualContextPacket(req domain.VisualContextRequest, decision domain.Harnes
 	if len(items) == 0 {
 		items = append(items, domItems...)
 	}
+	if selectionText != "" {
+		selectionItem := domain.ContextItem{
+			Type:       "selected_text",
+			Label:      visualSemanticHint(req.Layout),
+			Summary:    selectionText,
+			Source:     "visual_selection.text",
+			Provenance: req.Route,
+		}
+		items = append([]domain.ContextItem{selectionItem}, items...)
+	}
 	if len(items) == 0 {
 		items = append(items, domain.ContextItem{
 			Type:       "screen_region",
 			Label:      "页面区域",
-			Summary:    routeSummary(req.Route) + " 系统只能使用路由、DOM 摘要和圈选坐标解释，不能读取截图像素。",
+			Summary:    routeSummary(req.Route) + " 的页面区域；未命中可验证业务对象，回答会以选区内容和页面上下文为准。",
 			Source:     "visual_selection.rect",
 			Provenance: req.Route,
 		})
 	}
 	return domain.ContextPacket{
-		Route:       req.Route,
-		Intent:      decision.Intent,
-		Subject:     strings.TrimSpace(req.Instruction),
-		Items:       items,
-		SourceCount: map[string]int{"business_ref": len(refs), "dom_node": len(req.DOM), "layout_item": visualLayoutItemCount(req.Layout), "region": len(req.Regions)},
-		Staleness:   "live_page_snapshot",
-		Boundary:    "当前 Visual Copilot 不做图片理解；DeepSeek 文本模型只接收经过系统裁剪和校验的业务上下文。",
+		Route:   req.Route,
+		Intent:  decision.Intent,
+		Subject: strings.TrimSpace(req.Instruction),
+		Items:   items,
+		SourceCount: map[string]int{
+			"business_ref":  len(refs),
+			"dom_node":      len(req.DOM),
+			"layout_item":   visualLayoutItemCount(req.Layout),
+			"region":        len(req.Regions),
+			"selected_text": selectedTextCount(selectionText),
+		},
+		Staleness: "live_page_snapshot",
+		Boundary:  "当前 Visual Copilot 不做图片理解；DeepSeek 文本模型只接收经过系统裁剪和校验的业务上下文。",
 		Metadata: map[string]any{
 			"viewport": req.Viewport,
 			"mode":     req.Mode,
 		},
 	}
+}
+
+func selectedTextCount(value string) int {
+	if strings.TrimSpace(value) == "" {
+		return 0
+	}
+	return 1
 }
 
 func visualLayoutItemCount(layout map[string]any) int {
@@ -291,6 +315,24 @@ func visualLayoutItemCount(layout map[string]any) int {
 		return 0
 	}
 	return len(items)
+}
+
+func visualSelectionText(layout map[string]any) string {
+	if layout == nil {
+		return ""
+	}
+	return compactVisualText(stringValue(layout["selectionText"]), 360)
+}
+
+func visualSemanticHint(layout map[string]any) string {
+	if layout == nil {
+		return "selected_content"
+	}
+	hint := strings.TrimSpace(stringValue(layout["semanticHint"]))
+	if hint == "" {
+		return "selected_content"
+	}
+	return compactVisualText(hint, 60)
 }
 
 func domContextItems(req domain.VisualContextRequest) []domain.ContextItem {
@@ -520,16 +562,16 @@ func decideVisualHarness(req domain.VisualContextRequest) domain.HarnessDecision
 		decision.RoutedBy = append(decision.RoutedBy, "visual.agent.upgrade.blocked")
 	} else if decision.ExecutionMode == executionLLMExplain && decision.UseLLM {
 		decision.Intent = "visual_scoped_explanation"
-		decision.Reason = "页面解释先由后端 Context Resolver 裁剪上下文；只有存在可外发的受控 citation 时才升级到 LLM。"
+		decision.Reason = "页面解释先由后端 Context Resolver 裁剪上下文，主回答优先由 LLM 基于受控 citation 生成；证据、风险和审计块仍由程序化规则输出。"
 		decision.RoutedBy = append(decision.RoutedBy, "visual.llm.candidate")
 	} else if decision.ExecutionMode != executionActionPreview && decision.ExecutionMode != executionHumanReviewRequired {
 		decision.Intent = "visual_selection_explain"
-		decision.ExecutionMode = executionRetrievalOnly
-		decision.UseLLM = false
+		decision.ExecutionMode = executionLLMExplain
+		decision.UseLLM = true
 		decision.UseAgent = false
 		decision.UseMultiAgent = false
-		decision.Reason = "页面圈选解释优先使用 DOM、业务对象和数据库上下文；只有复杂生成/分析才升级到 LLM 或 agent。"
-		decision.RoutedBy = append(decision.RoutedBy, "visual.context.resolver")
+		decision.Reason = "Visual Copilot 的主回答优先使用 LLM 生成自然解释；上下文裁剪、证据清洗、权限、风险和审计仍由后端规则控制。"
+		decision.RoutedBy = append(decision.RoutedBy, "visual.context.resolver", "visual.llm.default")
 	}
 	return decision
 }

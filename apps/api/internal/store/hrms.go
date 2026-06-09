@@ -151,6 +151,25 @@ func (s *Store) UpdateHRRecord(ctx context.Context, scope Scope, resource, id st
 	return s.GetHRRecord(ctx, scope, resource, id)
 }
 
+func (s *Store) DeleteHRRecord(ctx context.Context, scope Scope, resource, id string) (*domain.HRRecord, error) {
+	cfg, ok := hrResourceByName[resource]
+	if !ok {
+		return nil, ErrInvalidHRResource
+	}
+	record, err := s.GetHRRecord(ctx, scope, resource, id)
+	if err != nil {
+		return nil, err
+	}
+	tag, err := s.pool.Exec(ctx, `DELETE FROM `+cfg.Table+` WHERE id=$1`, id)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrNotFound
+	}
+	return record, nil
+}
+
 func (s *Store) GetHRRecord(ctx context.Context, scope Scope, resource, id string) (*domain.HRRecord, error) {
 	cfg, ok := hrResourceByName[resource]
 	if !ok {

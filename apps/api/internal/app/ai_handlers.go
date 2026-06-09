@@ -1430,10 +1430,13 @@ func visualShouldSearchRAG(requested string, packet domain.ContextPacket) bool {
 
 func visualLLMMessage(requested, route string, packet domain.ContextPacket) string {
 	lines := []string{
-		"任务：为 Visual Copilot 生成用户可读的业务解释。",
+		"任务：你是 AI-HRMS 的 Visual Copilot，请为用户生成自然、贴合当前页面的业务解释。",
 		"用户问题：" + requested,
 		"页面：" + routeSummary(route),
-		"要求：先直接回答用户问题，再给出必要的下一步；不要以“你的意图是”或“系统依据”开头；不要描述内部路由字段、DOM 坐标、layout snapshot、executionMode；不要声称做了图片识别；如涉及“看不了/看不到”，优先解释权限、角色、scope 或刷新状态；如涉及修改数据，只能说明预览和人工确认边界。",
+		"写作要求：像一位资深 HR 产品顾问直接回答用户；用中文，2 到 4 个短段落即可；先说明这块区域是什么、对 HR 工作有什么用，再给出下一步建议。",
+		"禁止：不要以“你的意图是”“系统依据”“当前依据”开头；不要提 DOM、坐标、路由字段、layout snapshot、executionMode、Postgres、DeepSeek、模型、内部规则；不要声称读取了截图像素或做了图片识别。",
+		"选区优先级：优先解释用户实际圈中的区域，而不是当前路由对应的主页面。如果上下文包含主导航、侧边栏、菜单项、AI-HRMS 导航等内容，应解释导航和页面切换，不要回答成当前业务页的流程卡片。",
+		"边界：如涉及“看不了/看不到”，优先解释角色、权限、scope 或刷新/重新登录；如涉及修改数据，只能说明预览、人工确认和审计，不要承诺已执行。",
 	}
 	if len(packet.Items) > 0 {
 		lines = append(lines, "Scoped context:")
@@ -1450,6 +1453,38 @@ func visualLLMMessage(requested, route string, packet domain.ContextPacket) stri
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func visualLLMRetryMessage(baseMessage, previous string, issues []string) string {
+	lines := []string{
+		baseMessage,
+		"",
+		"上一次回答没有通过质量检查，请重写。",
+		"问题：" + strings.Join(issues, "；"),
+		"上一次回答：" + compactVisualText(previous, 700),
+		"重写要求：只输出最终给用户看的自然中文回答；不要解释你如何重写；不要暴露任何系统内部字段或技术采集方式。",
+	}
+	return strings.Join(lines, "\n")
+}
+
+func visualLLMOutputIssues(answer string) []string {
+	trimmed := strings.TrimSpace(answer)
+	issues := []string{}
+	if len([]rune(trimmed)) < 24 {
+		issues = append(issues, "回答过短")
+	}
+	for _, pattern := range []string{
+		"你的意图是", "系统依据", "当前依据", "DOM", "dom", "layout snapshot", "executionMode",
+		"Postgres", "DeepSeek", "路由字段", "圈选坐标", "截图像素", "读取像素",
+	} {
+		if strings.Contains(trimmed, pattern) {
+			issues = append(issues, "暴露内部实现或机械话术："+pattern)
+		}
+	}
+	if strings.Count(trimmed, "\n") > 8 {
+		issues = append(issues, "回答过长")
+	}
+	return issues
 }
 
 func dedupeStrings(values []string) []string {
@@ -1617,8 +1652,8 @@ func visualAdminGuideCitations() []domain.RAGCitation {
 
 func visualContextItemCanLeaveBoundary(item domain.ContextItem) bool {
 	switch item.Type {
-	case "legal_entity", "rag_document", "learning", "dom_module":
-		return item.Source == "postgres.business_ref" || item.Source == "visual_selection.dom_ref" || item.Source == "visual_selection.dom_snapshot_unverified"
+	case "legal_entity", "rag_document", "learning", "dom_module", "selected_text":
+		return item.Source == "postgres.business_ref" || item.Source == "visual_selection.dom_ref" || item.Source == "visual_selection.dom_snapshot_unverified" || item.Source == "visual_selection.text"
 	default:
 		return false
 	}
@@ -2352,43 +2387,62 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 		decision.RoutedBy = append(decision.RoutedBy, "visual.llm.external_safety_fallback")
 	}
 	if llmAllowed {
-		chatCtx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
-		response, err := s.agent.Chat(chatCtx, llmMessage, llmCitations)
-		cancel()
-		if err == nil && strings.TrimSpace(response.Message) != "" {
-			if highImpactOutputViolation(response.Message) {
+		messageForAttempt := llmMessage
+		for attempt := 1; attempt <= 3; attempt++ {
+			chatCtx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+			response, err := s.agent.Chat(chatCtx, messageForAttempt, llmCitations)
+			cancel()
+			if err != nil {
+				decision.UseLLM = false
+				decision.RoutedBy = append(decision.RoutedBy, "visual.llm.unavailable_fallback")
+				break
+			}
+			responseMessage := strings.TrimSpace(response.Message)
+			if responseMessage == "" {
+				decision.RoutedBy = append(decision.RoutedBy, "visual.llm.empty_response")
+				continue
+			}
+			if highImpactOutputViolation(responseMessage) {
 				decision.RiskLevel = "high"
 				decision.HumanReviewRequired = true
 				decision.ExecutionMode = executionHumanReviewRequired
 				decision.UseLLM = false
 				decision.RoutedBy = append(decision.RoutedBy, "visual.output_verifier.high_impact_block")
-			} else {
-				explanation = strings.TrimSpace(response.Message)
-				provider = response.Provider
-				model = response.Model
-				decision.UseLLM = true
-				llmSucceeded = true
-				if requiresPreviewBoundary {
-					if isActionDecision {
-						decision.Intent = intent
-					}
-					decision.HumanReviewRequired = true
-					if decision.RiskLevel == "high" || decision.ExecutionMode == executionHumanReviewRequired {
-						decision.ExecutionMode = executionHumanReviewRequired
-					} else {
-						decision.ExecutionMode = executionActionPreview
-					}
-				} else {
-					decision.ExecutionMode = executionLLMExplain
-				}
-				decision.RoutedBy = append(decision.RoutedBy, "visual.llm.scoped_context")
-				if confidence < 0.82 {
-					confidence = 0.82
-				}
+				break
 			}
-		} else if err != nil {
-			decision.UseLLM = false
-			decision.RoutedBy = append(decision.RoutedBy, "visual.llm.unavailable_fallback")
+			issues := visualLLMOutputIssues(responseMessage)
+			if len(issues) > 0 && attempt < 3 {
+				decision.RoutedBy = append(decision.RoutedBy, fmt.Sprintf("visual.llm.quality_retry_%d", attempt))
+				messageForAttempt = visualLLMRetryMessage(llmMessage, responseMessage, issues)
+				continue
+			}
+			if len(issues) > 0 {
+				decision.RoutedBy = append(decision.RoutedBy, "visual.llm.quality_fallback")
+				break
+			}
+			explanation = responseMessage
+			provider = response.Provider
+			model = response.Model
+			decision.UseLLM = true
+			llmSucceeded = true
+			if requiresPreviewBoundary {
+				if isActionDecision {
+					decision.Intent = intent
+				}
+				decision.HumanReviewRequired = true
+				if decision.RiskLevel == "high" || decision.ExecutionMode == executionHumanReviewRequired {
+					decision.ExecutionMode = executionHumanReviewRequired
+				} else {
+					decision.ExecutionMode = executionActionPreview
+				}
+			} else {
+				decision.ExecutionMode = executionLLMExplain
+			}
+			decision.RoutedBy = append(decision.RoutedBy, "visual.llm.scoped_context")
+			if confidence < 0.82 {
+				confidence = 0.82
+			}
+			break
 		}
 	}
 	if !llmSucceeded {

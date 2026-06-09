@@ -135,6 +135,37 @@ func (s *Server) updateHRRecord(resource string) http.HandlerFunc {
 	}
 }
 
+func (s *Server) deleteHRRecord(resource string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		scope, ok := s.scope(r)
+		if !ok {
+			httpx.Error(w, http.StatusInternalServerError, 5000, "解析权限失败")
+			return
+		}
+		id := r.PathValue("id")
+		record, err := s.store.DeleteHRRecord(r.Context(), scope, resource, id)
+		if err != nil {
+			s.respondHRErr(w, err)
+			return
+		}
+		_ = s.store.RecordAudit(r.Context(), store.AuditInput{
+			ActorUserID: principal(r).UserID,
+			EventType:   "hr." + resource + ".deleted",
+			ObjectType:  record.RecordType,
+			ObjectID:    record.ID,
+			ScopeType:   record.ScopeType,
+			ScopeID:     record.ScopeID,
+			RequestID:   requestID(r),
+			Source:      "api",
+			RiskLevel:   record.RiskLevel,
+			OldValueSummary: map[string]any{
+				"record": hrRecordAuditSummary(*record),
+			},
+		})
+		httpx.OK(w, map[string]bool{"deleted": true})
+	}
+}
+
 func (s *Server) respondHRErr(w http.ResponseWriter, err error) {
 	if errors.Is(err, store.ErrInvalidHRResource) {
 		httpx.Error(w, http.StatusBadRequest, 4001, "未知 HR 资源")

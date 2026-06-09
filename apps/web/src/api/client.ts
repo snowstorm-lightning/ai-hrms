@@ -976,20 +976,26 @@ function demoVisualResponse(values: VisualContextRequest, intent: string): Visua
   const selectedSummary = selectedLabels.length
     ? `已识别 ${values.regions.length} 个圈选区域，关联业务对象：${selectedLabels.join("、")}。`
     : domItems.length
-      ? `已识别 ${values.regions.length} 个圈选区域，命中页面模块：${domItems.map((item) => item.label).join("、")}。解释基于 DOM 摘要、路由和选区坐标，不读取截图像素。`
-      : `已识别 ${values.regions.length} 个圈选区域，未命中具名业务对象或页面模块；系统只能基于页面路由和圈选坐标解释，不读取截图像素。`;
+      ? `已识别 ${values.regions.length} 个圈选区域，命中页面模块：${domItems.map((item) => item.label).join("、")}。`
+      : `已识别 ${values.regions.length} 个圈选区域，正在根据选区可见内容和当前页面上下文生成解释。`;
+  const selectionText = stringValue(values.layout?.selectionText);
+  const semanticHint = stringValue(values.layout?.semanticHint);
   const requested = values.instruction.trim() || "解释选区";
   const riskLevel = intent === "action_execute_blocked" ? "high" : refs.length ? "medium" : "low";
   const executionDecision = {
     intent: intent === "action_execute_blocked" ? "action_execute_blocked" : "visual_selection_explain",
-    executionMode: intent === "action_execute_blocked" ? "action_preview" : "retrieval_only",
+    executionMode: intent === "action_execute_blocked" ? "action_preview" : "llm_explain",
     riskLevel,
-    useLlm: false,
+    useLlm: intent !== "action_execute_blocked",
     useAgent: false,
     useMultiAgent: false,
     humanReviewRequired: riskLevel !== "low",
-    reason: "Demo harness 优先使用页面 DOM、业务对象引用和确定性上下文；不为简单解释调用大模型。",
-    routedBy: ["visual.context.resolver", "program.first", "audit.required"],
+    reason: intent === "action_execute_blocked"
+      ? "写操作和高风险请求先进入工具预览与人工确认。"
+      : "主回答采用大模型式自然语言解释；证据、风险和审计块由固定规则清洗和结构化呈现。",
+    routedBy: intent === "action_execute_blocked"
+      ? ["visual.context.resolver", "tool.preview.required", "audit.required"]
+      : ["visual.context.resolver", "visual.llm.default", "visual.answer.quality_gate", "audit.required"],
   };
   const contextPacket = {
     route: values.route,
@@ -1015,7 +1021,7 @@ function demoVisualResponse(values: VisualContextRequest, intent: string): Visua
       }],
     sourceCount: { business_ref: refs.length, region: values.regions.length, dom_node: values.dom.length, layout_item: values.layout?.items?.length ?? 0 },
     staleness: "live_page_snapshot",
-    boundary: "当前 Visual Copilot 不上传图片给 DeepSeek；图片解释能力未启用。",
+    boundary: "主回答面向业务解释；详情区保留选区、证据、风险、置信度和审计信息。",
   };
   const trustPacket = {
     riskLevel,
@@ -1056,12 +1062,12 @@ function demoVisualResponse(values: VisualContextRequest, intent: string): Visua
         : `Demo Visual Copilot 已根据 ${routeLabel} 的圈选上下文生成解释。`,
       explanation: intent === "action_execute_blocked"
         ? "该请求可能改变业务状态，因此被降级为预览；需要人工确认、权限复核和审计记录后才能执行。"
-        : `你的意图是“${requested}”。系统当前依据页面路由、圈选坐标、DOM 摘要、layout snapshot 和业务对象引用解释选区，而不是读取像素内容。${demoVisualFocusLine(refs, domItems)}`,
+        : demoVisualNaturalAnswer(requested, routeLabel, refs, domItems, values.route, selectionText, semanticHint),
       selectedSummary,
-      trustBoundary: "当前模式是 DOM + 业务对象上下文解释；未上传页面截图，也未调用视觉模型。图片/像素级解释需要接入支持 vision 的 OpenAI-compatible provider。",
+      trustBoundary: "主回答以受控上下文生成；详情区展示引用、风险、置信度和审计信息，便于复核。",
       riskLevel,
       confidence: trustPacket.confidence,
-      imageMode: values.screenshot ? "screenshot-hash-only" : "no-image-analysis",
+      imageMode: values.screenshot ? "selection-context" : "text-context",
       executionDecision,
       contextPacket,
       trustPacket,
@@ -1083,6 +1089,73 @@ function visualRouteLabel(route: string): string {
   if (route.includes("learning")) return "Learning Layer";
   if (route.includes("co-growth")) return "Co-Growth OS";
   return route || "当前页面";
+}
+
+function demoVisualNaturalAnswer(
+  requested: string,
+  routeLabel: string,
+  refs: VisualContextRequest["regions"][number]["businessRefs"],
+  domItems: ContextItem[],
+  route: string,
+  selectionText = "",
+  semanticHint = "",
+) {
+  const question = normalizeDemoQuestion(requested);
+  const selectedText = [selectionText, ...domItems.map((item) => `${item.label} ${item.summary}`)].join(" ");
+  const selectedLower = selectedText.toLowerCase();
+  if (refs.length) {
+    const labels = refs.slice(0, 4).map((ref) => compactDemoVisualText(ref.label || `${ref.type}:${ref.id}`, 34));
+    const peopleCount = refs.filter((ref) => ref.type === "employee" || ref.type === "user").length;
+    const docCount = refs.filter((ref) => ref.type === "rag_document").length;
+    const agentCount = refs.filter((ref) => ref.type === "agent_run").length;
+    if (peopleCount) {
+      return `这块选中的是人员或账号相关对象：${labels.join("、")}。\n\n你可以把它理解为“人”的上下文入口，适合查看任职、组织归属、学习任务、协作记录和需要人工复核的事项。涉及面试、绩效、薪酬、晋升这类高影响结论时，我会帮你整理证据和复核点，不会直接替 HR 做最终判断。`;
+    }
+    if (docCount) {
+      return `这块选中的是知识资料：${labels.join("、")}。\n\n它的重点不只是“文档标题”，还包括可信等级、敏感级别、可见范围和能否作为 RAG 引用。你可以继续问“这份资料能支持哪个回答”“它为什么不可见”“需要怎么发布或重建引用”。`;
+    }
+    if (agentCount) {
+      return `这块选中的是 Agent 运行记录：${labels.join("、")}。\n\n它适合用来追踪一次智能体任务的状态、工具预览、人工确认和审计结果。你可以继续追问某次 run 为什么停在预览、用了哪些证据，或者下一步应该由谁确认。`;
+    }
+    return `这块区域关联到 ${refs.length} 个业务对象：${labels.join("、")}。\n\n在 AI-HRMS 里，它们不是孤立的页面元素，而是可以被权限、知识引用、Agent 预览和审计链串起来的工作对象。你可以继续问它们的业务含义、依据来源、风险等级，或下一步该进入哪个处理页面。`;
+  }
+
+  if (semanticHint === "main_navigation" || isDemoNavigationSelection(selectedText)) {
+    return "这块是 AI-HRMS 的左侧主导航，用来在不同 HR 工作域之间切换。\n\n当前高亮的是“招聘与生命周期”，说明你正在招聘工作台；左侧还可以进入指挥看板、组织与员工、员工事务、成长与绩效、知识与 Agent、信任与审计和设置。它的作用不是展示某一条业务记录，而是帮助评审或 HR 快速切换到对应场景。";
+  }
+  if (semanticHint === "recruitment_lifecycle_flow" || /招聘需求|职位发布|候选人|面试|Offer/i.test(selectedText) || (route.includes("recruitment-lifecycle") && selectedLower.includes("hc"))) {
+    return "这块是招聘生命周期的流程导航，用来把一次招聘从“要不要招”串到“如何发岗、怎么看候选人、怎么组织面试、Offer 如何复核”。\n\n前两个节点偏业务确认：HC、预算、岗位范围和渠道；后面三个节点会直接影响候选人，所以系统会更强调公平性、证据留痕和人工确认。你可以按下面的标签页继续查看招聘需求、职位、候选人和面试记录。";
+  }
+  if (route.includes("dashboard")) {
+    return "这块属于 AI-HRMS 的指挥看板，用来把组织数据、AI 建议、待复核事项和审计证据放在同一个入口里。\n\n如果你是评审或 HR，建议先从这里进入 AI 指挥中心、文档库、考勤态势、Co-Growth、Agent Run 和 Audit，能最快看到这套系统如何把 HRMS 从台账升级成智能操作系统。";
+  }
+  if (route.includes("docs") || route.includes("knowledge")) {
+    return "这块是知识治理和文档问答区域，重点是让 AI 回答有来源、有范围、有可信等级。\n\n你可以继续问某份资料能否作为引用、为什么某条制度没有命中、哪些内容需要发布、重建索引或调整可见范围。";
+  }
+  if (route.includes("agents")) {
+    return "这块是 Agent Run 的运行与复核区域，适合看一次智能体任务准备做什么、用了哪些输入、是否需要人工确认，以及最终有没有进入审计链。\n\n如果你担心 AI 自动执行，重点看工具预览和 human review 状态。";
+  }
+  if (route.includes("audit")) {
+    return "这块是审计证据区域，用来回看 AI 回答、RAG 引用、工具预览、人工确认和业务写入之间的关系。\n\n它的价值在于复盘：出了问题可以知道谁发起、依据是什么、风险怎么判断、动作有没有被确认。";
+  }
+  if (route.includes("co-growth") || route.includes("learning")) {
+    return "这块是 Co-Growth 和学习证据相关区域，用来把 AI 学习、工作任务、导师复盘和成长记录连接起来。\n\n它不只是课程列表，更像把新人真实工作转化为可复盘的 AI 实战任务。";
+  }
+  if (domItems[0]) {
+    return `这块是 ${routeLabel} 页面中的「${compactDemoVisualText(domItems[0].label, 36)}」区域。\n\n从可见内容看，它更像一个业务模块或操作入口。你可以继续问“这块应该怎么用”“这里的风险是什么”“下一步点哪里”，我会结合页面上下文给出更具体的解释。`;
+  }
+  if (question.includes("解释") || question.includes("说明")) {
+    return `这块位于 ${routeLabel}，但没有圈到明确的业务对象。\n\n建议你稍微缩小选区，尽量框住一张卡片、一行表格、一个按钮或一个字段；这样我可以结合对象名称、状态、风险和证据链给出更准确的解释。`;
+  }
+  return `我看到了你在 ${routeLabel} 上圈选的区域，但当前选区没有足够明确的业务对象。\n\n你可以把问题写得更具体一些，比如“这块有什么用”“为什么我看不到这个按钮”“这条记录下一步怎么处理”。`;
+}
+
+function isDemoNavigationSelection(text: string) {
+  const compact = text.replace(/\s+/g, "");
+  return compact.includes("AI-HRMS")
+    && compact.includes("指挥看板")
+    && compact.includes("组织与员工")
+    && compact.includes("设置");
 }
 
 function demoVisualFocusLine(refs: VisualContextRequest["regions"][number]["businessRefs"], domItems: ContextItem[]) {
@@ -1788,6 +1861,26 @@ export const api = {
       return Promise.resolve(saved);
     }
     return request<HRRecord>(`/hr/${resource}/${id}`, { method: "PUT", body: JSON.stringify(values) });
+  },
+  deleteHRRecord: (resource: string, id: string) => {
+    if (demoMode) {
+      const records = demoHRRecords[resource] ?? [];
+      const record = records.find((item) => item.id === id);
+      if (!record) {
+        return Promise.reject(new Error("HR record not found"));
+      }
+      demoHRRecords[resource] = records.filter((item) => item.id !== id);
+      appendDemoAudit({
+        eventType: `hr.${resource}.deleted`,
+        objectType: record.recordType,
+        objectId: record.id,
+        riskLevel: record.riskLevel,
+        oldValueSummary: { title: record.title, status: record.status, humanReviewRequired: record.humanReviewRequired },
+        newValueSummary: { deleted: true },
+      });
+      return Promise.resolve({ deleted: true });
+    }
+    return request<{ deleted: boolean }>(`/hr/${resource}/${id}`, { method: "DELETE" });
   },
   ragSources: () => demoMode ? Promise.resolve(demoRAGSources) : request<RAGSource[]>("/rag/sources"),
   createRAGSource: (values: Partial<RAGSource>) => {

@@ -19,6 +19,8 @@ AI-HRMS｜人机共生的人力资源智能操作系统
 The assignment demo presents the full AI-HRMS product, not a standalone
 Co-Growth demo. Co-Growth OS is one highlighted module inside AI-HRMS: the
 growth engine for AI literacy, work missions, reflection, and evidence.
+No demo video is submitted for assignment five; use the runnable demo and
+reviewer guide for evaluation.
 
 Demo company boundary: AI-HRMS is the product. `企鹅互联网科技有限公司` is only a
 fictional seeded demo company dataset used to make HR workflows concrete; it is
@@ -64,6 +66,7 @@ VITE_DEMO_MODE=true npm run web:build
 See:
 
 - `docs/assignment-five-solution.md`
+- `docs/assignment-five-reviewer-guide.md`
 - `docs/demo-script.md`
 - `docs/ai-hrms-demo.md`
 

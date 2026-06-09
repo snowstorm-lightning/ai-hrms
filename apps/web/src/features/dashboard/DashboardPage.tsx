@@ -110,6 +110,34 @@ export function DashboardPage() {
     { title: "信任与审计", path: "/app/audit", summary: "追踪 AI 建议、人工确认、证据和高风险阻断。" },
   ], [language]);
 
+  const reviewerScenarios = useMemo(() => language === "en-US" ? [
+    { title: "30-day onboarding plan", path: "/app/ai-command", tag: "AI Command", text: "Generate a plan with citations, risk, tool preview, and human review." },
+    { title: "Attendance exception review", path: "/app/attendance", tag: "Agent Preview", text: "Drill into attendance signals and run read-only Agent analysis." },
+    { title: "RAG citation answer", path: "/app/docs", tag: "Knowledge", text: "Ask a policy question and inspect scope, trust, sensitivity, and citations." },
+    { title: "Agent run audit trail", path: "/app/agents", tag: "Audit", text: "Preview tool calls, request human confirmation, and trace audit status." },
+  ] : [
+    { title: "新人 30 天成长计划", path: "/app/ai-command", tag: "AI 指挥", text: "生成带引用、风险、工具预览和人工复核的治理型建议。" },
+    { title: "考勤异常复核", path: "/app/attendance", tag: "Agent 预览", text: "下钻考勤信号，运行只读 Agent 分析，不做人事裁决。" },
+    { title: "RAG 引用问答", path: "/app/docs", tag: "知识治理", text: "查看 scope、可信等级、敏感级别、citation 和资料详情。" },
+    { title: "Agent 运行审计", path: "/app/agents", tag: "审计闭环", text: "预览工具调用、请求人工确认，并追踪审计状态。" },
+  ], [language]);
+
+  const evidenceChain = useMemo(() => language === "en-US" ? [
+    "governed document",
+    "RAG citation",
+    "AI answer",
+    "tool preview",
+    "human review",
+    "audit event",
+  ] : [
+    "治理资料",
+    "RAG 引用",
+    "AI 建议",
+    "工具预览",
+    "人工复核",
+    "审计事件",
+  ], [language]);
+
   const systemLayers = useMemo(() => language === "en-US" ? [
     { icon: <ApartmentOutlined />, title: "Organization Data Layer", text: "Employees, org units, legal entities, roles, attendance, and messages.", risk: "low" },
     { icon: <DatabaseOutlined />, title: "Knowledge & Learning Layer", text: "Governed knowledge, RAG citations, courses, and Co-Growth.", risk: "medium" },
@@ -130,14 +158,14 @@ export function DashboardPage() {
     { title: "Co-Growth Engine", path: "/co-growth", icon: <ExperimentOutlined />, text: "AI-HRMS growth engine for human-agent learning." },
     { title: "Agent Run Center", path: "/app/agents", icon: <TeamOutlined />, text: "Agent runs, tool previews, confirmation, and audit status." },
     { title: "Trust & Audit Layer", path: "/app/audit", icon: <AuditOutlined />, text: "Connect suggestions, tool calls, review, and evidence." },
-    { title: "Visual Copilot", path: "/app/docs", icon: <EyeOutlined />, text: "Ask through chat or selected screen layout snapshots." },
+    { title: "Visual Copilot", path: "/app/docs", icon: <EyeOutlined />, text: "Text-only: chat or selected page business objects, no screenshots." },
   ] : [
     { title: "AI 指挥中心", path: "/app/ai-command", icon: <RobotOutlined />, text: "问组织、查知识、生成计划、预览动作。" },
     { title: "文档库", path: "/app/docs", icon: <FileSearchOutlined />, text: "阅读资料，并用 RAG 精准回答引用问题。" },
     { title: "共生成长引擎", path: "/co-growth", icon: <ExperimentOutlined />, text: "AI-HRMS 的人机共生成长引擎。" },
     { title: "Agent 运行中心", path: "/app/agents", icon: <TeamOutlined />, text: "Agent 运行、工具预览、人工确认和审计状态。" },
     { title: "信任与审计层", path: "/app/audit", icon: <AuditOutlined />, text: "把建议、工具调用、人工确认和证据串起来。" },
-    { title: "Visual Copilot", path: "/app/docs", icon: <EyeOutlined />, text: "普通问答走 RAG，截图问携带 layout snapshot。" },
+    { title: "Visual Copilot", path: "/app/docs", icon: <EyeOutlined />, text: "text-only：普通问答走 RAG，圈选只携带 layout hints，不上传截图。" },
   ], [language]);
 
   const personaValue = useMemo<Record<Persona, string[]>>(() => language === "en-US" ? ({
@@ -273,11 +301,62 @@ export function DashboardPage() {
             ))}
           </section>
 
+          <Row gutter={[16, 16]} className="section-card reviewer-path-section" data-vc-kind="assignment-five-reviewer-path">
+            <Col xs={24} xl={15}>
+              <Card
+                title={language === "en-US" ? "Assignment Five Review Path" : "作业五评审路径"}
+                extra={<Tag color="blue">{language === "en-US" ? "live demo path" : "产品演示入口"}</Tag>}
+              >
+                <div className="reviewer-scenario-grid">
+                  {reviewerScenarios.map((scenario, index) => (
+                    <button
+                      type="button"
+                      className="reviewer-scenario-card"
+                      key={scenario.title}
+                      onClick={() => navigate(scenario.path)}
+                      data-vc-kind="reviewer-scenario"
+                      data-vc-label={scenario.title}
+                    >
+                      <span className="reviewer-scenario-index">{index + 1}</span>
+                      <span className="reviewer-scenario-copy">
+                        <Typography.Text strong>{scenario.title}</Typography.Text>
+                        <Typography.Text type="secondary">{scenario.text}</Typography.Text>
+                      </span>
+                      <Tag>{scenario.tag}</Tag>
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            </Col>
+            <Col xs={24} xl={9}>
+              <Card title={language === "en-US" ? "Evidence Chain" : "引用与证据链"} data-vc-kind="assignment-evidence-chain">
+                <div className="evidence-chain-rail" aria-label={language === "en-US" ? "Evidence chain" : "引用与证据链"}>
+                  {evidenceChain.map((item, index) => (
+                    <div className="evidence-chain-node" key={item}>
+                      <span className="evidence-chain-index">{index + 1}</span>
+                      <Typography.Text strong>{item}</Typography.Text>
+                    </div>
+                  ))}
+                </div>
+                <Alert
+                  showIcon
+                  type="info"
+                  className="evidence-chain-note"
+                  title={language === "en-US" ? "Review rule" : "评审口径"}
+                  description={language === "en-US"
+                    ? "AI-HRMS is the product; the company dataset is fictional and high-risk HR actions stay preview-only."
+                    : "AI-HRMS 是产品；公司数据是虚构样本，高风险 HR 动作只预览并进入人工复核。"}
+                />
+              </Card>
+            </Col>
+          </Row>
+
           <Card className="section-card" title="My Actions Required" data-vc-kind="my-actions-required">
             <Table
               rowKey={(record) => `${record.resource}-${record.id}`}
               size="middle"
               dataSource={workItems}
+              scroll={{ x: 760 }}
               pagination={false}
               locale={{ emptyText: "暂无待处理事项" }}
               columns={[

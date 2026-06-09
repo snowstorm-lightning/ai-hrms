@@ -21,3 +21,6 @@ __pycache__/
 vendor/
 bin/
 /go*.linux-*.tar.gz
+
+# Assignment submission drafts
+docs/assignment-*.md
