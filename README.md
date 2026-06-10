@@ -10,54 +10,36 @@ workflow records as the operating-system data layer. The implementation uses a
 Go API, PostgreSQL/pgvector, React, Ant Design, and a separate Python agent
 boundary managed by `uv`.
 
-## Assignment Demo: AI-HRMS
+## Product Scope
 
-Submission positioning:
+AI-HRMS is positioned as `人机共生的人力资源智能操作系统`. It focuses on
+turning HRMS from a record system into an operating layer where HR workflows,
+governed knowledge, AI recommendations, agent runs, and human review share the
+same permission, trust, and audit model.
 
-AI-HRMS｜人机共生的人力资源智能操作系统
+Core product areas:
 
-The assignment demo presents the full AI-HRMS product, not a standalone
-Co-Growth demo. Co-Growth OS is one highlighted module inside AI-HRMS: the
-growth engine for AI literacy, work missions, reflection, and evidence.
-No demo video is submitted for assignment five; use the runnable demo and
-reviewer guide for evaluation.
+1. Command dashboard for scoped organization status and operational signals.
+2. AI command center for explainable HR recommendations with trust metadata.
+3. Governed knowledge and RAG document flows with scope, sensitivity, and
+   citation controls.
+4. Attendance cockpit with exception drill-down and human-reviewed AI analysis.
+5. Co-Growth OS for AI literacy, work missions, reflection, and evidence.
+6. Agent run management with tool previews, confirmations, and audit records.
 
-Demo company boundary: AI-HRMS is the product. `企鹅互联网科技有限公司` is only a
-fictional seeded demo company dataset used to make HR workflows concrete; it is
-not Tencent, is not affiliated with Tencent, and does not represent real company
-data.
+## Quick Frontend Preview
 
-Run the deterministic frontend demo:
+Run the deterministic frontend preview:
 
 ```bash
 npm run web:dev:demo
 ```
 
-Open `http://127.0.0.1:5174/login` and click **一键进入 AI-HRMS Demo**.
-The core demo path does not require Go, PostgreSQL, Python, external LLMs, or
-external network calls.
+Open `http://127.0.0.1:5174/login` and use the one-click entry on the login
+page. This preview mode does not require Go, PostgreSQL, Python, external LLMs,
+or external network calls.
 
-Recommended 3-minute path:
-
-1. `/app/dashboard` - AI-HRMS Command Dashboard and Demo Tour.
-2. `/app/ai-command` - structured HR recommendation with trust metadata.
-3. `/app/knowledge` - governed RAG documents, trust level, sensitivity, scope,
-   and citation preview.
-4. `/app/docs` and `/app/docs/rag-doc-002` - document library reading flow:
-   catalog cards open a dedicated document page, with the page table of contents and
-   citation/governance status in left/right drawers.
-5. `/app/attendance` - real-time attendance cockpit with scoped aggregation,
-   exception drill-down, and preview-only Agent analysis that requires human
-   review.
-6. `/co-growth` - Co-Growth OS as the AI-HRMS growth engine.
-7. `/app/agents` - human-agent run cards, tool preview, and confirmation.
-8. `/app/audit` - trust, audit, and evidence chain.
-9. `/app/help` - product guide for new users, including Visual Copilot and admin-only operations.
-
-When narrating this path, describe any company names, employee records, policies,
-or citations as simulated company data for the AI-HRMS product demo.
-
-Build the public demo:
+Build the frontend preview:
 
 ```bash
 VITE_DEMO_MODE=true npm run web:build
