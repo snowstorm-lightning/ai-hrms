@@ -5,11 +5,20 @@ import type { LegalEntity, OrgUnit, Role, RoleBinding, User } from "../../api/ty
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
 
+type UserEditor = Partial<User> & { password?: string };
+
+const newUserValues: UserEditor = {
+  username: "",
+  mobile: "",
+  password: "",
+  enableState: 1,
+};
+
 export function UsersPage() {
   const [items, setItems] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [editing, setEditing] = useState<Partial<User> | null>(null);
+  const [editing, setEditing] = useState<UserEditor | null>(null);
   const [roleEditing, setRoleEditing] = useState<User | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([]);
@@ -39,6 +48,21 @@ export function UsersPage() {
 
   useEffect(() => { void reload(1); }, []);
 
+  useEffect(() => {
+    form.resetFields();
+    if (editing) {
+      form.setFieldsValue({ ...newUserValues, ...editing });
+    }
+  }, [editing, form]);
+
+  const openEditor = (user?: User) => {
+    setEditing(user ? { ...newUserValues, password: undefined, ...user } : { ...newUserValues });
+  };
+
+  const closeEditor = () => {
+    setEditing(null);
+  };
+
   const openRoleEditor = async (user: User) => {
     setRoleEditing(user);
     setRoleLoading(true);
@@ -67,7 +91,7 @@ export function UsersPage() {
       <PageTitle title="账号与角色治理" description="维护登录账号、角色绑定和 scope，是 Agent tool preview、RAG 检索和审计授权的权限底座。" />
       <InlineError message={error} onRetry={() => reload()} />
       <Space className="toolbar">
-        <Button type="primary" data-vc-action="user.create" onClick={() => setEditing({ enableState: 1 })}>新增用户</Button>
+        <Button type="primary" data-vc-action="user.create" onClick={() => openEditor()}>新增用户</Button>
       </Space>
       <Table
         data-vc-kind="user-table"
@@ -91,18 +115,18 @@ export function UsersPage() {
             title: "操作",
             render: (_, record) => (
               <Space>
-                <Button data-vc-action="user.edit" onClick={() => setEditing(record)}>编辑</Button>
+                <Button data-vc-action="user.edit" onClick={() => openEditor(record)}>编辑</Button>
                 <Button data-vc-action="user.role_bindings.edit" onClick={() => openRoleEditor(record)}>权限</Button>
               </Space>
             ),
           },
         ]}
       />
-      <Modal title={editing?.id ? "编辑用户" : "新增用户"} open={!!editing} onCancel={() => setEditing(null)} onOk={() => form.submit()} confirmLoading={saving} data-vc-kind="user-editor" data-vc-object-type={editing?.id ? "user" : undefined} data-vc-object-id={editing?.id} data-vc-label={editing?.username}>
+      <Modal title={editing?.id ? "编辑用户" : "新增用户"} open={!!editing} onCancel={closeEditor} onOk={() => form.submit()} confirmLoading={saving} forceRender data-vc-kind="user-editor" data-vc-object-type={editing?.id ? "user" : undefined} data-vc-object-id={editing?.id} data-vc-label={editing?.username}>
         <Form
           form={form}
           layout="vertical"
-          initialValues={editing ?? {}}
+          initialValues={newUserValues}
           key={editing?.id ?? "new"}
           onFinish={async (values) => {
             setSaving(true);
@@ -113,7 +137,7 @@ export function UsersPage() {
               } else {
                 await api.createUser(values);
               }
-              setEditing(null);
+              closeEditor();
               await reload();
             } catch (err) {
               setError(getErrorMessage(err, "用户保存失败"));

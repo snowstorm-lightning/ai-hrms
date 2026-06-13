@@ -10,6 +10,23 @@ type EmployeeEditor = Omit<Partial<Employee>, "primaryAssignment"> & {
   primaryAssignment?: Record<string, unknown>;
 };
 
+const newEmployeeValues: EmployeeEditor = {
+  employeeNo: "",
+  name: "",
+  mobile: "",
+  status: "active",
+  highestDegreeOfEducation: "",
+  idNumber: "",
+  remarks: "",
+  primaryAssignment: {
+    legalEntityId: undefined,
+    orgUnitId: undefined,
+    positionTitle: "",
+    startDate: undefined,
+    employmentType: "full_time",
+  },
+};
+
 export function EmployeesPage() {
   const [items, setItems] = useState<Employee[]>([]);
   const [total, setTotal] = useState(0);
@@ -63,18 +80,31 @@ export function EmployeesPage() {
       .catch((err) => setError(getErrorMessage(err, "任职记录加载失败")));
   }, [selected]);
 
+  useEffect(() => {
+    form.resetFields();
+    if (editing) {
+      form.setFieldsValue(editing);
+    }
+  }, [editing, form]);
+
   const openEditor = (employee?: Employee) => {
     if (employee) {
       setEditing({
+        ...newEmployeeValues,
         ...employee,
         primaryAssignment: employee.primaryAssignment ? {
+          ...newEmployeeValues.primaryAssignment,
           ...employee.primaryAssignment,
           startDate: employee.primaryAssignment.startDate ? dayjs(employee.primaryAssignment.startDate) : undefined,
-        } : undefined,
+        } : { ...newEmployeeValues.primaryAssignment },
       });
       return;
     }
-    setEditing({ status: "active", primaryAssignment: { employmentType: "full_time" } });
+    setEditing({ ...newEmployeeValues, primaryAssignment: { ...newEmployeeValues.primaryAssignment } });
+  };
+
+  const closeEditor = () => {
+    setEditing(null);
   };
 
   return (
@@ -185,15 +215,16 @@ export function EmployeesPage() {
       <Modal
         title={editing?.id ? "编辑员工" : "新增员工"}
         open={!!editing}
-        onCancel={() => setEditing(null)}
+        onCancel={closeEditor}
         onOk={() => form.submit()}
         confirmLoading={saving}
+        forceRender
         width={760}
       >
         <Form
           form={form}
           layout="vertical"
-          initialValues={editing ?? {}}
+          initialValues={newEmployeeValues}
           key={editing?.id ?? "new"}
           onFinish={async (values) => {
             const startDate = values.primaryAssignment?.startDate;
@@ -213,7 +244,7 @@ export function EmployeesPage() {
               } else {
                 await api.createEmployee(payload);
               }
-              setEditing(null);
+              closeEditor();
               form.resetFields();
               await reload();
             } catch (err) {

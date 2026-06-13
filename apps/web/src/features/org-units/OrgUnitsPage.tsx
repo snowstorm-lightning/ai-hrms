@@ -39,6 +39,16 @@ function descendantIds(items: OrgUnit[], id?: string) {
   return result;
 }
 
+const newOrgUnitValues: Partial<OrgUnit> = {
+  code: "",
+  name: "",
+  parentId: undefined,
+  legalEntityId: undefined,
+  type: "department",
+  managerName: "",
+  status: "active",
+};
+
 export function OrgUnitsPage() {
   const [items, setItems] = useState<OrgUnit[]>([]);
   const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([]);
@@ -76,6 +86,21 @@ export function OrgUnitsPage() {
 
   useEffect(() => { void reload(); }, []);
 
+  useEffect(() => {
+    form.resetFields();
+    if (editing) {
+      form.setFieldsValue({ ...newOrgUnitValues, ...editing });
+    }
+  }, [editing, form]);
+
+  const openEditor = (item?: OrgUnit) => {
+    setEditing(item ? { ...newOrgUnitValues, ...item } : { ...newOrgUnitValues });
+  };
+
+  const closeEditor = () => {
+    setEditing(null);
+  };
+
   const deleteOrgUnit = async (item: OrgUnit) => {
     setSaving(true);
     setError("");
@@ -99,7 +124,7 @@ export function OrgUnitsPage() {
       <PageTitle title="组织 scope 图谱" description="维护部门、共享中心、分支和跨法人项目组；这些层级决定 RAG 可见性、Agent 授权和审计范围。" />
       <InlineError message={error} onRetry={reload} />
       <Space className="toolbar" data-vc-kind="org-units-toolbar">
-        <Button data-vc-action="org_unit.create" type="primary" onClick={() => setEditing({ type: "department", status: "active" })}>新增组织单元</Button>
+        <Button data-vc-action="org_unit.create" type="primary" onClick={() => openEditor()}>新增组织单元</Button>
       </Space>
       {loading ? <PageLoading /> : (
         <div className="split-panel" data-vc-kind="org-units-workbench">
@@ -121,7 +146,7 @@ export function OrgUnitsPage() {
                   <span>{item.code} · {item.type} · {legalEntities.find((entity) => entity.id === item.legalEntityId)?.name ?? "不绑定法人"}</span>
                 </div>
                 <Space>
-                  <Button data-vc-action="org_unit.edit" onClick={() => setEditing(item)}>编辑</Button>
+                  <Button data-vc-action="org_unit.edit" onClick={() => openEditor(item)}>编辑</Button>
                   <Popconfirm
                     title="删除组织单元"
                     description="仅未被子组织、员工任职、角色 scope、RAG scope 或消息引用的组织单元可以删除。"
@@ -141,17 +166,12 @@ export function OrgUnitsPage() {
       <Modal
         title={editing?.id ? "编辑组织单元" : "新增组织单元"}
         open={!!editing}
-        onCancel={() => setEditing(null)}
+        onCancel={closeEditor}
         onOk={() => form.submit()}
         cancelText="关闭"
         okText="保存"
         confirmLoading={saving}
-        destroyOnHidden
-        afterOpenChange={(open) => {
-          if (!open) {
-            form.resetFields();
-          }
-        }}
+        forceRender
         footer={(_, { CancelBtn, OkBtn }) => (
           <Space className="modal-footer-actions">
             {editing?.id ? (
@@ -184,7 +204,7 @@ export function OrgUnitsPage() {
         <Form
           form={form}
           layout="vertical"
-          initialValues={editing ?? {}}
+          initialValues={newOrgUnitValues}
           key={editing?.id ?? "new"}
           data-vc-kind="org-unit-form"
           data-vc-object-type={editing?.id ? "org_unit" : undefined}
@@ -200,7 +220,7 @@ export function OrgUnitsPage() {
               } else {
                 await api.createOrgUnit(payload);
               }
-              setEditing(null);
+              closeEditor();
               await reload();
             } catch (err) {
               setError(getErrorMessage(err, "组织单元保存失败"));

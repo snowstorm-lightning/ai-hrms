@@ -1842,8 +1842,11 @@ export const api = {
       demoHRRecords[resource] = records.map((record) => record.id === id ? {
         ...record,
         ...values,
-        employeeName: demoEmployeeName(values.employeeId ?? record.employeeId),
-        orgUnitName: demoOrgUnitName(values.orgUnitId ?? record.orgUnitId, values.employeeId ?? record.employeeId),
+        employeeName: demoEmployeeName(Object.hasOwn(values, "employeeId") ? values.employeeId : record.employeeId),
+        orgUnitName: demoOrgUnitName(
+          Object.hasOwn(values, "orgUnitId") ? values.orgUnitId : record.orgUnitId,
+          Object.hasOwn(values, "employeeId") ? values.employeeId : record.employeeId,
+        ),
         payload: values.payload ?? record.payload,
         updatedAt: new Date().toISOString(),
       } : record);

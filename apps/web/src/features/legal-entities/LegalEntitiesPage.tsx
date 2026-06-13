@@ -6,6 +6,19 @@ import type { LegalEntity } from "../../api/types";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
 
+const newLegalEntityValues: Partial<LegalEntity> = {
+  code: "",
+  name: "",
+  legalName: "",
+  unifiedSocialCreditCode: "",
+  legalRepresentative: "",
+  companyPhone: "",
+  email: "",
+  area: "",
+  address: "",
+  status: "active",
+};
+
 export function LegalEntitiesPage() {
   const [items, setItems] = useState<LegalEntity[]>([]);
   const [editing, setEditing] = useState<Partial<LegalEntity> | null>(null);
@@ -28,13 +41,28 @@ export function LegalEntitiesPage() {
 
   useEffect(() => { void reload(); }, []);
 
+  useEffect(() => {
+    form.resetFields();
+    if (editing) {
+      form.setFieldsValue({ ...newLegalEntityValues, ...editing });
+    }
+  }, [editing, form]);
+
+  const openEditor = (item?: LegalEntity) => {
+    setEditing(item ? { ...newLegalEntityValues, ...item } : { ...newLegalEntityValues });
+  };
+
+  const closeEditor = () => {
+    setEditing(null);
+  };
+
   return (
     <div className="legal-entities-page" data-vc-page="legal-entities">
       <PageTitle title="法人 scope 底座" description="维护总公司和具有独立法人属性的子公司；法人边界用于权限、资料范围、Agent 工具预览和审计责任归属。" />
       <Alert className="section-card" type="info" showIcon title="当前公司与法人字段为虚构样本数据，不代表腾讯或任何真实企业。" />
       <InlineError message={error} onRetry={reload} />
       <Space className="toolbar" data-vc-kind="legal-entities-toolbar">
-        <Button data-vc-action="legal_entity.create" type="primary" onClick={() => setEditing({ status: "active" })}>新增法人实体</Button>
+        <Button data-vc-action="legal_entity.create" type="primary" onClick={() => openEditor()}>新增法人实体</Button>
       </Space>
       <Table
         data-vc-kind="legal-entity-table"
@@ -55,15 +83,16 @@ export function LegalEntitiesPage() {
           { title: "法人代表", dataIndex: "legalRepresentative" },
           { title: "地区", dataIndex: "area" },
           { title: "状态", dataIndex: "status", render: (status) => <Tag color="green">{status}</Tag> },
-          { title: "操作", render: (_, record) => <Button data-vc-action="legal_entity.edit" onClick={() => setEditing(record)}>编辑</Button> },
+          { title: "操作", render: (_, record) => <Button data-vc-action="legal_entity.edit" onClick={() => openEditor(record)}>编辑</Button> },
         ]}
       />
       <Modal
         title={editing?.id ? "编辑法人实体" : "新增法人实体"}
         open={!!editing}
-        onCancel={() => setEditing(null)}
+        onCancel={closeEditor}
         onOk={() => form.submit()}
         confirmLoading={saving}
+        forceRender
         modalRender={(node) => (
           <div
             data-vc-kind="legal-entity-editor"
@@ -78,7 +107,7 @@ export function LegalEntitiesPage() {
         <Form
           form={form}
           layout="vertical"
-          initialValues={editing ?? {}}
+          initialValues={newLegalEntityValues}
           key={editing?.id ?? "new"}
           data-vc-kind="legal-entity-form"
           data-vc-object-type={editing?.id ? "legal_entity" : undefined}
@@ -93,7 +122,7 @@ export function LegalEntitiesPage() {
               } else {
                 await api.createLegalEntity(values);
               }
-              setEditing(null);
+              closeEditor();
               await reload();
             } catch (err) {
               setError(getErrorMessage(err, "法人实体保存失败"));

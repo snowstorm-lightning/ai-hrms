@@ -5,10 +5,16 @@ import {
   Col,
   Descriptions,
   Drawer,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
   Popconfirm,
   Row,
+  Select,
   Space,
   Statistic,
+  Switch,
   Table,
   Tabs,
   Tag,
@@ -24,6 +30,7 @@ import {
   ClockCircleOutlined,
   DatabaseOutlined,
   DeleteOutlined,
+  EditOutlined,
   FileSearchOutlined,
   IdcardOutlined,
   PlusOutlined,
@@ -36,10 +43,23 @@ import {
 import { useEffect, useMemo, useState, type HTMLAttributes, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, getErrorMessage } from "../../api/client";
-import type { AIProviderStatus, AuditEvent, HRRecord, HRRecordInput, HRWorkItem, WorkbenchOverview } from "../../api/types";
+import type { AIProviderStatus, AuditEvent, Employee, HRRecord, HRRecordInput, HRWorkItem, OrgUnit, WorkbenchOverview } from "../../api/types";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
 import { AttendancePage } from "../employees/AttendancePage";
+
+type HRRecordEditor = HRRecordInput & { id?: string };
+
+type PayloadField = {
+  name: string;
+  label: string;
+  type?: "text" | "number" | "textarea" | "date" | "time" | "select" | "switch";
+  min?: number;
+  max?: number;
+  required?: boolean;
+  placeholder?: string;
+  options?: Array<{ value: string; label: string }>;
+};
 
 const resourceLabels: Record<string, string> = {
   "leave-applications": "请假申请",
@@ -79,6 +99,106 @@ const sampleInputs: Record<string, HRRecordInput> = {
   "performance-goals": { title: "Q2 绩效目标", status: "active", riskLevel: "medium", humanReviewRequired: false, payload: { progress: 0 } },
   "appraisal-cycles": { title: "绩效周期草案", status: "draft", riskLevel: "high", humanReviewRequired: true, payload: { formulaReviewRequired: true } },
   appraisals: { title: "绩效评估提交", status: "submitted", riskLevel: "high", humanReviewRequired: true, payload: { finalDecision: "human_only" } },
+};
+
+const statusOptions = [
+  { value: "draft", label: "draft" },
+  { value: "submitted", label: "submitted" },
+  { value: "pending", label: "pending" },
+  { value: "waiting_human_review", label: "waiting_human_review" },
+  { value: "approved", label: "approved" },
+  { value: "rejected", label: "rejected" },
+  { value: "open", label: "open" },
+  { value: "active", label: "active" },
+  { value: "scheduled", label: "scheduled" },
+  { value: "planned", label: "planned" },
+  { value: "completed", label: "completed" },
+  { value: "closed", label: "closed" },
+];
+
+const riskOptions = [
+  { value: "low", label: "low" },
+  { value: "medium", label: "medium" },
+  { value: "high", label: "high" },
+];
+
+const payloadFieldsByResource: Record<string, PayloadField[]> = {
+  "leave-applications": [
+    { name: "leaveType", label: "请假类型", type: "select", options: [{ value: "annual", label: "annual" }, { value: "sick", label: "sick" }, { value: "personal", label: "personal" }, { value: "compensatory", label: "compensatory" }] },
+    { name: "fromDate", label: "开始日期", type: "date" },
+    { name: "toDate", label: "结束日期", type: "date" },
+    { name: "days", label: "天数", type: "number", min: 0.5 },
+  ],
+  "attendance-requests": [
+    { name: "requestType", label: "申请类型", type: "select", options: [{ value: "correction", label: "correction" }, { value: "missing_checkout", label: "missing_checkout" }, { value: "field_work", label: "field_work" }] },
+    { name: "reason", label: "原因", type: "textarea" },
+  ],
+  "shift-assignments": [
+    { name: "shift", label: "班次", type: "select", options: [{ value: "flex", label: "flex" }, { value: "day", label: "day" }, { value: "night", label: "night" }] },
+    { name: "startTime", label: "开始时间", type: "time" },
+    { name: "endTime", label: "结束时间", type: "time" },
+  ],
+  "expense-claims": [
+    { name: "amount", label: "金额", type: "number", min: 0 },
+    { name: "currency", label: "币种", type: "select", options: [{ value: "CNY", label: "CNY" }, { value: "USD", label: "USD" }] },
+    { name: "expenseType", label: "费用类型", type: "select", options: [{ value: "transport", label: "transport" }, { value: "travel", label: "travel" }, { value: "meal", label: "meal" }] },
+  ],
+  "salary-slips": [
+    { name: "period", label: "薪资期间", placeholder: "2026-05" },
+    { name: "boundary", label: "边界说明" },
+  ],
+  "job-requisitions": [
+    { name: "openings", label: "HC 数", type: "number", min: 1, required: true },
+    { name: "budget", label: "预算范围", placeholder: "如 35k-45k/月" },
+    { name: "expectedOnboardingDate", label: "期望入职时间", type: "date" },
+    { name: "businessNeed", label: "业务必要性", type: "textarea", placeholder: "说明为什么需要新增该招聘需求" },
+  ],
+  "job-openings": [
+    { name: "channel", label: "发布渠道", type: "select", options: [{ value: "public", label: "public" }, { value: "internal_referral", label: "internal_referral" }, { value: "social", label: "social" }] },
+    { name: "salaryRange", label: "薪资范围", placeholder: "如 35k-45k" },
+    { name: "closingDate", label: "关闭日期", type: "date" },
+  ],
+  "job-applicants": [
+    { name: "stage", label: "候选人阶段", type: "select", options: [{ value: "screening", label: "screening" }, { value: "interview", label: "interview" }, { value: "offer", label: "offer" }, { value: "rejected", label: "rejected" }] },
+    { name: "source", label: "来源" },
+    { name: "fairnessBoundary", label: "公平性复核", type: "switch" },
+  ],
+  interviews: [
+    { name: "interviewTime", label: "面试日期", type: "date" },
+    { name: "interviewer", label: "面试官" },
+    { name: "scoreBoundary", label: "评分边界" },
+  ],
+  "job-offers": [
+    { name: "salaryRange", label: "薪酬范围" },
+    { name: "onboardingDate", label: "入职日期", type: "date" },
+    { name: "compensationReviewRequired", label: "薪酬复核", type: "switch" },
+  ],
+  "training-events": [
+    { name: "audience", label: "参与范围" },
+    { name: "startDate", label: "开始日期", type: "date" },
+    { name: "evidenceRequired", label: "需要证据", type: "switch" },
+  ],
+  "performance-goals": [
+    { name: "progress", label: "进度", type: "number", min: 0, max: 100 },
+    { name: "evidence", label: "证据说明", type: "textarea" },
+  ],
+  "appraisal-cycles": [
+    { name: "period", label: "周期", placeholder: "2026 H1" },
+    { name: "formulaReviewRequired", label: "公式复核", type: "switch" },
+  ],
+  appraisals: [
+    { name: "selfScore", label: "自评分", type: "number", min: 0, max: 5 },
+    { name: "feedbackScore", label: "反馈分", type: "number", min: 0, max: 5 },
+    { name: "finalDecision", label: "最终结论边界", type: "select", options: [{ value: "human_only", label: "human_only" }] },
+  ],
+};
+
+const editorNotes: Record<string, string> = {
+  "job-requisitions": "新增招聘需求不会直接批准 HC；保存后进入 submitted 状态，并保留人工复核边界。",
+  "job-openings": "职位发布只保存岗位草案和渠道信息，不自动对外发布或筛选候选人。",
+  "job-applicants": "候选人记录只保存阶段和来源，不自动进行录用、淘汰或评分裁决。",
+  interviews: "面试记录只整理安排和证据，评分与录用结论必须人工确认。",
+  "job-offers": "Offer 草案涉及薪酬与录用影响，必须由 HR 和薪酬负责人确认。",
 };
 
 function riskColor(risk: string) {
@@ -129,6 +249,70 @@ function payloadPreview(record: HRRecord) {
   return keys.slice(0, 4).map((key) => `${key}=${String(record.payload[key])}`).join(" · ");
 }
 
+function cloneInput(input: HRRecordInput): HRRecordEditor {
+  return { ...input, payload: { ...(input.payload ?? {}) } };
+}
+
+function newRecordEditor(resource: string): HRRecordEditor {
+  return cloneInput(sampleInputs[resource] ?? {
+    title: resourceLabels[resource] ?? resource,
+    status: "draft",
+    riskLevel: "medium",
+    humanReviewRequired: true,
+    payload: {},
+  });
+}
+
+function recordEditor(record: HRRecord): HRRecordEditor {
+  return {
+    id: record.id,
+    title: record.title,
+    employeeId: record.employeeId ?? null,
+    orgUnitId: record.orgUnitId ?? null,
+    scopeType: record.scopeType,
+    scopeId: record.scopeId ?? null,
+    status: record.status,
+    riskLevel: record.riskLevel,
+    humanReviewRequired: record.humanReviewRequired,
+    payload: { ...(record.payload ?? {}) },
+  };
+}
+
+function compactPayload(payload?: Record<string, unknown>) {
+  const next: Record<string, unknown> = {};
+  Object.entries(payload ?? {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    next[key] = value;
+  });
+  return next;
+}
+
+function normalizeEditorValues(resource: string, values: HRRecordEditor): HRRecordInput {
+  const defaults = sampleInputs[resource] ?? {};
+  const scopeType = values.scopeType || defaults.scopeType || "global";
+  return {
+    title: values.title?.trim() || defaults.title || resourceLabels[resource] || resource,
+    employeeId: values.employeeId || null,
+    orgUnitId: values.orgUnitId || null,
+    scopeType,
+    scopeId: scopeType === "global" ? null : values.scopeId || null,
+    status: values.status || defaults.status || "draft",
+    riskLevel: values.riskLevel || defaults.riskLevel || "medium",
+    humanReviewRequired: values.humanReviewRequired ?? defaults.humanReviewRequired ?? true,
+    payload: compactPayload(values.payload),
+  };
+}
+
+function renderPayloadInput(field: PayloadField) {
+  if (field.type === "number") return <InputNumber min={field.min} max={field.max} style={{ width: "100%" }} />;
+  if (field.type === "textarea") return <Input.TextArea rows={3} placeholder={field.placeholder} />;
+  if (field.type === "date") return <Input type="date" />;
+  if (field.type === "time") return <Input type="time" />;
+  if (field.type === "select") return <Select allowClear options={field.options ?? []} />;
+  if (field.type === "switch") return <Switch />;
+  return <Input placeholder={field.placeholder} />;
+}
+
 function HRResourcePanel({ resource, description }: { resource: string; description: string }) {
   const [items, setItems] = useState<HRRecord[]>([]);
   const [total, setTotal] = useState(0);
@@ -136,6 +320,13 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<HRRecord | null>(null);
+  const [editing, setEditing] = useState<HRRecordEditor | null>(null);
+  const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [form] = Form.useForm<HRRecordEditor>();
+  const payloadFields = payloadFieldsByResource[resource] ?? [];
+  const orgUnitOptions = useMemo(() => orgUnits.map((item) => ({ value: item.id, label: item.name })), [orgUnits]);
+  const employeeOptions = useMemo(() => employees.map((item) => ({ value: item.id, label: `${item.name} / ${item.employeeNo}` })), [employees]);
 
   const reload = async () => {
     setLoading(true);
@@ -153,14 +344,52 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
 
   useEffect(() => { void reload(); }, [resource]);
 
-  const createSample = async () => {
+  useEffect(() => {
+    if (!editing) {
+      form.resetFields();
+      return;
+    }
+    form.setFieldsValue(editing);
+  }, [editing, form]);
+
+  useEffect(() => {
+    if (!editing) return;
+    let mounted = true;
+    Promise.all([api.orgUnits(), api.employees(1, 100)])
+      .then(([units, employeePage]) => {
+        if (!mounted) return;
+        setOrgUnits(units);
+        setEmployees(employeePage.rows ?? []);
+      })
+      .catch((err) => {
+        if (mounted) setError(getErrorMessage(err, "编辑选项加载失败"));
+      });
+    return () => { mounted = false; };
+  }, [editing]);
+
+  const openEditor = (record?: HRRecord) => {
+    setEditing(record ? recordEditor(record) : newRecordEditor(resource));
+  };
+
+  const closeEditor = () => {
+    setEditing(null);
+    form.resetFields();
+  };
+
+  const saveRecord = async (values: HRRecordEditor) => {
     setSaving(true);
     setError("");
     try {
-      await api.createHRRecord(resource, sampleInputs[resource] ?? { title: resourceLabels[resource] ?? resource });
+      const input = normalizeEditorValues(resource, values);
+      const saved = editing?.id
+        ? await api.updateHRRecord(resource, editing.id, input)
+        : await api.createHRRecord(resource, input);
+      if (editing?.id) setSelected(saved);
+      closeEditor();
       await reload();
+      message.success(editing?.id ? "记录已更新" : "记录已创建");
     } catch (err) {
-      setError(getErrorMessage(err, "创建演示记录失败"));
+      setError(getErrorMessage(err, "记录保存失败"));
     } finally {
       setSaving(false);
     }
@@ -212,7 +441,7 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
           <Typography.Title level={4}>{resourceLabels[resource] ?? resource}</Typography.Title>
           <Typography.Text type="secondary">{description}</Typography.Text>
         </div>
-        <Button icon={<PlusOutlined />} type="primary" loading={saving} onClick={createSample} data-vc-action={`hr.${resource}.create`}>
+        <Button icon={<PlusOutlined />} type="primary" onClick={() => openEditor()} data-vc-action={`hr.${resource}.create`}>
           新增
         </Button>
       </div>
@@ -223,6 +452,7 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
         loading={loading}
         dataSource={items}
         pagination={{ total, pageSize: 20, hideOnSinglePage: true }}
+        scroll={{ x: "max-content" }}
         locale={{ emptyText: <EmptyBlock description={`暂无${resourceLabels[resource] ?? "记录"}`} /> }}
         onRow={(record) => ({
           "data-vc-kind": "table-row",
@@ -237,6 +467,7 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
           { title: "风险", dataIndex: "riskLevel", render: (risk: string, record: HRRecord) => <Space><Tag color={riskColor(risk)}>{risk}</Tag>{record.humanReviewRequired ? <Tag color="red">human review</Tag> : null}</Space> },
           { title: "摘要", render: (_: unknown, record: HRRecord) => <Typography.Text type="secondary">{payloadPreview(record)}</Typography.Text> },
           { title: "更新时间", dataIndex: "updatedAt", render: (value: string) => new Date(value).toLocaleString() },
+          { title: "操作", render: (_: unknown, record: HRRecord) => <Button size="small" icon={<EditOutlined />} onClick={() => openEditor(record)} data-vc-action={`hr.${resource}.edit`}>编辑</Button> },
         ]}
       />
       <Drawer
@@ -266,6 +497,9 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
             </Descriptions>
             <pre className="json-preview">{JSON.stringify(selected.payload, null, 2)}</pre>
             <Space wrap>
+              <Button icon={<EditOutlined />} onClick={() => openEditor(selected)} data-vc-action={`hr.${resource}.edit`}>
+                编辑
+              </Button>
               <Button loading={saving} onClick={() => updateStatus(selected, selected.status === "approved" ? "submitted" : "approved")} data-vc-action={`hr.${resource}.approve`}>
                 标记审批
               </Button>
@@ -288,6 +522,91 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
           </Space>
         ) : null}
       </Drawer>
+      <Modal
+        title={editing?.id ? `编辑${resourceLabels[resource] ?? "记录"}` : `新增${resourceLabels[resource] ?? "记录"}`}
+        open={!!editing}
+        onCancel={closeEditor}
+        onOk={() => form.submit()}
+        confirmLoading={saving}
+        forceRender
+        width={760}
+        modalRender={(node) => (
+          <div
+            data-vc-kind="hr-record-editor"
+            data-vc-resource={resource}
+            data-vc-object-type={editing?.id ? resource : undefined}
+            data-vc-object-id={editing?.id}
+            data-vc-label={editing?.title ?? `新增${resourceLabels[resource] ?? "记录"}`}
+          >
+            {node}
+          </div>
+        )}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={saveRecord}
+          data-vc-kind="hr-record-form"
+          data-vc-resource={resource}
+        >
+          {editorNotes[resource] ? (
+            <Alert className="domain-alert" showIcon type="info" title={editorNotes[resource]} />
+          ) : null}
+          <Form.Item name="scopeType" hidden><Input /></Form.Item>
+          <Form.Item name="scopeId" hidden><Input /></Form.Item>
+          <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
+            <Input data-vc-field={`hr.${resource}.title`} />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col xs={24} md={12}>
+              <Form.Item name="orgUnitId" label="关联组织">
+                <Select allowClear showSearch optionFilterProp="label" loading={!!editing && !orgUnits.length} options={orgUnitOptions} data-vc-field={`hr.${resource}.org_unit`} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="employeeId" label="关联员工">
+                <Select allowClear showSearch optionFilterProp="label" loading={!!editing && !employees.length} options={employeeOptions} data-vc-field={`hr.${resource}.employee`} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={12}>
+            <Col xs={24} md={8}>
+              <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
+                <Select options={statusOptions} data-vc-field={`hr.${resource}.status`} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="riskLevel" label="风险" rules={[{ required: true, message: "请选择风险" }]}>
+                <Select options={riskOptions} data-vc-field={`hr.${resource}.risk`} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item name="humanReviewRequired" label="人工复核" valuePropName="checked">
+                <Switch data-vc-field={`hr.${resource}.human_review`} />
+              </Form.Item>
+            </Col>
+          </Row>
+          {payloadFields.length ? (
+            <>
+              <Typography.Title level={5}>业务字段</Typography.Title>
+              <Row gutter={12}>
+                {payloadFields.map((field) => (
+                  <Col xs={24} md={field.type === "textarea" ? 24 : 12} key={field.name}>
+                    <Form.Item
+                      name={["payload", field.name]}
+                      label={field.label}
+                      valuePropName={field.type === "switch" ? "checked" : "value"}
+                      rules={field.required ? [{ required: true, message: `请输入${field.label}` }] : undefined}
+                    >
+                      {renderPayloadInput(field)}
+                    </Form.Item>
+                  </Col>
+                ))}
+              </Row>
+            </>
+          ) : null}
+        </Form>
+      </Modal>
     </section>
   );
 }
