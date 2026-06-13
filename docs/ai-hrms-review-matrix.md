@@ -14,12 +14,12 @@
 | Learning | Learning as AI-HRMS layer and Co-Growth entry | Mostly LMS table | Fixed: positioning updated; Co-Growth entry remains as module path |
 | Demo Mode | No backend dependency on core path; no console errors | Partial mock risk | Fixed for core and common side paths; browser pass shows 0 `/api` requests |
 | Docs | AI-HRMS is submission subject | Co-Growth-first docs remained | Fixed: assignment, script, README, demo guide, module appendix |
-| Demo Company Boundary | AI-HRMS is product; demo company dataset is fictional data | Company naming could be confused with real enterprise data | Mitigated: runtime copy states `企鹅互联网科技有限公司（虚构样本组织）`; legacy 006 seed text is corrected by append-only migration 012 |
+| Demo Company Boundary | AI-HRMS is product; demo company dataset is fictional data | Company naming could be confused with real enterprise data | Mitigated: runtime copy states `云衡互联网科技有限公司（虚构样本组织）`; legacy 006 seed text is corrected by append-only migration 012 |
 | P2 Real AI/RAG | DeepSeek-compatible provider plumbing and pgvector RAG foundation are deployable without leaking keys | Provider config existed but no real boundary or vector retrieval | Fixed: Python agent provider adapters, Go agentbridge, pgvector configurable embeddings, `.env` ignored |
 | P2 Workflow/Charts | LangGraph demo and charting are real code paths, not static claims | Optional P2 items could look unfinished | Fixed: Python LangGraph workflow endpoint and Dashboard `@ant-design/charts` operating signals |
 | Browser Harness | Playwright/Chromium status and route smoke checks are reproducible | Browser review was manual and temporary artifacts could leak | Fixed: `harness/browser` verifies package/cache/system Chromium status, route smoke, Visual Copilot, and demo backend isolation |
 | Browser Mobile Depth | Mobile Visual Copilot should exercise interaction, not just open/close | Mobile suite only checked FAB visibility and panel close | Fixed: mobile suites now drag panel, collapse to rail, drag rail, expand, and verify input focus |
-| Migration Integrity | Published migrations are immutable; new demo data is append-only | `002/004` had been rewritten for Penguin data and could checksum-fail old databases | Fixed: restored `002/004`, locked checksums in tests, kept Penguin data in `006`, and added narrow repair for known pre-release seed checksums |
+| Migration Integrity | Published migrations are immutable; new demo data is append-only | `002/004` had been rewritten for Yunheng data and could checksum-fail old databases | Fixed: restored `002/004`, locked checksums in tests, kept Yunheng data in `006`, and added narrow repair for known pre-release seed checksums |
 | Production Bootstrap | Production with demo seed disabled still has a first-admin path | `AI_HRMS_ENABLE_DEMO_SEED=false` left no login user | Fixed: `ai-hrms-admin bootstrap-admin` one-shot CLI, Docker Compose bootstrap profile, and system roles migration |
 | Repository Narrative | Agent-facing docs must not pull work back to traditional HRMS reproduction | `AGENT.md` and product constraints still said single-company HRMS/reproduction | Fixed: AI-HRMS operating-system positioning is now primary; source project is historical reference only |
 | RAG Scope Safety | Published knowledge must have explicit scope and safe embedding routing | Empty scopes could become global published documents | Fixed: unscoped docs are quarantined to draft/internal, 010 migration repairs existing rows, and store tests cover fail-closed normalization |
@@ -49,7 +49,7 @@
 - Backend RAG previously allowed restricted citations: fixed so real lexical/vector retrieval returns only `normal` and `internal` sensitivity.
 - Real `/api/ai/chat` previously lacked audit/high-risk gates: fixed with high-risk blocking and `ai.chat.*` audit events.
 - Login and docs still had Co-Growth-first signals: fixed by making AI-HRMS the canonical entry and moving Co-Growth to module appendix.
-- Demo company naming could be mistaken for a real enterprise case: mitigated by documenting `企鹅互联网科技有限公司` as a fictional seeded demo company dataset, neutralizing direct real-company business-line echoes, and forbidding Tencent/real-data framing in the 3-minute path.
+- Demo company naming could be mistaken for a real enterprise case: mitigated by documenting `云衡互联网科技有限公司` as a fictional seeded demo company dataset, neutralizing direct real-company business-line echoes, and forbidding real-company/real-data framing in the 3-minute path.
 
 ## Final Review Checklist
 
@@ -88,7 +88,7 @@
 - Demo browser suite only detected backend calls after they happened: fixed by aborting backend/API routes in demo mode so accidental side effects become immediate test failures.
 - Tablet navigation and mobile Copilot ergonomics were weak: fixed by aligning app-shell breakpoint with Ant Design `lg`, adding Copilot selection mode, and improving responsive Knowledge/Agent controls.
 - Traditional pages still read like an admin backend: fixed page titles for users, employees, attendance, messages, org units, and legal entities to explain their role in scope, evidence, Agent preview, and audit.
-- Legacy migration `006_penguin_company_seed.sql` still contains older seed names to preserve applied migration immutability; runtime data is corrected by append-only migration `012_demo_company_naming.sql`.
+- Legacy migration `006_sample_company_seed.sql` contains the sample-company seed data; runtime display names are corrected by append-only migration `012_demo_company_naming.sql`.
 - Second-round backend review found embedding could run before final RAG scope normalization: fixed by normalizing in the handler before embedding, rejecting invalid scope fields, adding migration `011_rag_scope_constraint_tightening.sql`, and aligning OpenAPI rebuild status to `201`.
 - Fourth-round Visual Copilot review found residual fixed-edge behavior: fixed by removing automatic panel edge snapping after selection, persisting layout preferences, enabling free X/Y rail movement, and adding safe capture reset for edge auto-scroll.
 - Fourth-round RAG/LLM review found role-scope leakage risk: fixed by removing unscoped role document visibility for non-global principals and requiring scoped role documents to match resolved legal/entity or org IDs.

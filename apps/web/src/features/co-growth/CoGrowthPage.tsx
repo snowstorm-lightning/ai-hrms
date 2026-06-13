@@ -33,9 +33,10 @@ import {
   SafetyCertificateOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/AuthContext";
+import { TaskPath } from "../../components/TaskFlow";
 import {
   aiLiteracyLevelLabels,
   learningModeLabels,
@@ -79,6 +80,32 @@ const reliabilityChecklist = [
 ];
 
 const missionStatusStorageKey = "ai_hrms_cogrowth_mission_statuses";
+const missionResultStorageKey = "ai_hrms_cogrowth_mission_results";
+
+interface MissionReflectionDraft {
+  title: string;
+  prompt: string;
+  summary: string;
+  humanChecks: string[];
+  nextActions: string[];
+  evidenceId: string;
+}
+
+interface MissionResultRecord {
+  status: "started" | "reflected";
+  startedAt: string;
+  updatedAt: string;
+  taskOutput: string;
+  evidenceSource: string;
+  reflectionGeneratedAt?: string;
+  reflectionDraft?: MissionReflectionDraft;
+}
+
+interface GuidedNavigation {
+  destination: "evidence" | "workflow";
+  missionId: string;
+  evidenceId?: string;
+}
 
 function loadMissionStatuses(): Record<string, MissionStatus> {
   try {
@@ -91,6 +118,23 @@ function loadMissionStatuses(): Record<string, MissionStatus> {
   } catch {
     return {};
   }
+}
+
+function loadMissionResults(): Record<string, MissionResultRecord> {
+  try {
+    const raw = localStorage.getItem(missionResultStorageKey);
+    const parsed = raw ? JSON.parse(raw) as unknown : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    return parsed as Record<string, MissionResultRecord>;
+  } catch {
+    return {};
+  }
+}
+
+function formatMissionTimestamp() {
+  return new Date().toLocaleString("zh-CN", { hour12: false });
 }
 
 const missionStatusLabels: Record<MissionStatus, string> = {
@@ -142,6 +186,49 @@ function missionWithStatus(mission: LearningMission, status?: MissionStatus): Le
   return status ? { ...mission, status } : mission;
 }
 
+function buildReflectionDraft(mission: LearningMission): MissionReflectionDraft {
+  return {
+    title: `${mission.title} 复盘草稿`,
+    prompt: `帮我复盘一次 AI 使用过程：${mission.title}`,
+    summary: `围绕「${mission.learningGoal}」，本次任务应形成「${mission.workOutput}」。复盘重点是检查 AI 输出是否被证据支撑、人工修改是否保留、下一次 prompt 或工作流是否可复用。`,
+    humanChecks: mission.humanConfirmationPoints,
+    nextActions: ["保存 AI 输出与人工修改", "补充引用、截图或校验记录", "把可复用步骤沉淀到 Workflow Lab"],
+    evidenceId: `ev-${mission.id}-reflection`,
+  };
+}
+
+function GuidedReturnBanner({
+  destination,
+  mission,
+  result,
+  onBack,
+}: {
+  destination: GuidedNavigation["destination"];
+  mission: LearningMission;
+  result?: MissionResultRecord;
+  onBack: () => void;
+}) {
+  const copy = destination === "evidence"
+    ? "你正在查看这个 mission 生成的复盘证据；对应 evidenceId 会在下方高亮。"
+    : "你正在把这个 mission 的下一步沉淀成可复用 workflow；看完链路后可以回到任务结果继续整理证据。";
+
+  return (
+    <div className="guided-return-banner" data-vc-kind="guided-return-banner">
+      <div>
+        <Space wrap>
+          <Tag color="blue">来自 Mission</Tag>
+          {result?.reflectionDraft ? <Tag color="cyan">evidenceId={result.reflectionDraft.evidenceId}</Tag> : null}
+        </Space>
+        <Typography.Text strong>{mission.title}</Typography.Text>
+        <Typography.Text type="secondary">{copy}</Typography.Text>
+      </div>
+      <Button onClick={onBack} type="primary">
+        返回任务结果
+      </Button>
+    </div>
+  );
+}
+
 export function CoGrowthPage() {
   const demo = getCoGrowthDemoState();
   const navigate = useNavigate();
@@ -152,6 +239,11 @@ export function CoGrowthPage() {
   const [selectedMissionId, setSelectedMissionId] = useState(demo.missions[0].id);
   const [activeTab, setActiveTab] = useState("overview");
   const [missionStatuses, setMissionStatuses] = useState<Record<string, MissionStatus>>(loadMissionStatuses);
+  const [missionResults, setMissionResults] = useState<Record<string, MissionResultRecord>>(loadMissionResults);
+  const [guidedNavigation, setGuidedNavigation] = useState<GuidedNavigation | null>(null);
+  const missionResultRef = useRef<HTMLDivElement | null>(null);
+  const workflowLabRef = useRef<HTMLDivElement | null>(null);
+  const evidencePortfolioRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     try {
@@ -161,6 +253,14 @@ export function CoGrowthPage() {
     }
   }, [missionStatuses]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(missionResultStorageKey, JSON.stringify(missionResults));
+    } catch {
+      // Demo persistence is best-effort; the page remains usable without storage.
+    }
+  }, [missionResults]);
+
   const recommendedMissions = useMemo(
     () => getRecommendedMissions(selectedMode, demo.currentEmployee.currentWorkload).map((mission) => missionWithStatus(mission, missionStatuses[mission.id])),
     [demo.currentEmployee.currentWorkload, missionStatuses, selectedMode],
@@ -168,26 +268,68 @@ export function CoGrowthPage() {
   const recommendedCards = useMemo(() => getRecommendedPrincipleCards(selectedMode), [selectedMode]);
   const selectedMission = recommendedMissions.find((mission) => mission.id === selectedMissionId) ?? recommendedMissions[0];
   const evidenceItems = useMemo(
-    () => [
-      ...demo.currentEmployee.evidence,
-      ...demo.workJournal.map((item) => ({
-        id: item.id,
-        title: item.title,
-        description: item.reflection,
-        source: "AI Work Journal",
-        createdAt: "2026-05-28",
-        riskLevel: "low" as RiskLevel,
-        confidence: 89,
-        type: "reflection" as const,
-      })),
-    ],
-    [demo.currentEmployee.evidence, demo.workJournal],
+    () => {
+      const generatedEvidence = Object.entries(missionResults)
+        .filter((entry): entry is [string, MissionResultRecord & { reflectionDraft: MissionReflectionDraft }] => Boolean(entry[1].reflectionDraft))
+        .map(([missionId, result]) => {
+          const mission = demo.missions.find((item) => item.id === missionId);
+          return {
+            id: result.reflectionDraft.evidenceId,
+            title: result.reflectionDraft.title,
+            description: result.reflectionDraft.summary,
+            source: "Mission 复盘草稿",
+            createdAt: result.reflectionGeneratedAt ?? result.updatedAt,
+            riskLevel: (mission?.riskLevel ?? "low") as RiskLevel,
+            confidence: mission?.confidence ?? 88,
+            type: "reflection" as const,
+            relatedMissionId: missionId,
+          };
+        });
+
+      return [
+        ...demo.currentEmployee.evidence,
+        ...demo.workJournal.map((item) => ({
+          id: item.id,
+          title: item.title,
+          description: item.reflection,
+          source: "AI Work Journal",
+          createdAt: "2026-05-28",
+          riskLevel: "low" as RiskLevel,
+          confidence: 89,
+          type: "reflection" as const,
+        })),
+        ...generatedEvidence,
+      ];
+    },
+    [demo.currentEmployee.evidence, demo.missions, demo.workJournal, missionResults],
   );
 
-  const scheduledMinutes = demo.currentEmployee.activeMissions
-    .map((id) => demo.missions.find((mission) => mission.id === id)?.estimatedMinutes ?? 0)
+  const activeMissionIds = useMemo(
+    () => Array.from(new Set([
+      ...demo.currentEmployee.activeMissions,
+      ...recommendedMissions.filter((mission) => mission.status === "accepted" || mission.status === "in_progress").map((mission) => mission.id),
+    ])),
+    [demo.currentEmployee.activeMissions, recommendedMissions],
+  );
+  const scheduledMinutes = activeMissionIds
+    .map((id) => recommendedMissions.find((mission) => mission.id === id)?.estimatedMinutes ?? demo.missions.find((mission) => mission.id === id)?.estimatedMinutes ?? 0)
     .reduce((sum, minutes) => sum + minutes, 0);
   const workloadPercent = demo.currentEmployee.currentWorkload === "high" ? 86 : demo.currentEmployee.currentWorkload === "medium" ? 62 : 38;
+  const selectedMissionResult = missionResults[selectedMission.id];
+  const guidedMission = guidedNavigation
+    ? recommendedMissions.find((mission) => mission.id === guidedNavigation.missionId) ?? demo.missions.find((mission) => mission.id === guidedNavigation.missionId) ?? null
+    : null;
+  const guidedMissionResult = guidedNavigation ? missionResults[guidedNavigation.missionId] : undefined;
+
+  useEffect(() => {
+    if (!guidedNavigation) return;
+    const expectedTab = guidedNavigation.destination === "workflow" ? "workflow" : "governance";
+    if (activeTab !== expectedTab) return;
+    window.setTimeout(() => {
+      const target = guidedNavigation.destination === "workflow" ? workflowLabRef.current : evidencePortfolioRef.current;
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  }, [activeTab, guidedNavigation]);
 
   const runCoach = (prompt = instruction) => {
     setInstruction(prompt);
@@ -197,6 +339,68 @@ export function CoGrowthPage() {
   const selectMission = (mission: LearningMission) => {
     setSelectedMissionId(mission.id);
     message.info(`已选中 mission：${mission.title}`);
+  };
+
+  const revealMissionResult = () => {
+    window.requestAnimationFrame(() => {
+      missionResultRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  };
+
+  const returnToMissionResult = () => {
+    setActiveTab("missions");
+    setGuidedNavigation(null);
+    window.setTimeout(() => {
+      missionResultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  };
+
+  const openMissionDestination = (destination: GuidedNavigation["destination"]) => {
+    const evidenceId = selectedMissionResult?.reflectionDraft?.evidenceId;
+    setGuidedNavigation({ destination, missionId: selectedMission.id, evidenceId });
+    setActiveTab(destination === "workflow" ? "workflow" : "governance");
+  };
+
+  const startMission = (mission: LearningMission) => {
+    const timestamp = formatMissionTimestamp();
+    setSelectedMissionId(mission.id);
+    setMissionStatuses((current) => ({ ...current, [mission.id]: "in_progress" }));
+    setMissionResults((current) => ({
+      ...current,
+      [mission.id]: {
+        ...current[mission.id],
+        status: "started",
+        startedAt: current[mission.id]?.startedAt ?? timestamp,
+        updatedAt: timestamp,
+        taskOutput: mission.workOutput,
+        evidenceSource: mission.evidenceSource,
+      },
+    }));
+    revealMissionResult();
+    message.success(`已开始 mission：${mission.title}，结果在下方「任务结果与复盘」查看`);
+  };
+
+  const generateReflection = (mission: LearningMission) => {
+    const timestamp = formatMissionTimestamp();
+    const reflectionDraft = buildReflectionDraft(mission);
+    setSelectedMissionId(mission.id);
+    setMissionStatuses((current) => ({ ...current, [mission.id]: "reflected" }));
+    setMissionResults((current) => ({
+      ...current,
+      [mission.id]: {
+        ...current[mission.id],
+        status: "reflected",
+        startedAt: current[mission.id]?.startedAt ?? timestamp,
+        updatedAt: timestamp,
+        taskOutput: mission.workOutput,
+        evidenceSource: mission.evidenceSource,
+        reflectionGeneratedAt: timestamp,
+        reflectionDraft,
+      },
+    }));
+    runCoach(reflectionDraft.prompt);
+    revealMissionResult();
+    message.success(`已生成复盘草稿：${mission.title}，已放入「任务结果与复盘」`);
   };
 
   return (
@@ -225,7 +429,7 @@ export function CoGrowthPage() {
         className="co-growth-boundary"
         type="info"
         showIcon
-        title="Co-Growth 是 AI-HRMS 的成长引擎模块；页面数据来自企鹅互联网科技有限公司（虚构样本组织），不是真实公司或真实员工数据。"
+        title="Co-Growth 是 AI-HRMS 的成长引擎模块；页面数据来自云衡互联网科技有限公司（虚构样本组织），不是真实公司或真实员工数据。"
       />
 
       <section className="co-growth-console" data-vc-kind="co-growth-command-center">
@@ -286,7 +490,7 @@ export function CoGrowthPage() {
         <Statistic title="本周学习预算" value={demo.currentEmployee.weeklyLearningBudgetMinutes} suffix="分钟" />
         <Statistic title="已安排" value={scheduledMinutes} suffix="分钟" />
         <Statistic title="成长证据" value={evidenceItems.length} />
-        <Statistic title="活跃 mission" value={demo.currentEmployee.activeMissions.length} />
+        <Statistic title="活跃 mission" value={activeMissionIds.length} />
         <div className="co-growth-profile-summary">
           <Tag color="purple">{aiLiteracyLevelLabels[demo.currentEmployee.aiLiteracyLevel]}</Tag>
           <Typography.Text>{demo.currentEmployee.role} · {demo.currentEmployee.department} · {demo.currentEmployee.recommendedPace}</Typography.Text>
@@ -294,6 +498,15 @@ export function CoGrowthPage() {
       </section>
 
       <section className="co-growth-workspace">
+        <TaskPath
+          title="Co-Growth 任务闭环"
+          steps={[
+            { title: "选 Mission", detail: "从学习目标和工作产出选择今天要做的任务", status: selectedMission ? "done" : "current" },
+            { title: "开始/复盘", detail: "先记录任务进度，再生成复盘草稿", status: selectedMissionResult?.reflectionDraft ? "done" : selectedMissionResult ? "current" : "next" },
+            { title: "查看本次证据", detail: "确认 evidenceId、人工检查点和证据来源", status: selectedMissionResult?.reflectionDraft ? "current" : "next" },
+            { title: "沉淀 Workflow", detail: "把可复用步骤放到 Workflow Lab", status: guidedNavigation?.destination === "workflow" ? "current" : "next" },
+          ]}
+        />
         <Tabs
           size="large"
           activeKey={activeTab}
@@ -439,8 +652,7 @@ export function CoGrowthPage() {
                               onKeyDown={(event) => event.stopPropagation()}
                               onClick={(event) => {
                                 event.stopPropagation();
-                                setMissionStatuses((current) => ({ ...current, [mission.id]: "in_progress" }));
-                                message.success(`已开始 mission：${mission.title}`);
+                                startMission(mission);
                               }}
                             >
                               开始任务
@@ -450,9 +662,7 @@ export function CoGrowthPage() {
                               onKeyDown={(event) => event.stopPropagation()}
                               onClick={(event) => {
                                 event.stopPropagation();
-                                setMissionStatuses((current) => ({ ...current, [mission.id]: "reflected" }));
-                                runCoach(`帮我复盘一次 AI 使用过程：${mission.title}`);
-                                message.success(`已生成复盘草稿：${mission.title}`);
+                                generateReflection(mission);
                               }}
                             >
                               生成复盘
@@ -460,6 +670,79 @@ export function CoGrowthPage() {
                           </div>
                         </article>
                       ))}
+                    </div>
+                    <div className="mission-result-panel" ref={missionResultRef} data-vc-kind="mission-result-review">
+                      <div className="section-heading compact">
+                        <div>
+                          <Typography.Title level={4}>任务结果与复盘</Typography.Title>
+                          <Typography.Text type="secondary">选中 mission 后，开始状态、工作产出、复盘草稿和证据编号都在这里查看。</Typography.Text>
+                        </div>
+                        <Tag color={selectedMissionResult?.status === "reflected" ? "green" : selectedMissionResult?.status === "started" ? "blue" : "default"}>
+                          {selectedMissionResult ? (selectedMissionResult.status === "reflected" ? "已有复盘" : "已开始") : "未开始"}
+                        </Tag>
+                      </div>
+
+                      <div className="mission-result-grid">
+                        <div className="mission-result-block">
+                          <Typography.Text strong>{selectedMission.title}</Typography.Text>
+                          <p>{selectedMission.learningGoal}</p>
+                          <Space wrap>
+                            <Tag>{selectedMission.estimatedMinutes} 分钟</Tag>
+                            <RiskTag risk={selectedMission.riskLevel} />
+                            <Tag>{selectedMission.confidence}% 置信度</Tag>
+                          </Space>
+                        </div>
+                        <div className="mission-result-block">
+                          <Typography.Text strong>任务进度</Typography.Text>
+                          {selectedMissionResult ? (
+                            <div className="result-line-list">
+                              <span>开始时间：{selectedMissionResult.startedAt}</span>
+                              <span>工作产出：{selectedMissionResult.taskOutput}</span>
+                              <span>证据来源：{selectedMissionResult.evidenceSource}</span>
+                            </div>
+                          ) : (
+                            <Typography.Text type="secondary">点击「开始任务」后会生成任务进度和证据清单。</Typography.Text>
+                          )}
+                        </div>
+                      </div>
+
+                      {selectedMissionResult?.reflectionDraft ? (
+                        <div className="reflection-draft">
+                          <div className="section-heading compact">
+                            <div>
+                              <Typography.Text strong>{selectedMissionResult.reflectionDraft.title}</Typography.Text>
+                              <Typography.Paragraph type="secondary">{selectedMissionResult.reflectionDraft.summary}</Typography.Paragraph>
+                            </div>
+                            <Tag color="cyan">evidenceId={selectedMissionResult.reflectionDraft.evidenceId}</Tag>
+                          </div>
+                          <Row gutter={[12, 12]}>
+                            <Col xs={24} md={12}>
+                              <div className="result-line-list">
+                                <Typography.Text strong>人工检查点</Typography.Text>
+                                {selectedMissionResult.reflectionDraft.humanChecks.map((item) => <span key={item}>{item}</span>)}
+                              </div>
+                            </Col>
+                            <Col xs={24} md={12}>
+                              <div className="result-line-list">
+                                <Typography.Text strong>下一步</Typography.Text>
+                                {selectedMissionResult.reflectionDraft.nextActions.map((item) => <span key={item}>{item}</span>)}
+                              </div>
+                            </Col>
+                          </Row>
+                          <Space wrap className="mission-result-actions">
+                            <Button size="small" icon={<AuditOutlined />} onClick={() => openMissionDestination("evidence")}>查看本次证据</Button>
+                            <Button size="small" icon={<ForkOutlined />} onClick={() => openMissionDestination("workflow")}>沉淀为 Workflow</Button>
+                          </Space>
+                        </div>
+                      ) : (
+                        <Alert
+                          className="reflection-empty"
+                          type="info"
+                          showIcon
+                          title="复盘草稿还没有生成"
+                          description="点击当前 mission 卡片里的「生成复盘」，这里会显示复盘草稿，并同步到治理与趋势里的 Growth Evidence Portfolio。"
+                        />
+                      )}
                     </div>
                     <Alert
                       className="human-confirmation"
@@ -504,7 +787,12 @@ export function CoGrowthPage() {
               label: "Workflow Lab",
               children: (
                 <div className="co-growth-tab-panel">
-                  <AgentWorkflowLab nodes={demo.workflowNodes} />
+                  <div ref={workflowLabRef} className={guidedNavigation?.destination === "workflow" ? "guided-target" : undefined}>
+                    {guidedNavigation?.destination === "workflow" && guidedMission ? (
+                      <GuidedReturnBanner destination="workflow" mission={guidedMission} result={guidedMissionResult} onBack={returnToMissionResult} />
+                    ) : null}
+                    <AgentWorkflowLab nodes={demo.workflowNodes} />
+                  </div>
                   <section className="co-growth-split">
                     <Card className="co-growth-card" data-vc-kind="prompt-workflow-versioning">
                       <Typography.Title level={4}>Prompt / Workflow Versioning</Typography.Title>
@@ -588,25 +876,42 @@ export function CoGrowthPage() {
                   </section>
 
                   <section className="co-growth-split">
-                    <Card className="co-growth-card" data-vc-kind="growth-evidence-portfolio">
-                      <Typography.Title level={4}>Growth Evidence Portfolio</Typography.Title>
-                      <Timeline
-                        items={evidenceItems.map((item) => ({
-                          color: item.riskLevel === "high" ? "red" : item.riskLevel === "medium" ? "orange" : "green",
-                          content: (
-                            <div data-vc-kind="growth-evidence" data-vc-object-type="growth_evidence" data-vc-object-id={item.id} data-vc-label={item.title}>
-                              <Typography.Text strong>{item.title}</Typography.Text>
-                              <p>{item.description}</p>
-                              <Space wrap>
-                                <Tag>{item.source}</Tag>
-                                <Tag>{item.confidence}%</Tag>
-                                <RiskTag risk={item.riskLevel} />
-                              </Space>
-                            </div>
-                          ),
-                        }))}
-                      />
-                    </Card>
+                    <div ref={evidencePortfolioRef} className="co-growth-card-anchor">
+                      <Card className={guidedNavigation?.destination === "evidence" ? "co-growth-card guided-target-card" : "co-growth-card"} data-vc-kind="growth-evidence-portfolio">
+                        {guidedNavigation?.destination === "evidence" && guidedMission ? (
+                          <GuidedReturnBanner destination="evidence" mission={guidedMission} result={guidedMissionResult} onBack={returnToMissionResult} />
+                        ) : null}
+                        <Typography.Title level={4}>Growth Evidence Portfolio</Typography.Title>
+                        <Timeline
+                          items={evidenceItems.map((item) => {
+                            const isCurrentEvidence = guidedNavigation?.destination === "evidence" && guidedNavigation.evidenceId === item.id;
+                            return {
+                              color: item.riskLevel === "high" ? "red" : item.riskLevel === "medium" ? "orange" : "green",
+                              content: (
+                                <div
+                                  className={isCurrentEvidence ? "guided-evidence-item" : undefined}
+                                  data-vc-kind="growth-evidence"
+                                  data-vc-object-type="growth_evidence"
+                                  data-vc-object-id={item.id}
+                                  data-vc-label={item.title}
+                                >
+                                  <div className="evidence-item-title">
+                                    <Typography.Text strong>{item.title}</Typography.Text>
+                                    {isCurrentEvidence ? <Tag color="cyan">当前 mission 证据</Tag> : null}
+                                  </div>
+                                  <p>{item.description}</p>
+                                  <Space wrap>
+                                    <Tag>{item.source}</Tag>
+                                    <Tag>{item.confidence}%</Tag>
+                                    <RiskTag risk={item.riskLevel} />
+                                  </Space>
+                                </div>
+                              ),
+                            };
+                          })}
+                        />
+                      </Card>
+                    </div>
                     <Card className="co-growth-card" data-vc-kind="governance-sandbox">
                       <Typography.Title level={4}>AI Governance Sandbox</Typography.Title>
                       <div className="governance-list">

@@ -1,4 +1,4 @@
-name: Build and Deploy to Tencent Cloud
+name: Build and Deploy with Private Registry
 
 on:
   push:
@@ -12,8 +12,8 @@ permissions:
 
 env:
   IMAGE_TAG: ${{ github.sha }}
-  TCR_REGISTRY: ${{ vars.TCR_REGISTRY }}
-  TCR_NAMESPACE: ${{ vars.TCR_NAMESPACE }}
+  IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+  IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
   VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '/api' }}
   VITE_DEMO_MODE: ${{ vars.VITE_DEMO_MODE || 'false' }}
 
@@ -27,25 +27,25 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Validate TCR settings
+      - name: Validate registry settings
         env:
-          TCR_USERNAME: ${{ secrets.TCR_USERNAME }}
-          TCR_PASSWORD: ${{ secrets.TCR_PASSWORD }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         run: |
-          test -n "$TCR_REGISTRY"
-          test -n "$TCR_NAMESPACE"
-          test -n "$TCR_USERNAME"
-          test -n "$TCR_PASSWORD"
+          test -n "$IMAGE_REGISTRY"
+          test -n "$IMAGE_NAMESPACE"
+          test -n "$REGISTRY_USERNAME"
+          test -n "$REGISTRY_PASSWORD"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Tencent Cloud TCR
+      - name: Log in to private registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.TCR_REGISTRY }}
-          username: ${{ secrets.TCR_USERNAME }}
-          password: ${{ secrets.TCR_PASSWORD }}
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Build and push API image
         uses: docker/build-push-action@v6
@@ -54,8 +54,8 @@ jobs:
           file: apps/api/Dockerfile
           push: true
           tags: |
-            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-api:${{ env.IMAGE_TAG }}
-            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-api:latest
+            ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/ai-hrms-api:${{ env.IMAGE_TAG }}
+            ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/ai-hrms-api:latest
           cache-from: type=gha,scope=ai-hrms-api
           cache-to: type=gha,mode=max,scope=ai-hrms-api
 
@@ -69,8 +69,8 @@ jobs:
             VITE_API_BASE_URL=${{ env.VITE_API_BASE_URL }}
             VITE_DEMO_MODE=${{ env.VITE_DEMO_MODE }}
           tags: |
-            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-web:${{ env.IMAGE_TAG }}
-            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-web:latest
+            ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/ai-hrms-web:${{ env.IMAGE_TAG }}
+            ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/ai-hrms-web:latest
           cache-from: type=gha,scope=ai-hrms-web
           cache-to: type=gha,mode=max,scope=ai-hrms-web
 
@@ -81,13 +81,13 @@ jobs:
           file: apps/agent/Dockerfile
           push: true
           tags: |
-            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-agent:${{ env.IMAGE_TAG }}
-            ${{ env.TCR_REGISTRY }}/${{ env.TCR_NAMESPACE }}/ai-hrms-agent:latest
+            ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/ai-hrms-agent:${{ env.IMAGE_TAG }}
+            ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/ai-hrms-agent:latest
           cache-from: type=gha,scope=ai-hrms-agent
           cache-to: type=gha,mode=max,scope=ai-hrms-agent
 
   deploy:
-    name: Deploy on Tencent Cloud CVM
+    name: Deploy on cloud server
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: build
@@ -142,8 +142,8 @@ jobs:
             echo "Missing $DEPLOY_PATH/infra/.env. Create it from infra/.env.example on the server and fill production values."
             exit 1
           fi
-          export TCR_REGISTRY="$TCR_REGISTRY"
-          export TCR_NAMESPACE="$TCR_NAMESPACE"
+          export IMAGE_REGISTRY="$IMAGE_REGISTRY"
+          export IMAGE_NAMESPACE="$IMAGE_NAMESPACE"
           export IMAGE_TAG="$IMAGE_TAG"
           ./infra/deploy.sh
           REMOTE

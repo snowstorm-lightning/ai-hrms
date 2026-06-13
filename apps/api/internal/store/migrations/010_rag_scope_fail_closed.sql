@@ -13,7 +13,7 @@ WHERE d.status = 'published'
   );
 
 UPDATE messages SET
-  content = '<p>本环境使用企鹅互联网科技有限公司（虚构样本组织）作为样本企业数据集，用于展示 AI-HRMS 的组织、知识、Agent 与审计闭环；它不是 SaaS 租户，也不代表真实公司。</p>',
+  content = '<p>本环境使用云衡互联网科技有限公司（虚构样本组织）作为样本企业数据集，用于展示 AI-HRMS 的组织、知识、Agent 与审计闭环；它不是 SaaS 租户，也不代表真实公司。</p>',
   updated_at = now()
 WHERE id = '00000000-0000-0000-0000-000000000701';
 

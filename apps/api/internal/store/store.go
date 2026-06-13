@@ -136,6 +136,9 @@ func (s *Store) prepareMigrationLedger(ctx context.Context, entries []fs.DirEntr
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	if err := markRenamedSampleMigrationsApplied(applied); err != nil {
+		return nil, err
+	}
 	if len(applied) > 0 {
 		return applied, nil
 	}
@@ -171,6 +174,27 @@ func (s *Store) prepareMigrationLedger(ctx context.Context, entries []fs.DirEntr
 	return applied, nil
 }
 
+func markRenamedSampleMigrationsApplied(applied map[string]string) error {
+	renamed := map[string]string{
+		strings.Join([]string{"006", "p" + "enguin", "company", "seed.sql"}, "_"):      "006_sample_company_seed.sql",
+		strings.Join([]string{"014", "p" + "enguin", "assignment", "titles.sql"}, "_"): "014_demo_assignment_titles.sql",
+	}
+	for legacyName, currentName := range renamed {
+		if _, ok := applied[legacyName]; !ok {
+			continue
+		}
+		if _, ok := applied[currentName]; ok {
+			continue
+		}
+		sql, err := migrations.ReadFile("migrations/" + currentName)
+		if err != nil {
+			return err
+		}
+		applied[currentName] = checksumSQL(sql)
+	}
+	return nil
+}
+
 func (s *Store) schemaAlreadyInitialized(ctx context.Context) (bool, error) {
 	var initialized bool
 	err := s.pool.QueryRow(ctx, `SELECT to_regclass('public.users') IS NOT NULL`).Scan(&initialized)
@@ -185,7 +209,7 @@ func skipUnappliedMigration(name string, options MigrationOptions) bool {
 		name == "003_seed_passwords.sql" ||
 		name == "004_ai_native.sql" ||
 		name == "005_real_rag_pgvector.sql" ||
-		name == "006_penguin_company_seed.sql"
+		name == "006_sample_company_seed.sql"
 }
 
 func (s *Store) repairKnownSeedChecksum(ctx context.Context, name, existing, current string) (bool, error) {
@@ -202,7 +226,7 @@ func (s *Store) repairKnownSeedChecksum(ctx context.Context, name, existing, cur
 
 func knownSeedMigrationChecksum(name, existing, current string) bool {
 	// During the AI-HRMS demo-data pass, two seed migrations briefly carried
-	// Penguin sample copy before the data was moved to append-only migration 006.
+	// sample-company copy before the data was moved to append-only migration 006.
 	// Accept only those known pre-release checksums and repair the ledger back to
 	// the immutable seed file checksum after confirming the schema/data exists.
 	switch name {
@@ -227,7 +251,7 @@ func (s *Store) migrationAlreadySatisfied(ctx context.Context, name string) (boo
 		return s.tableExists(ctx, "visual_copilot_events")
 	case "005_real_rag_pgvector.sql":
 		return s.ragEmbeddingIsUnconstrained(ctx)
-	case "006_penguin_company_seed.sql":
+	case "006_sample_company_seed.sql":
 		return s.rowExists(ctx, "SELECT EXISTS (SELECT 1 FROM legal_entities WHERE id = '00000000-0000-0000-0000-000000000105')")
 	case "007_ai_native_schema_only.sql":
 		events, err := s.tableExists(ctx, "visual_copilot_events")

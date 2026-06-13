@@ -10,7 +10,7 @@ VITE_DEMO_MODE=true npm run web:dev
 
 真实模式可额外启动 Python agent boundary，并配置 DeepSeek chat、独立的 OpenAI-compatible embedding provider 和 PostgreSQL/pgvector vector storage；演示脚本仍建议先用 deterministic demo 录屏，保证评审路径稳定。
 
-边界口径：AI-HRMS 是产品；“企鹅互联网科技有限公司”只是虚构样本组织和业务数据，用来承载演示流程，不是腾讯、也不代表任何真实公司的 HR 数据。
+边界口径：AI-HRMS 是产品；“云衡互联网科技有限公司”只是虚构样本组织和业务数据，用来承载演示流程，不代表任何真实公司的 HR 数据。
 
 ## 0:00-0:20 定位
 

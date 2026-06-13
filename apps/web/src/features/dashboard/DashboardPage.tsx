@@ -23,6 +23,7 @@ import type { AgentRun, AuditEvent, Employee, HRWorkItem, LegalEntity, LearningR
 import { CollaborationRubric, CollaborationWorkflow, RiskTag, TrustMetaBar } from "../../components/AiTrust";
 import { PageLoading } from "../../components/PageLoading";
 import { InlineError } from "../../components/AsyncState";
+import { TaskPath } from "../../components/TaskFlow";
 import { useI18n } from "../../i18n";
 
 type Persona = "hr" | "employee" | "mentor" | "manager";
@@ -290,6 +291,31 @@ export function DashboardPage() {
 
       {!loading ? (
         <>
+          <TaskPath
+            title={language === "en-US" ? "Recommended operating path" : "推荐操作路径"}
+            steps={[
+              {
+                title: language === "en-US" ? "Pick a scenario" : "选择业务场景",
+                detail: language === "en-US" ? "Start from command, knowledge, Co-Growth, Agent, or audit." : "从指挥、知识、成长、Agent 或审计进入。",
+                status: "current",
+              },
+              {
+                title: language === "en-US" ? "Generate preview" : "生成预览",
+                detail: language === "en-US" ? "AI produces suggestions, citations, or tool previews." : "AI 只产出建议、引用或工具预览。",
+                status: "next",
+              },
+              {
+                title: language === "en-US" ? "Check evidence" : "核验证据",
+                detail: language === "en-US" ? "Review citations, risk, scope, and audit trail." : "看引用、风险、scope 和审计链。",
+                status: "next",
+              },
+              {
+                title: language === "en-US" ? "Human decision" : "人工判断",
+                detail: language === "en-US" ? "High-risk actions remain blocked before confirmation." : "高风险动作停在确认前，不自动执行。",
+                status: highRiskCount ? "blocked" : "next",
+              },
+            ]}
+          />
           <section className="status-grid" data-vc-kind="system-status-cards">
             {stateCards.map((card) => (
               <Card key={card.title} className={`status-card tone-${card.tone}`}>

@@ -6,6 +6,7 @@ import type { AgentRun, AgentToolPreviewResponse, AgentWorkflowDemoResult } from
 import { ExecutionDecisionPanel, HumanReviewBanner, TrustMetaBar, TrustPacketBar } from "../../components/AiTrust";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
+import { TaskPath } from "../../components/TaskFlow";
 
 const runTypes = [
   "onboarding_companion",
@@ -34,13 +35,35 @@ function confirmationStatus(run: AgentRun) {
   return "可保留为低风险预览";
 }
 
+const workflowStepLabels: Record<string, string> = {
+  goal: "接收任务目标",
+  risk_classification: "判断风险等级",
+  context_collection: "收集授权上下文",
+  tool_preview: "生成工具调用预览",
+  human_review: "等待人工确认或记录复核",
+};
+
+function workflowStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    received: "已接收",
+    high: "高风险",
+    medium: "中风险",
+    low: "低风险",
+    scoped: "已按 scope 限定",
+    preview_only: "仅预览",
+    preview_logged: "已记录预览",
+    blocked_pending_human_review: "已阻断，等待人工确认",
+  };
+  return labels[status] ?? status;
+}
+
 export function AgentRunsPage() {
   const [items, setItems] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<AgentToolPreviewResponse | null>(null);
-  const [workflowPreview, setWorkflowPreview] = useState<AgentWorkflowDemoResult | null>(null);
+  const [workflowPreview, setWorkflowPreview] = useState<{ runId: string; result: AgentWorkflowDemoResult } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [form] = Form.useForm();
   const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
@@ -73,6 +96,15 @@ export function AgentRunsPage() {
         description="人和智能体协作的运行控制台：每次 run 都有 delegated context、tool preview、human confirmation 和 audit status。"
       />
       <InlineError message={error} onRetry={reload} />
+      <TaskPath
+        title="Agent 运行闭环"
+        steps={[
+          { title: "创建运行预览", detail: "先把目标、风险和 prompt 固定下来", status: items.length ? "done" : "current" },
+          { title: "预览工具调用", detail: "检查工具名、参数、是否允许", status: preview ? "done" : "current" },
+          { title: "查看执行链路", detail: "确认目标、风险、上下文、人工确认和审计", status: workflowPreview ? "done" : "next" },
+          { title: "人工确认/审计", detail: "高风险只停在确认前，不直接写业务数据", status: stats.waiting ? "blocked" : "next" },
+        ]}
+      />
 
       <section className="agent-hero">
         <Card className="agent-create-card">
@@ -85,7 +117,7 @@ export function AgentRunsPage() {
           <Form
             form={form}
             layout="vertical"
-            initialValues={{ runType: "onboarding_planner", riskLevel: "medium", prompt: "为企鹅互联网科技有限公司（虚构样本组织）新人林晨生成 30 天成长计划，并引用入职指南。" }}
+            initialValues={{ runType: "onboarding_planner", riskLevel: "medium", prompt: "为云衡互联网科技有限公司（虚构样本组织）新人林晨生成 30 天成长计划，并引用入职指南。" }}
             onFinish={async (values) => {
               setCreating(true);
               setError("");
@@ -143,16 +175,6 @@ export function AgentRunsPage() {
         </Card>
       ) : null}
 
-      {workflowPreview ? (
-        <Alert
-          className="section-card"
-          showIcon
-          type={workflowPreview.risk_level === "high" ? "warning" : "success"}
-          title={`Workflow preview: ${workflowPreview.audit_status}${workflowPreview.demo_only ? " · demo only" : ""}`}
-          description={`${workflowPreview.boundary ?? "Preview-only workflow. Human review is required before execution."} ${workflowPreview.steps.map((step) => `${step.name}=${step.status}`).join(" · ")}`}
-        />
-      ) : null}
-
       <section className="agent-run-grid" data-vc-kind="agent-run-cards">
         {items.map((run) => (
           <article className={run.riskLevel === "high" ? "agent-run-card high" : "agent-run-card"} key={run.id} data-vc-kind="agent-run-card" data-vc-object-type="agent_run" data-vc-object-id={run.id} data-vc-label={run.runType}>
@@ -189,6 +211,10 @@ export function AgentRunsPage() {
               humanReviewRequired={run.riskLevel === "high"}
               text={run.riskLevel === "high" ? "该 run 涉及公平性或人员影响，只能等待 HR 人工确认。" : "该 run 可以作为预览继续演示；执行前仍需权限和审计校验。"}
             />
+            <div className="agent-action-help">
+              <span>预览工具调用：看工具名、参数和是否允许。</span>
+              <span>查看执行链路：看目标、风险、上下文、工具预览、人工确认和审计怎样串起来。</span>
+            </div>
             <Space wrap>
               <Button
                 size="small"
@@ -207,7 +233,11 @@ export function AgentRunsPage() {
               >
                 预览工具调用
               </Button>
-              <Button size="small" icon={<CheckCircleOutlined />} onClick={() => message.info(demoMode ? "Demo：已生成请求人工确认反馈。" : "已生成请求人工确认反馈。")}>
+              <Button
+                size="small"
+                icon={<CheckCircleOutlined />}
+                onClick={() => message.info(demoMode ? "Demo：已生成人工确认请求提示，未执行业务写入。" : "已生成人工确认请求提示，需审批后才能继续执行。")}
+              >
                 请求人工确认
               </Button>
               <Button
@@ -218,17 +248,56 @@ export function AgentRunsPage() {
                   setActionLoading(`${run.id}:workflow`);
                   setError("");
                   try {
-                    setWorkflowPreview(await api.langGraphWorkflowDemo({ goal: run.summary, context: [`runType=${run.runType}`, `riskLevel=${run.riskLevel}`] }));
+                    const result = await api.langGraphWorkflowDemo({ goal: run.summary, context: [`runType=${run.runType}`, `riskLevel=${run.riskLevel}`] });
+                    setWorkflowPreview({ runId: run.id, result });
+                    message.success("已生成执行链路预览；这一步没有执行工具或写入 HR 数据。");
                   } catch (err) {
-                    setError(getErrorMessage(err, "Workflow 预览失败"));
+                    setError(getErrorMessage(err, "执行链路预览失败"));
                   } finally {
                     setActionLoading(null);
                   }
                 }}
               >
-                Workflow 预览
+                查看执行链路
               </Button>
             </Space>
+            {workflowPreview?.runId === run.id ? (
+              <div className="workflow-preview-panel" data-vc-kind="agent-workflow-preview">
+                <div className="workflow-preview-header">
+                  <div>
+                    <Typography.Text strong>执行链路预览</Typography.Text>
+                    <p>只展示这个 run 如果继续推进会经过哪些校验和记录；当前不会执行工具，也不会写入 HR 数据。</p>
+                  </div>
+                  <Tag color={workflowPreview.result.risk_level === "high" ? "red" : "orange"}>
+                    {workflowStatusLabel(workflowPreview.result.risk_level)}
+                  </Tag>
+                </div>
+                <div className="workflow-preview-meta">
+                  <Tag>mode={workflowPreview.result.execution_mode ?? "preview_only"}</Tag>
+                  <Tag>audit={workflowStatusLabel(workflowPreview.result.audit_status)}</Tag>
+                  <Tag color={workflowPreview.result.human_review_required ? "orange" : "green"}>
+                    humanReviewRequired={String(workflowPreview.result.human_review_required)}
+                  </Tag>
+                </div>
+                <div className="workflow-preview-steps">
+                  {workflowPreview.result.steps.map((step, index) => (
+                    <div className="workflow-preview-step" key={`${step.name}-${index}`}>
+                      <span>{index + 1}</span>
+                      <div>
+                        <Typography.Text strong>{workflowStepLabels[step.name] ?? step.name}</Typography.Text>
+                        <Typography.Text type="secondary">{workflowStatusLabel(step.status)}</Typography.Text>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <Alert
+                  showIcon
+                  type="info"
+                  title="预览边界"
+                  description={workflowPreview.result.boundary ?? "Preview-only workflow. Human review is required before execution."}
+                />
+              </div>
+            ) : null}
           </article>
         ))}
       </section>

@@ -104,7 +104,7 @@ func runSeedSampleCompany(args []string) {
 	if err := db.SeedSampleCompany(ctx); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Seeded fictional sample company data for 企鹅互联网科技有限公司.")
+	fmt.Println("Seeded fictional sample company data for 云衡互联网科技有限公司.")
 }
 
 func usage() {

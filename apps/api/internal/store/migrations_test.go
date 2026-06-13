@@ -30,10 +30,10 @@ func TestSkipUnappliedMigrationWhenDemoSeedDisabled(t *testing.T) {
 	options := MigrationOptions{EnableDemoSeed: false}
 	for _, name := range []string{
 		"002_seed.sql",
-		"003_seed_passwords.sql",
-		"004_ai_native.sql",
-		"005_real_rag_pgvector.sql",
-		"006_penguin_company_seed.sql",
+			"003_seed_passwords.sql",
+			"004_ai_native.sql",
+			"005_real_rag_pgvector.sql",
+			"006_sample_company_seed.sql",
 	} {
 		if !skipUnappliedMigration(name, options) {
 			t.Fatalf("%s should be skipped when demo seed is disabled", name)

@@ -4,7 +4,7 @@ const apiKey = process.env.AI_HRMS_EMBEDDING_CHECK_API_KEY || process.env.OPENAI
 const expectedDimensions = Number(process.env.AI_HRMS_EMBEDDING_CHECK_DIMENSIONS || process.env.RAG_EMBEDDING_DIMENSIONS || 1024);
 const timeoutMs = Number(process.env.AI_HRMS_EMBEDDING_CHECK_TIMEOUT_MS || 60000);
 
-const sample = "企鹅互联网科技有限公司的新员工在 30 天内完成 AI 安全规范、RAG 引用核验和导师复盘。";
+const sample = "云衡互联网科技有限公司的新员工在 30 天内完成 AI 安全规范、RAG 引用核验和导师复盘。";
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));

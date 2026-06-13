@@ -6,6 +6,7 @@ import type { RAGDocument, RAGIngestJob, RAGSearchResult, RAGSource } from "../.
 import { CitationList, TrustMetaBar } from "../../components/AiTrust";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
+import { TaskPath } from "../../components/TaskFlow";
 
 function sensitivityColor(value: string) {
   if (value === "restricted") return "red";
@@ -111,6 +112,15 @@ export function KnowledgePage() {
         description="组织知识层不是普通文档表，而是 AI-HRMS 回答、计划、Agent run 和审计证据的受控来源。"
       />
       <InlineError message={error} onRetry={reload} />
+      <TaskPath
+        title="知识引用闭环"
+        steps={[
+          { title: "检索或选择资料", detail: "先定位候选资料和引用范围", status: result ? "done" : "current" },
+          { title: "检查治理状态", detail: "看 status、sensitivity、scope 是否允许引用", status: result ? "done" : "next" },
+          { title: "生成候选引用", detail: "只把可用资料带入回答", status: result ? "current" : "next" },
+          { title: "重建或复核", detail: "过期、受限、草稿资料先处理再使用", status: result?.refusalReason ? "blocked" : "next" },
+        ]}
+      />
 
       <section className="knowledge-hero">
         <Card className="knowledge-search-card" data-vc-kind="rag-search">
@@ -118,14 +128,14 @@ export function KnowledgePage() {
             <Alert
               showIcon
               type="info"
-              title="RAG 回答必须暴露资料治理状态和检索路径"
+              title="RAG Search：回答必须暴露资料治理状态和检索路径"
               description="检索先按 status、trustLevel、sensitivity、scope 过滤，再用 PostgreSQL lexical + pgvector candidates 做 RRF 融合。reranker 暂不启用，保留为后续受控阶段。"
             />
             <div className="knowledge-search-row">
-              <Input data-vc-field="rag.query" aria-label="RAG search query" value={query} onChange={(event) => setQuery(event.target.value)} onPressEnter={search} />
-              <Button data-vc-action="rag.search" type="primary" loading={searching} onClick={search}>RAG Search</Button>
+              <Input data-vc-field="rag.query" aria-label="RAG search query" placeholder="输入要回答的问题或需要核验的政策点" value={query} onChange={(event) => setQuery(event.target.value)} onPressEnter={search} />
+              <Button data-vc-action="rag.search" type="primary" loading={searching} onClick={search}>检索引用</Button>
               <Button data-vc-action="rag.document.create" onClick={() => setEditing(true)}>新增资料</Button>
-              <Button data-vc-action="rag.ingest" onClick={() => setIngestOpen(true)}>Ingest</Button>
+              <Button data-vc-action="rag.ingest" onClick={() => setIngestOpen(true)}>导入/重建资料</Button>
             </div>
             {result ? (
               <div className="result-panel">
@@ -227,10 +237,10 @@ export function KnowledgePage() {
                   });
                 }}
               >
-                治理预览
+                检查能否引用
               </Button>
               <Button size="small" icon={<SafetyCertificateOutlined />} onClick={() => message.info(demoMode ? "Demo：已生成资料治理提示，真实发布需 Go 授权和审计。" : "已生成资料治理提示；发布动作需 Go 授权和审计。")}>
-                治理提示
+                生成治理建议
               </Button>
               <Button
                 size="small"

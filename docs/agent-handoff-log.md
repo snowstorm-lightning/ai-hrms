@@ -24,7 +24,7 @@ Executive Orchestrator established the AI-HRMS submission target and read the ma
 - Mitigated: production RAG now has PostgreSQL/pgvector configurable embeddings and vector-first retrieval through the Go API.
 - Mitigated: DeepSeek chat runs through Python agent boundary; provider secrets stay in local `.env` or deployment secrets, not tracked files.
 - Mitigated: Co-Growth no longer acts as the only demo entry or submission subject.
-- Mitigated: `企鹅互联网科技有限公司` is documented as a fictional seeded demo company dataset/business dataset for AI-HRMS, not Tencent or real HR data; seed data now uses neutral fictional departments such as 协同产品、企业服务、风险策略 and 增长策略.
+- Mitigated: `云衡互联网科技有限公司` is documented as a fictional seeded demo company dataset/business dataset for AI-HRMS, not real HR data; seed data now uses neutral fictional departments such as 协同产品、企业服务、风险策略 and 增长策略.
 
 ## 2026-05-29 P2 Implementation
 
@@ -60,8 +60,8 @@ Executive Orchestrator established the AI-HRMS submission target and read the ma
 
 ## 2026-05-30 Documentation Boundary Pass
 
-- Clarified that AI-HRMS is the product and `企鹅互联网科技有限公司` is simulated company/business data only.
-- Aligned 3-minute demo narration so company names, employees, policies, citations, and audit events are described as fictional demo data, not Tencent or any real company's data.
+- Clarified that AI-HRMS is the product and `云衡互联网科技有限公司` is simulated company/business data only.
+- Aligned 3-minute demo narration so company names, employees, policies, citations, and audit events are described as fictional demo data, not any real company's data.
 - Rechecked key configuration, DeepSeek text-only Visual Copilot boundary, and PostgreSQL/pgvector RAG wording across the scoped docs.
 
 ## 2026-05-30 Browser Harness Pass
@@ -71,8 +71,8 @@ Executive Orchestrator established the AI-HRMS submission target and read the ma
 - Browser harness covers `/login`, `/app/dashboard`, `/app/ai-command`, `/app/knowledge`, `/co-growth`, `/app/learning`, `/app/agents`, `/app/audit`, and Visual Copilot open/close.
 - Latest `npm run browser:check` passed in real mode and demo mode; demo mode made 0 backend API requests and produced 0 console/page errors.
 - Follow-up fix: the browser harness now dynamically loads Playwright, reports the actual Chromium executable, catches HTTP 4xx/5xx responses, and treats configured backend origins plus `/api` paths as forbidden in demo mode.
-- API harness labels now use the Penguin fictional company data (`林晨`, `陈向南`) instead of old seed names.
-- Migration fix: published `002_seed.sql` and `004_ai_native.sql` were restored to immutable contents; Penguin sample data remains in append-only `006_penguin_company_seed.sql`.
+- API harness labels now use the Yunheng fictional company data (`林晨`, `陈向南`) instead of old seed names.
+- Migration fix: published `002_seed.sql` and `004_ai_native.sql` were restored to immutable contents; Yunheng sample data remains in append-only `006_sample_company_seed.sql`.
 - Production bootstrap fix: added `ai-hrms-admin bootstrap-admin --password-stdin`, an `infra/compose.yaml` profile service, and `008_system_roles.sql` so production deployments with demo seed disabled can create the first `group_admin`.
 
 ## 2026-05-31 Visual/RAG/LLM Cost Review
@@ -94,7 +94,7 @@ Executive Orchestrator established the AI-HRMS submission target and read the ma
 - Fixed action request routing: write-like AI chat prompts now return tool previews instead of asking DeepSeek to generate pseudo-execution text.
 - Fixed RAG weak-match risk: hybrid retrieval filters weak vector/lexical candidates and applies topic guards for compensation, hiring, exit, promotion, and performance queries before forming citations, so irrelevant citations do not get promoted into DeepSeek answers.
 - Manual real-mode probe: AI chat now returns SQL-only employee/legal status, tool-preview-only learning assignment, high-impact HR blocking, and `refused_no_citation` for compensation policy without matching evidence.
-- Manual Visual Copilot probe: selecting `企鹅企业服务` returns a deterministic scoped Postgres/RAG explanation with clear no-image/no-auto-execution/audit boundaries; DeepSeek is reserved for explicitly routed LLM explain paths.
+- Manual Visual Copilot probe: selecting `云衡企业服务` returns a deterministic scoped Postgres/RAG explanation with clear no-image/no-auto-execution/audit boundaries; DeepSeek is reserved for explicitly routed LLM explain paths.
 - Verification: `npm run web:check`, `npm run web:build`, `go test ./apps/api/...`, `./harness/agent/check.sh`, `npm run embedding:check`, and `npm run browser:check` passed after the fixes. Latest browser pass covered real/demo desktop plus real/demo mobile, with demo backend requests at 0 and console/page/request/http errors at 0.
 - Follow-up Visual cost/safety fix: synchronous Visual Copilot selections now remain DOM/Postgres/RAG deterministic unless the router explicitly chooses `llm_explain`; action-like selections preserve preview and human-review mode.
 - Follow-up RAG privacy fix: Visual RAG queries redact employee/user labels into object-type hints, and Visual LLM prompts skip employee, user, org-manager, Agent run, and audit-event details before any external provider path.
@@ -113,7 +113,7 @@ Executive Orchestrator established the AI-HRMS submission target and read the ma
 - Ruthless Visual review found that internal scroll-container selection mixed pseudo scroll coordinates with document coordinates. Fixed by keeping rect selections in document coordinates and preserving the user's original `rect` selection instead of rewriting it to the first business object's full DOM box after scroll.
 - Capture mode now keeps keyboard focus inside the Visual Copilot rail on `Tab`; the rail supports keyboard movement, and capture-layer z-index only rises during active selection so business modals remain usable outside capture mode.
 - Visual Copilot demo answers now describe selected business objects with object-type-specific business meaning instead of generic "real mode will query" placeholder copy.
-- Real seeded demo data is aligned with the fictional company boundary through append-only migration `012_demo_company_naming.sql`; the running database was migrated and the first legal entity now displays `企鹅互联网科技有限公司`.
+- Real seeded demo data is aligned with the fictional company boundary through append-only migration `012_demo_company_naming.sql`; the running database was migrated and the first legal entity now displays `云衡互联网科技有限公司`.
 - Documentation/harness alignment: README and harness READMEs now separate real web `5173`, demo web `5174`, Docker API `8020`, native API `8080`, and isolated harness API `18080`; PowerShell harness no longer starts one API while checking another base URL.
 - Browser harness now asserts that real Visual Copilot submit payloads include the exact selected `data-vc-object-type` and `data-vc-object-id`, catching false positives where the UI merely reports `business_ref>0`.
 - Local embedding runtime fix: `.env` was corrected locally so DeepSeek remains the chat provider while embeddings use `local-openai-compatible` at `http://127.0.0.1:8082/v1`, model `Qwen3-Embedding-0.6B-Q8_0`, dimensions `1024`; no key values were printed or tracked.

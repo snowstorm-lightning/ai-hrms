@@ -183,7 +183,7 @@ func TestVisualHarnessMarksLLMAsScopedCandidateForExplain(t *testing.T) {
 
 func TestUnsafeExternalProviderTextBlocksWorkforceIdentifiers(t *testing.T) {
 	blocked := []string{
-		"为企鹅互联网科技有限公司的平台研发新人林晨生成 30 天成长计划",
+		"为云衡互联网科技有限公司的平台研发新人林晨生成 30 天成长计划",
 		"给导师生成下周带教计划",
 		"查询员工编号 PG005 的业务内容",
 	}
@@ -211,9 +211,9 @@ func TestVisualActionIntentPreservesPreviewMode(t *testing.T) {
 }
 
 func TestVisualShouldUseLLMBalancesCostAndQuality(t *testing.T) {
-	citations := []domain.RAGCitation{{DocumentID: "doc-1", ChunkID: "chunk-1", Title: "公司业务说明", Snippet: "企鹅互联网科技公司的模拟业务资料。", TrustLevel: "official", Sensitivity: "normal"}}
+	citations := []domain.RAGCitation{{DocumentID: "doc-1", ChunkID: "chunk-1", Title: "公司业务说明", Snippet: "云衡互联网科技公司的模拟业务资料。", TrustLevel: "official", Sensitivity: "normal"}}
 	packet := domain.ContextPacket{
-		Items:       []domain.ContextItem{{Type: "legal_entity", ID: "legal-1", Label: "企鹅互联网科技有限公司", Summary: "Postgres 返回的法人实体摘要。"}},
+		Items:       []domain.ContextItem{{Type: "legal_entity", ID: "legal-1", Label: "云衡互联网科技有限公司", Summary: "Postgres 返回的法人实体摘要。"}},
 		SourceCount: map[string]int{"postgres_context": 1, "rag_citation": 1},
 	}
 	if visualShouldSearchRAG("解释这些公司的业务", packet) {
@@ -487,7 +487,7 @@ func TestVisualExplanationEmployeeBusinessContentIsLocalAndBounded(t *testing.T)
 				Source:  "postgres.business_ref",
 				Metadata: map[string]any{
 					"position":            "协同产品研发管理者",
-					"legalEntity":         "企鹅协同产品",
+					"legalEntity":         "云衡协同产品",
 					"orgUnit":             "协同产品研发部",
 					"businessExplanation": "协同办公产品研发、跨团队流程和工作流平台",
 				},
@@ -500,7 +500,7 @@ func TestVisualExplanationEmployeeBusinessContentIsLocalAndBounded(t *testing.T)
 				Source:  "postgres.business_ref",
 				Metadata: map[string]any{
 					"position":            "AI 安全与审计负责人",
-					"legalEntity":         "企鹅风控科技",
+					"legalEntity":         "云衡风控科技",
 					"orgUnit":             "风险策略部",
 					"businessExplanation": "内容安全、风控策略、审计证据和 AI 治理能力",
 				},
@@ -509,7 +509,7 @@ func TestVisualExplanationEmployeeBusinessContentIsLocalAndBounded(t *testing.T)
 		SourceCount: map[string]int{"business_ref": 2, "postgres_context": 2},
 	}
 	explanation := visualExplanation("给出这2个人的业务内容", packet, domain.HarnessDecision{ExecutionMode: executionRetrievalOnly, RiskLevel: "medium", HumanReviewRequired: true})
-	for _, want := range []string{"已识别 2 名员工", "顾明远", "企鹅协同产品", "协同办公", "沈知衡", "企鹅风控科技", "内容安全", "不评价个人绩效"} {
+	for _, want := range []string{"已识别 2 名员工", "顾明远", "云衡协同产品", "协同办公", "沈知衡", "云衡风控科技", "内容安全", "不评价个人绩效"} {
 		if !strings.Contains(explanation, want) {
 			t.Fatalf("employee explanation missing %q:\n%s", want, explanation)
 		}
@@ -524,11 +524,11 @@ func TestVisualExplanationEmployeeBusinessContentIsLocalAndBounded(t *testing.T)
 func TestTrustedVisualLabelsUsesOnlyPostgresBusinessRefs(t *testing.T) {
 	items := []domain.ContextItem{
 		{Type: "legal_entity", ID: "1", Label: "<client label>", Source: "visual_selection.dom_snapshot_unverified"},
-		{Type: "legal_entity", ID: "1", Label: "企鹅企业服务", Source: "postgres.business_ref"},
-		{Type: "legal_entity", ID: "1", Label: "企鹅企业服务", Source: "postgres.business_ref"},
+		{Type: "legal_entity", ID: "1", Label: "云衡企业服务", Source: "postgres.business_ref"},
+		{Type: "legal_entity", ID: "1", Label: "云衡企业服务", Source: "postgres.business_ref"},
 	}
 	labels := trustedVisualLabels(items)
-	if len(labels) != 1 || labels[0] != "企鹅企业服务" {
+	if len(labels) != 1 || labels[0] != "云衡企业服务" {
 		t.Fatalf("trusted labels = %#v", labels)
 	}
 }
@@ -536,14 +536,14 @@ func TestTrustedVisualLabelsUsesOnlyPostgresBusinessRefs(t *testing.T) {
 func TestVisualExternalQueryLabelsRedactsPeopleContext(t *testing.T) {
 	packet := domain.ContextPacket{Items: []domain.ContextItem{
 		{Type: "employee", ID: "e-1", Label: "许海川", Summary: "员工许海川，主岗位=高级工程师。", Source: "postgres.business_ref"},
-		{Type: "legal_entity", ID: "le-1", Label: "企鹅企业服务", Summary: "法人实体业务摘要。", Source: "postgres.business_ref"},
+		{Type: "legal_entity", ID: "le-1", Label: "云衡企业服务", Summary: "法人实体业务摘要。", Source: "postgres.business_ref"},
 		{Type: "agent_run", ID: "run-1", Label: "co_growth_coach", Source: "postgres.business_ref"},
 	}}
 	labels := strings.Join(visualExternalQueryLabels(packet, 6), "\n")
 	if strings.Contains(labels, "许海川") || strings.Contains(labels, "高级工程师") {
 		t.Fatalf("external RAG query labels should redact employee context: %q", labels)
 	}
-	if !strings.Contains(labels, "员工对象") || !strings.Contains(labels, "企鹅企业服务") {
+	if !strings.Contains(labels, "员工对象") || !strings.Contains(labels, "云衡企业服务") {
 		t.Fatalf("external RAG query labels should retain safe object types/business labels: %q", labels)
 	}
 }
@@ -552,13 +552,13 @@ func TestVisualLLMMessageSkipsPeopleAndOrgUnitContext(t *testing.T) {
 	packet := domain.ContextPacket{Items: []domain.ContextItem{
 		{Type: "employee", ID: "e-1", Label: "许海川", Summary: "员工许海川，主岗位=高级工程师。", Source: "postgres.business_ref"},
 		{Type: "org_unit", ID: "ou-1", Label: "AI 平台工程部", Summary: "组织单元，负责人=顾明远。", Source: "postgres.business_ref"},
-		{Type: "legal_entity", ID: "le-1", Label: "企鹅企业服务", Summary: "法人实体公开业务摘要。", Source: "postgres.business_ref"},
+		{Type: "legal_entity", ID: "le-1", Label: "云衡企业服务", Summary: "法人实体公开业务摘要。", Source: "postgres.business_ref"},
 	}}
 	message := visualLLMMessage("解释业务", "/app/employees", packet)
 	if strings.Contains(message, "许海川") || strings.Contains(message, "高级工程师") || strings.Contains(message, "顾明远") {
 		t.Fatalf("visual LLM message should not include people/org-manager context:\n%s", message)
 	}
-	if !strings.Contains(message, "企鹅企业服务") {
+	if !strings.Contains(message, "云衡企业服务") {
 		t.Fatalf("visual LLM message should retain safe legal entity context:\n%s", message)
 	}
 }

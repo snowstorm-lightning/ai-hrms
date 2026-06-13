@@ -39,7 +39,7 @@ Current production chunking is:
 Example stored chunk:
 
 ```text
-文档：企鹅互联网科技有限公司样本 HR 手册
+文档：云衡互联网科技有限公司样本 HR 手册
 章节：新人入职指南 > RAG 引用核验
 上文：上一片段的末尾上下文
 正文：当前片段内容

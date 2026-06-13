@@ -17,7 +17,7 @@ services:
       - ai_hrms_pgdata:/var/lib/postgresql/data
 
   api:
-    image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-api:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/ai-hrms-api:${IMAGE_TAG:-latest}
     pull_policy: missing
     restart: unless-stopped
     environment:
@@ -54,7 +54,7 @@ services:
 
   bootstrap-admin:
     profiles: ["bootstrap"]
-    image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-api:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/ai-hrms-api:${IMAGE_TAG:-latest}
     pull_policy: missing
     restart: "no"
     entrypoint: ["ai-hrms-admin", "bootstrap-admin"]
@@ -69,7 +69,7 @@ services:
 
   seed-sample-company:
     profiles: ["sample-data"]
-    image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-api:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/ai-hrms-api:${IMAGE_TAG:-latest}
     pull_policy: missing
     restart: "no"
     entrypoint: ["ai-hrms-admin", "seed-sample-company", "--yes"]
@@ -83,7 +83,7 @@ services:
         condition: service_healthy
 
   web:
-    image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-web:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/ai-hrms-web:${IMAGE_TAG:-latest}
     pull_policy: missing
     restart: unless-stopped
     ports:
@@ -96,7 +96,7 @@ services:
         condition: service_healthy
 
   agent:
-    image: ${TCR_REGISTRY:?TCR_REGISTRY is required}/${TCR_NAMESPACE:?TCR_NAMESPACE is required}/ai-hrms-agent:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:?IMAGE_REGISTRY is required}/${IMAGE_NAMESPACE:?IMAGE_NAMESPACE is required}/ai-hrms-agent:${IMAGE_TAG:-latest}
     pull_policy: missing
     restart: unless-stopped
     environment:

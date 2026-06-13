@@ -6,7 +6,7 @@ AI-HRMS｜人机共生的人力资源智能操作系统
 
 This assignment submission presents the full AI-HRMS product. Co-Growth OS is one strong module inside AI-HRMS: the growth engine for AI literacy, work missions, reflection, and evidence.
 
-Demo company note: AI-HRMS is the product being demonstrated. `企鹅互联网科技有限公司` is a fictional seeded demo company dataset and business dataset only; it is not Tencent, is not affiliated with Tencent, and does not represent real company data.
+Demo company note: AI-HRMS is the product being demonstrated. `云衡互联网科技有限公司` is a fictional seeded demo company dataset and business dataset only; it is not affiliated with any real company and does not represent real company data.
 
 ## Demo Mode
 
@@ -93,7 +93,7 @@ P2 extras are included as code paths: `/api/agent/workflows/langgraph/demo` prox
 9. `/app/audit`: show the trust and evidence layer.
 10. `/app/help`: show the product guide, Visual Copilot usage, and admin-only operating notes.
 
-For a 3-minute review, introduce `企鹅互联网科技有限公司` only as the sample company dataset so the audience does not read the walkthrough as Tencent or any other real company's HR data.
+For a 3-minute review, introduce `云衡互联网科技有限公司` only as the sample company dataset so the audience does not read the walkthrough as any real company's HR data.
 
 ## Core Highlights
 
@@ -110,7 +110,7 @@ For a 3-minute review, introduce `企鹅互联网科技有限公司` only as the
 ## Reviewer Notes
 
 - Demo AI outputs are deterministic mock responses for public demo stability and privacy.
-- Demo company data is fictional company data for AI-HRMS; it is not Tencent or real HR data.
+- Demo company data is fictional company data for AI-HRMS; it is not real HR data.
 - Real mode has provider adapters for DeepSeek chat plus OpenAI-compatible embeddings through the Python agent boundary.
 - High-risk HR scenarios are preview-only and require human review.
 - The demo does not automate promotion, termination, pay, performance, or hiring decisions.

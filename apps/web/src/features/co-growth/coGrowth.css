@@ -328,6 +328,114 @@
   align-self: end;
 }
 
+.mission-result-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.mission-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mission-result-block,
+.reflection-draft {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.mission-result-block p,
+.reflection-draft p {
+  margin: 0;
+  color: #475569;
+}
+
+.result-line-list {
+  display: grid;
+  gap: 7px;
+  color: #475569;
+}
+
+.result-line-list span {
+  display: block;
+}
+
+.mission-result-actions,
+.reflection-empty {
+  margin-top: 2px;
+}
+
+.guided-return-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.guided-return-banner > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.guided-return-banner .ant-typography {
+  margin-bottom: 0;
+}
+
+.guided-target {
+  padding: 2px;
+  border-radius: 8px;
+  outline: 2px solid rgb(37 99 235 / 24%);
+  outline-offset: 4px;
+}
+
+.guided-target-card {
+  border-color: #93c5fd !important;
+  box-shadow: 0 12px 28px rgb(37 99 235 / 12%);
+}
+
+.co-growth-card-anchor {
+  min-width: 0;
+}
+
+.co-growth-card-anchor > .co-growth-card {
+  height: 100%;
+}
+
+.guided-evidence-item {
+  padding: 10px 12px;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  background: #f0fdfa;
+}
+
+.evidence-item-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.guided-evidence-item p {
+  margin-top: 0;
+}
+
 .human-confirmation {
   margin-top: 14px;
 }
@@ -542,6 +650,7 @@
   .co-growth-topbar,
   .co-growth-metrics,
   .co-growth-split,
+  .mission-result-grid,
   .mission-grid {
     grid-template-columns: 1fr;
   }
@@ -553,6 +662,15 @@
   }
 
   .co-growth-top-actions .ant-btn {
+    width: 100%;
+  }
+
+  .guided-return-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .guided-return-banner .ant-btn {
     width: 100%;
   }
 

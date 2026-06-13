@@ -1,11 +1,13 @@
 import { AuditOutlined, FileSearchOutlined, RobotOutlined, SafetyCertificateOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, Col, Divider, Input, Select, Space, Tag, Typography, message } from "antd";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, getErrorMessage } from "../../api/client";
 import type { AgentRun, AIChatResponse, ContextPacket, HarnessDecision, RAGCitation, TrustPacket } from "../../api/types";
 import { CitationList, ContextPacketPanel, ExecutionDecisionPanel, HumanReviewBanner, TrustMetaBar, TrustPacketBar } from "../../components/AiTrust";
 import { InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
+import { ActionResultGuide, TaskPath } from "../../components/TaskFlow";
 
 type CommandResult = {
   answer: string;
@@ -24,7 +26,7 @@ type CommandResult = {
 
 const promptLibrary = [
   { label: "解释制度并给引用", value: "解释新员工 7 天内必须完成哪些事项，并给出引用来源。", riskLevel: "low" },
-  { label: "生成新人 30 天成长计划", value: "为企鹅互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。", riskLevel: "medium" },
+  { label: "生成新人 30 天成长计划", value: "为云衡互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。", riskLevel: "medium" },
   { label: "检查高风险建议", value: "检查一条面试建议是否涉及隐私、公平性或自动化录用风险。", riskLevel: "high" },
   { label: "生成下周带教计划", value: "为 HR 和导师生成下周带教计划，并标注哪些步骤需要人工确认。", riskLevel: "medium" },
   { label: "拆成 Agent workflow", value: "把新人学习推荐任务拆成 Agent workflow：检索、生成、检查、人工确认、审计。", riskLevel: "medium" },
@@ -65,7 +67,8 @@ function buildResult(chat: AIChatResponse, run: AgentRun, fallbackRiskLevel: str
 }
 
 export function AiCommandCenterPage() {
-  const [prompt, setPrompt] = useState("为企鹅互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。");
+  const navigate = useNavigate();
+  const [prompt, setPrompt] = useState("为云衡互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。");
   const [riskLevel, setRiskLevel] = useState("medium");
   const [result, setResult] = useState<CommandResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -105,6 +108,15 @@ export function AiCommandCenterPage() {
         description="不是聊天框，而是 HR Agent 操作台：检索、解释、建议、生成计划、预览工具调用，并把人工确认写入审计。"
       />
       <InlineError message={error} />
+      <TaskPath
+        title="AI 指挥闭环"
+        steps={[
+          { title: "选业务场景", detail: "用样例 prompt 或直接输入任务", status: result ? "done" : "current" },
+          { title: "生成治理型建议", detail: "得到计划、风险、引用和工具预览", status: result ? "done" : "next" },
+          { title: "人工判断", detail: "高风险只进入确认，不自动执行", status: result?.humanReviewRequired ? "blocked" : result ? "current" : "next" },
+          { title: "追踪证据", detail: "去 Agent 或审计页继续看链路", status: result ? "next" : "next" },
+        ]}
+      />
 
       <section className="command-layout">
         <Card className="command-panel" data-vc-kind="ai-command-panel">
@@ -178,6 +190,14 @@ export function AiCommandCenterPage() {
           <TrustPacketBar packet={result.trustPacket} />
           <ExecutionDecisionPanel decision={result.executionDecision} />
           <ContextPacketPanel packet={result.contextPacket} />
+          <ActionResultGuide
+            title={result.humanReviewRequired ? "建议已停在人工确认前" : "建议已生成，可继续核验证据"}
+            description={result.humanReviewRequired ? "下一步不要把它当成已执行结果，先让 HR/导师查看证据和审计链。" : "低风险或中风险内容仍建议检查引用和工具预览，再决定是否沉淀为 Agent run。"}
+            actions={[
+              { label: "查看 Agent 运行", onClick: () => navigate("/app/agents"), type: "primary", icon: <RobotOutlined /> },
+              { label: "查看审计记录", onClick: () => navigate("/app/audit"), icon: <AuditOutlined /> },
+            ]}
+          />
           <Divider />
           <HumanReviewBanner riskLevel={result.riskLevel} humanReviewRequired={result.humanReviewRequired} />
           <div className="result-section-grid">

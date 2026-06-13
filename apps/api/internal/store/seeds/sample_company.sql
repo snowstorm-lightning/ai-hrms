@@ -3,11 +3,11 @@
 
 INSERT INTO legal_entities (id, parent_id, code, name, legal_name, unified_social_credit_code, legal_representative, company_phone, email, area, address, status)
 VALUES
-  ('00000000-0000-0000-0000-000000000101', NULL, 'GROUP', '企鹅互联网科技有限公司', '企鹅互联网科技有限公司', '91440300PENGUIN001', '许海川', '0755-86000000', 'people@penguin.example', '深圳', '深圳市南山区海湾科技园 1 号', 'active'),
-  ('00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000101', 'SUB-A', '企鹅企业服务', '企鹅企业服务有限公司', '91440300PENGUIN002', '罗启明', '0755-86000002', 'enterprise-hr@penguin.example', '深圳', '深圳市南山区企业服务路 8 号', 'active'),
-  ('00000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000101', 'SUB-B', '企鹅协同产品', '企鹅协同产品有限公司', '91440300PENGUIN003', '顾明远', '028-86000003', 'penguin-collab-hr@penguin.example', '成都', '成都市高新区协同产品大道 12 号', 'active'),
-  ('00000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-000000000101', 'PENGUIN-RISK', '企鹅风控科技', '企鹅风控科技有限公司', '91440300PENGUIN004', '沈知衡', '020-86000004', 'risk-hr@penguin.example', '广州', '广州市天河区风险治理路 6 号', 'active'),
-  ('00000000-0000-0000-0000-000000000105', '00000000-0000-0000-0000-000000000101', 'PENGUIN-GROWTH', '企鹅增长科技', '企鹅增长科技有限公司', '91440300PENGUIN005', '周雨桐', '0571-86000005', 'growth-ops@penguin.example', '杭州', '杭州市余杭区增长街 9 号', 'active')
+  ('00000000-0000-0000-0000-000000000101', NULL, 'GROUP', '云衡互联网科技有限公司', '云衡互联网科技有限公司', '91440300YUNHENG001', '许海川', '0755-86000000', 'people@yunheng.example', '深圳', '深圳市南山区海湾科技园 1 号', 'active'),
+  ('00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000101', 'SUB-A', '云衡企业服务', '云衡企业服务有限公司', '91440300YUNHENG002', '罗启明', '0755-86000002', 'enterprise-hr@yunheng.example', '深圳', '深圳市南山区企业服务路 8 号', 'active'),
+  ('00000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000101', 'SUB-B', '云衡协同产品', '云衡协同产品有限公司', '91440300YUNHENG003', '顾明远', '028-86000003', 'yunheng-collab-hr@yunheng.example', '成都', '成都市高新区协同产品大道 12 号', 'active'),
+  ('00000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-000000000101', 'YUNHENG-RISK', '云衡风控科技', '云衡风控科技有限公司', '91440300YUNHENG004', '沈知衡', '020-86000004', 'risk-hr@yunheng.example', '广州', '广州市天河区风险治理路 6 号', 'active'),
+  ('00000000-0000-0000-0000-000000000105', '00000000-0000-0000-0000-000000000101', 'YUNHENG-GROWTH', '云衡增长科技', '云衡增长科技有限公司', '91440300YUNHENG005', '周雨桐', '0571-86000005', 'growth-ops@yunheng.example', '杭州', '杭州市余杭区增长街 9 号', 'active')
 ON CONFLICT (id) DO UPDATE SET
   parent_id = EXCLUDED.parent_id,
   code = EXCLUDED.code,
@@ -43,12 +43,12 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO employees (id, user_id, employee_no, name, mobile, status, sex, highest_degree_of_education, place_of_residence, graduate_school, major, home_company, title, remarks)
 VALUES
-  ('00000000-0000-0000-0000-000000000401', NULL, 'PG001', '许安宁', '13800000001', 'active', '未知', '硕士', '深圳', '中国人民大学', '组织发展', '企鹅互联网科技有限公司', '集团 HR', '企鹅科技虚构样本：集团 HR 和 Demo 主讲角色'),
-  ('00000000-0000-0000-0000-000000000402', NULL, 'PG002', '陈向南', '13800000002', 'active', '未知', '本科', '深圳', '华南理工大学', '人力资源', '企鹅企业服务', '企业服务 HRBP', '企鹅科技虚构样本：企业服务 HRBP'),
-  ('00000000-0000-0000-0000-000000000403', NULL, 'PG003', '林晨', '13800000003', 'active', '未知', '本科', '深圳', '同济大学', '软件工程', '企鹅互联网科技有限公司', 'AI 平台研发工程师', '企鹅科技虚构样本：新人研发，参与 Co-Growth mission'),
-  ('00000000-0000-0000-0000-000000000404', NULL, 'PG004', '周雨桐', '13800000004', 'active', '未知', '硕士', '杭州', '浙江大学', '计算机科学', '企鹅增长科技', '算法导师', '企鹅科技虚构样本：导师，复核新人 AI Work Journal'),
-  ('00000000-0000-0000-0000-000000000405', NULL, 'PG005', '顾明远', '13800000005', 'active', '未知', '硕士', '成都', '电子科技大学', '协同产品工程', '企鹅协同产品', '业务管理者', '企鹅科技虚构样本：关注组织能力和 Agent 风险'),
-  ('00000000-0000-0000-0000-000000000406', NULL, 'PG006', '沈知衡', '13800000006', 'active', '未知', '博士', '广州', '中山大学', '信息安全', '企鹅风控科技', 'AI 安全与审计负责人', '企鹅科技虚构样本：负责知识治理和风险边界')
+  ('00000000-0000-0000-0000-000000000401', NULL, 'PG001', '许安宁', '13800000001', 'active', '未知', '硕士', '深圳', '中国人民大学', '组织发展', '云衡互联网科技有限公司', '集团 HR', '云衡科技虚构样本：集团 HR 和 Demo 主讲角色'),
+  ('00000000-0000-0000-0000-000000000402', NULL, 'PG002', '陈向南', '13800000002', 'active', '未知', '本科', '深圳', '华南理工大学', '人力资源', '云衡企业服务', '企业服务 HRBP', '云衡科技虚构样本：企业服务 HRBP'),
+  ('00000000-0000-0000-0000-000000000403', NULL, 'PG003', '林晨', '13800000003', 'active', '未知', '本科', '深圳', '同济大学', '软件工程', '云衡互联网科技有限公司', 'AI 平台研发工程师', '云衡科技虚构样本：新人研发，参与 Co-Growth mission'),
+  ('00000000-0000-0000-0000-000000000404', NULL, 'PG004', '周雨桐', '13800000004', 'active', '未知', '硕士', '杭州', '浙江大学', '计算机科学', '云衡增长科技', '算法导师', '云衡科技虚构样本：导师，复核新人 AI Work Journal'),
+  ('00000000-0000-0000-0000-000000000405', NULL, 'PG005', '顾明远', '13800000005', 'active', '未知', '硕士', '成都', '电子科技大学', '协同产品工程', '云衡协同产品', '业务管理者', '云衡科技虚构样本：关注组织能力和 Agent 风险'),
+  ('00000000-0000-0000-0000-000000000406', NULL, 'PG006', '沈知衡', '13800000006', 'active', '未知', '博士', '广州', '中山大学', '信息安全', '云衡风控科技', 'AI 安全与审计负责人', '云衡科技虚构样本：负责知识治理和风险边界')
 ON CONFLICT (id) DO UPDATE SET
   user_id = EXCLUDED.user_id,
   employee_no = EXCLUDED.employee_no,
@@ -120,7 +120,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO messages (id, title, category, content, author_user_id, org_unit_id, scope_type, scope_id, include_descendants, star, view_count)
 VALUES
-  ('00000000-0000-0000-0000-000000000701', '本周 AI 学习 mission 开放试用', 'announcement', '<p>企鹅互联网科技有限公司（虚构样本组织）的 AI-HRMS 成长引擎样本任务已开放。欢迎先从 RAG 原理卡和工作内嵌 mission 开始体验。</p>', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), '00000000-0000-0000-0000-000000000201', 'global', NULL, true, 7, 128),
+  ('00000000-0000-0000-0000-000000000701', '本周 AI 学习 mission 开放试用', 'announcement', '<p>云衡互联网科技有限公司（虚构样本组织）的 AI-HRMS 成长引擎样本任务已开放。欢迎先从 RAG 原理卡和工作内嵌 mission 开始体验。</p>', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), '00000000-0000-0000-0000-000000000201', 'global', NULL, true, 7, 128),
   ('00000000-0000-0000-0000-000000000702', '请在使用 AI 建议前保留人工确认点', 'governance', '<p>涉及候选人、隐私、公平性或客户承诺的场景，AI 只做辅助建议，最终判断必须由人确认。</p>', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), '00000000-0000-0000-0000-000000000202', 'global', NULL, true, 4, 86)
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
@@ -147,8 +147,8 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO rag_sources (id, source_type, name, uri, status, created_by_user_id)
 VALUES
-  ('00000000-0000-0000-0000-000000000902', 'upload', '企鹅互联网科技 HR 制度库', 'seed://penguin-hr-policy', 'active', (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
-  ('00000000-0000-0000-0000-000000000903', 'upload', '企鹅互联网科技 AI 治理资料包', 'seed://penguin-ai-governance', 'active', (SELECT id FROM ai_hrms_seed_actor LIMIT 1))
+  ('00000000-0000-0000-0000-000000000902', 'upload', '云衡互联网科技 HR 制度库', 'seed://yunheng-hr-policy', 'active', (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
+  ('00000000-0000-0000-0000-000000000903', 'upload', '云衡互联网科技 AI 治理资料包', 'seed://yunheng-ai-governance', 'active', (SELECT id FROM ai_hrms_seed_actor LIMIT 1))
 ON CONFLICT (id) DO UPDATE SET
   source_type = EXCLUDED.source_type,
   name = EXCLUDED.name,
@@ -159,8 +159,8 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO rag_documents (id, source_id, title, version, status, trust_level, sensitivity, content, content_hash, published_at, created_by_user_id)
 VALUES
-  ('00000000-0000-0000-0000-000000000912', '00000000-0000-0000-0000-000000000902', '企鹅互联网科技新员工入职指南', 'v1', 'published', 'official', 'normal', '企鹅互联网科技有限公司新员工入职 7 天内完成账号、信息安全、协作工具和事业群业务导览。30 天内由导师完成一次成长复盘，确认工作上下文、学习计划和协作风险。', encode(digest('企鹅互联网科技新员工入职指南', 'sha256'), 'hex'), now(), (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
-  ('00000000-0000-0000-0000-000000000913', '00000000-0000-0000-0000-000000000903', '企鹅互联网科技 AI 使用安全规范', 'v1', 'published', 'official', 'internal', '员工不得把客户数据、未授权代码、密钥、员工敏感信息或高影响人事决策材料直接放入外部 AI prompt。AI 生成建议必须保留 evidence、riskLevel、confidence 和 humanReviewRequired。', encode(digest('企鹅互联网科技 AI 使用安全规范', 'sha256'), 'hex'), now(), (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
+  ('00000000-0000-0000-0000-000000000912', '00000000-0000-0000-0000-000000000902', '云衡互联网科技新员工入职指南', 'v1', 'published', 'official', 'normal', '云衡互联网科技有限公司新员工入职 7 天内完成账号、信息安全、协作工具和事业群业务导览。30 天内由导师完成一次成长复盘，确认工作上下文、学习计划和协作风险。', encode(digest('云衡互联网科技新员工入职指南', 'sha256'), 'hex'), now(), (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
+  ('00000000-0000-0000-0000-000000000913', '00000000-0000-0000-0000-000000000903', '云衡互联网科技 AI 使用安全规范', 'v1', 'published', 'official', 'internal', '员工不得把客户数据、未授权代码、密钥、员工敏感信息或高影响人事决策材料直接放入外部 AI prompt。AI 生成建议必须保留 evidence、riskLevel、confidence 和 humanReviewRequired。', encode(digest('云衡互联网科技 AI 使用安全规范', 'sha256'), 'hex'), now(), (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
   ('00000000-0000-0000-0000-000000000914', '00000000-0000-0000-0000-000000000903', 'Agent 工具调用审计规范', 'v1', 'published', 'official', 'internal', 'Agent 工具调用必须先生成 toolPreview，展示工具名、参数摘要、写入范围、可逆性和人工确认要求。中高风险动作必须进入人工复核，执行和阻断都写入审计。', encode(digest('Agent 工具调用审计规范', 'sha256'), 'hex'), now(), (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
   ('00000000-0000-0000-0000-000000000915', '00000000-0000-0000-0000-000000000902', 'AI 平台工程部新人 30 天成长计划', 'v1', 'published', 'reviewed', 'normal', 'AI 平台新人第 1 周完成工程环境和代码规范，第 2 周完成 RAG 与 Agent 基础任务，第 3 周参与一次工具预览评审，第 4 周提交 AI Work Journal 和导师复盘。', encode(digest('AI 平台工程部新人 30 天成长计划', 'sha256'), 'hex'), now(), (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
   ('00000000-0000-0000-0000-000000000916', '00000000-0000-0000-0000-000000000902', '面试公平性与招聘合规指引', 'v1', 'published', 'reviewed', 'restricted', 'AI 可以辅助生成结构化面试问题、评分维度和一致性检查清单，但不得输出录用、淘汰、薪酬或绩效裁决。涉及候选人的结论必须由 HR 和业务面试官人工确认。', encode(digest('面试公平性与招聘合规指引', 'sha256'), 'hex'), now(), (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
@@ -201,7 +201,7 @@ AND NOT EXISTS (
 
 INSERT INTO rag_chunks (id, document_id, chunk_index, title, content, content_hash, sensitivity)
 VALUES
-  ('00000000-0000-0000-0000-000000000922', '00000000-0000-0000-0000-000000000912', 0, '入职 7/30 天要求', '企鹅互联网科技有限公司新员工入职 7 天内完成账号、信息安全、协作工具和事业群业务导览。30 天内由导师完成一次成长复盘。', encode(digest('入职 7/30 天要求', 'sha256'), 'hex'), 'normal'),
+  ('00000000-0000-0000-0000-000000000922', '00000000-0000-0000-0000-000000000912', 0, '入职 7/30 天要求', '云衡互联网科技有限公司新员工入职 7 天内完成账号、信息安全、协作工具和事业群业务导览。30 天内由导师完成一次成长复盘。', encode(digest('入职 7/30 天要求', 'sha256'), 'hex'), 'normal'),
   ('00000000-0000-0000-0000-000000000923', '00000000-0000-0000-0000-000000000913', 0, 'AI 使用安全边界', '员工不得把客户数据、未授权代码、密钥、员工敏感信息或高影响人事决策材料直接放入外部 AI prompt。', encode(digest('AI 使用安全边界', 'sha256'), 'hex'), 'internal'),
   ('00000000-0000-0000-0000-000000000924', '00000000-0000-0000-0000-000000000914', 0, 'Agent 工具调用预览和审计', 'Agent 工具调用必须先生成 toolPreview，展示工具名、参数摘要、写入范围、可逆性和人工确认要求。', encode(digest('Agent 工具调用预览和审计', 'sha256'), 'hex'), 'internal'),
   ('00000000-0000-0000-0000-000000000925', '00000000-0000-0000-0000-000000000915', 0, 'AI 平台新人 30 天成长节奏', 'AI 平台新人第 1 周完成工程环境和代码规范，第 2 周完成 RAG 与 Agent 基础任务，第 3 周参与工具预览评审，第 4 周提交 AI Work Journal。', encode(digest('AI 平台新人 30 天成长节奏', 'sha256'), 'hex'), 'normal'),
@@ -243,7 +243,7 @@ ON CONFLICT (chunk_id, provider, model) DO UPDATE SET
 
 INSERT INTO learning_courses (id, title, description, status, scope_type, scope_id, created_by_user_id)
 VALUES
-  ('00000000-0000-0000-0000-000000000934', '企鹅互联网科技新人 30 天融入计划', '面向综合互联网业务新人，覆盖信息安全、事业群协作、AI 工具边界和导师复盘。', 'published', 'global', NULL, (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
+  ('00000000-0000-0000-0000-000000000934', '云衡互联网科技新人 30 天融入计划', '面向综合互联网业务新人，覆盖信息安全、事业群协作、AI 工具边界和导师复盘。', 'published', 'global', NULL, (SELECT id FROM ai_hrms_seed_actor LIMIT 1)),
   ('00000000-0000-0000-0000-000000000935', 'AI 平台工程人机协作训练', '面向 AI 平台工程部新人，围绕 RAG、Agent 工具预览、审计证据和工作日志训练。', 'published', 'global', NULL, (SELECT id FROM ai_hrms_seed_actor LIMIT 1))
 ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
@@ -339,7 +339,7 @@ VALUES
   ('00000000-0000-0000-0000-000000000961', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), 'ai.command.recommendation.preview', 'ai_recommendation', 'cmd-onboarding-30d', 'global', NULL, 'sample-req-001', 'web', 'medium', '{}'::jsonb, '{"confidence":86,"citations":["00000000-0000-0000-0000-000000000912"],"humanReviewRequired":false,"auditStatus":"previewed"}'::jsonb, '2026-05-28 10:00:00+08'),
   ('00000000-0000-0000-0000-000000000962', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), 'agent.tool.preview', 'agent_tool_call', '00000000-0000-0000-0000-000000000959', 'global', NULL, 'sample-req-002', 'agent', 'medium', '{}'::jsonb, '{"toolName":"learning_recommend","accepted":true,"reversible":true}'::jsonb, '2026-05-28 10:06:00+08'),
   ('00000000-0000-0000-0000-000000000963', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), 'human.review.requested', 'learning_mission', 'mission-interview-bias', 'global', NULL, 'sample-req-003', 'web', 'high', '{}'::jsonb, '{"reason":"fairness boundary","humanReviewRequired":true,"blocked":true}'::jsonb, '2026-05-28 10:12:00+08'),
-  ('00000000-0000-0000-0000-000000000964', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), 'rag.citation.used', 'rag_document', '00000000-0000-0000-0000-000000000912', 'global', NULL, 'sample-req-004', 'rag', 'low', '{}'::jsonb, '{"title":"企鹅互联网科技新员工入职指南","trustLevel":"official","sensitivity":"normal"}'::jsonb, '2026-05-28 10:18:00+08'),
+  ('00000000-0000-0000-0000-000000000964', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), 'rag.citation.used', 'rag_document', '00000000-0000-0000-0000-000000000912', 'global', NULL, 'sample-req-004', 'rag', 'low', '{}'::jsonb, '{"title":"云衡互联网科技新员工入职指南","trustLevel":"official","sensitivity":"normal"}'::jsonb, '2026-05-28 10:18:00+08'),
   ('00000000-0000-0000-0000-000000000965', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), 'co_growth.evidence.recorded', 'co_growth_evidence', 'ev-current-001', 'global', NULL, 'sample-req-005', 'web', 'low', '{}'::jsonb, '{"reflection":true,"promptVersion":"v3","confidence":89}'::jsonb, '2026-05-28 10:24:00+08'),
   ('00000000-0000-0000-0000-000000000966', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), 'high_risk.action.blocked', 'agent_run', '00000000-0000-0000-0000-000000000957', 'global', NULL, 'sample-req-006', 'agent', 'high', '{}'::jsonb, '{"action":"people_decision","allowed":false,"humanReviewRequired":true}'::jsonb, '2026-05-28 10:30:00+08'),
   ('00000000-0000-0000-0000-000000000967', (SELECT id FROM ai_hrms_seed_actor LIMIT 1), 'human.review.approved_preview', 'agent_run', '00000000-0000-0000-0000-000000000954', 'global', NULL, 'sample-req-007', 'web', 'medium', '{}'::jsonb, '{"reviewer":"mentor","auditStatus":"approved_preview","reversible":true}'::jsonb, '2026-05-28 10:36:00+08')

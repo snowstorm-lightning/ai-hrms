@@ -284,6 +284,108 @@ select {
   margin-top: 16px;
 }
 
+.task-flow {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.task-flow-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.task-flow-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
+.task-flow-step {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.task-flow-step.is-current {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.task-flow-step.is-done {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.task-flow-step.is-blocked {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
+.task-flow-step > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.task-flow-step .ant-typography {
+  margin-bottom: 0;
+}
+
+.task-flow-index {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: #1677ff;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.task-flow-step.is-done .task-flow-index {
+  background: #16a34a;
+}
+
+.task-flow-step.is-blocked .task-flow-index {
+  background: #f97316;
+}
+
+.action-result-guide {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.action-result-guide > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.action-result-guide .ant-typography {
+  margin-bottom: 0;
+}
+
 .profile-hero {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1369,6 +1471,78 @@ select {
   font-size: 13px;
 }
 
+.agent-action-help {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #e0f2fe;
+  border-radius: 8px;
+  background: #f8fcff;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.workflow-preview-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.workflow-preview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.workflow-preview-header p {
+  margin: 4px 0 0;
+  color: #64748b;
+}
+
+.workflow-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workflow-preview-steps {
+  display: grid;
+  gap: 8px;
+}
+
+.workflow-preview-step {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.workflow-preview-step > span {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 8px;
+  background: #1677ff;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workflow-preview-step > div {
+  display: grid;
+  gap: 2px;
+}
+
 .audit-risk-card .ant-card-body {
   min-height: 170px;
 }
@@ -2158,6 +2332,16 @@ select {
   .attendance-toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .action-result-guide {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .action-result-guide .ant-space,
+  .action-result-guide .ant-btn {
+    width: 100%;
   }
 
   .domain-section-heading {

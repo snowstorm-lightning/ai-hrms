@@ -15,14 +15,14 @@ func TestPrepareRAGChunksPreservesMarkdownSectionsAndPunctuation(t *testing.T) {
 ## RAG 引用核验
 回答必须引用已发布资料；敏感资料需要人工确认。`
 
-	records := prepareRAGChunkRecords(content, "企鹅互联网科技有限公司样本 HR 手册")
+	records := prepareRAGChunkRecords(content, "云衡互联网科技有限公司样本 HR 手册")
 	if len(records) != 2 {
 		t.Fatalf("expected 2 records, got %d: %#v", len(records), records)
 	}
-	if records[0].Title != "企鹅互联网科技有限公司样本 HR 手册 / 新人入职指南" {
+	if records[0].Title != "云衡互联网科技有限公司样本 HR 手册 / 新人入职指南" {
 		t.Fatalf("record title = %q", records[0].Title)
 	}
-	if !strings.Contains(records[0].Content, "文档：企鹅互联网科技有限公司样本 HR 手册") {
+	if !strings.Contains(records[0].Content, "文档：云衡互联网科技有限公司样本 HR 手册") {
 		t.Fatalf("missing document context: %q", records[0].Content)
 	}
 	if !strings.Contains(records[1].Content, "章节：新人入职指南 > RAG 引用核验") {

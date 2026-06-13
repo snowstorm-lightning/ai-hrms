@@ -6,7 +6,7 @@ AI-HRMS｜人机共生的人力资源智能操作系统
 
 AI-HRMS is not a traditional HRMS with a chat box attached. It is an operating system where people, organization data, governed knowledge, learning growth, agent runs, and audit evidence collaborate inside explicit safety boundaries.
 
-Product/data boundary: AI-HRMS is the product. `企鹅互联网科技有限公司` is only a fictional demo company dataset with simulated business records used to show product workflows; it is not Tencent, is not affiliated with Tencent, and is not real company data.
+Product/data boundary: AI-HRMS is the product. `云衡互联网科技有限公司` is only a fictional demo company dataset with simulated business records used to show product workflows; it is not affiliated with any real company and is not real company data.
 
 ## System Layers
 
@@ -73,7 +73,7 @@ Narration rule: keep the 3-minute walkthrough about AI-HRMS capabilities. Treat 
   created and updated as auditable work items, but first-phase business rules
   intentionally stop at CRUD/status workflow and human review boundaries.
 - Demo mode uses deterministic local data and does not call external LLMs.
-- Demo company data is fictional and must not be presented as Tencent or any real company's HR data.
+- Demo company data is fictional and must not be presented as any real company's HR data.
 - Production reads, writes, RAG retrieval, tool calls, and audit events go through Go authorization and scope checks.
 - DeepSeek chat and OpenAI-compatible embeddings run behind the Python agent boundary; chat and embedding providers are configured independently, and provider keys do not belong in frontend code.
 - Visual Copilot is text/context only in the current DeepSeek boundary: DOM hints and verified business references can support explanations, but screenshots are not sent to DeepSeek and image understanding is out of scope.
