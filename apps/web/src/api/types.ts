@@ -227,6 +227,99 @@ export interface HRRecordInput {
   payload?: Record<string, unknown>;
 }
 
+export interface WorkflowAction {
+  action: string;
+  label: string;
+  nextStatus: string;
+  variant: "primary" | "default" | "danger" | string;
+  requiresComment: boolean;
+  enabled: boolean;
+  reason?: string;
+}
+
+export interface WorkflowEvent {
+  id: string;
+  resource: string;
+  recordId: string;
+  actorUserId?: string | null;
+  actorName: string;
+  action: string;
+  fromStatus: string;
+  toStatus: string;
+  comment: string;
+  createdAt: string;
+}
+
+export interface ApprovalTask {
+  id: string;
+  resource: string;
+  recordId: string;
+  recordType: string;
+  title: string;
+  status: string;
+  action: string;
+  assignedToUserId?: string | null;
+  assignedToName: string;
+  requestedByName: string;
+  scopeType: string;
+  scopeId?: string | null;
+  riskLevel: string;
+  comment: string;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HRWorkflow {
+  record: HRRecord;
+  actions: WorkflowAction[];
+  events: WorkflowEvent[];
+  approvalTasks: ApprovalTask[];
+}
+
+export interface WorkflowActionResult {
+  record: HRRecord;
+  workflow: HRWorkflow;
+  event?: WorkflowEvent;
+}
+
+export interface LeaveBalance {
+  employeeId: string;
+  employeeName: string;
+  leaveTypeId: string;
+  leaveTypeCode: string;
+  leaveTypeName: string;
+  periodStart: string;
+  periodEnd: string;
+  allocatedDays: number;
+  ledgerDeltaDays: number;
+  usedDays: number;
+  balanceDays: number;
+}
+
+export interface EmployeeCheckin {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  orgUnitName: string;
+  logType: "IN" | "OUT" | string;
+  logTime: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  source: string;
+  attendanceRecordId?: string | null;
+  createdAt: string;
+}
+
+export interface EmployeeCheckinInput {
+  employeeId: string;
+  logType: "IN" | "OUT";
+  logTime?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  source?: string;
+}
+
 export interface WorkbenchModuleSummary {
   module: string;
   label: string;

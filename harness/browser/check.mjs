@@ -16,7 +16,7 @@ const headless = process.env.AI_HRMS_BROWSER_HEADFUL !== "true";
 const pageChecks = [
   ["/app/dashboard", ["AI-HRMS", "人机共生"]],
   ["/app/org-people", ["组织与员工", "组织入口"]],
-  ["/app/employee-ops", ["员工事务", "Quick Links"]],
+  ["/app/employee-ops", ["员工事务", "个人考勤", "请求与审批"]],
   ["/app/recruitment-lifecycle", ["招聘与生命周期", "招聘公平性边界"]],
   ["/app/growth-performance", ["成长与绩效", "绩效只做证据化预览"]],
   ["/app/knowledge-agent", ["知识与 Agent", "AI 指挥中心"]],

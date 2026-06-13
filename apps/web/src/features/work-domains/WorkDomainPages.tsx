@@ -18,11 +18,13 @@ import {
   Table,
   Tabs,
   Tag,
+  Timeline,
   Typography,
   message,
 } from "antd";
 import {
   ApartmentOutlined,
+  ArrowRightOutlined,
   AuditOutlined,
   BankOutlined,
   BookOutlined,
@@ -31,8 +33,11 @@ import {
   DatabaseOutlined,
   DeleteOutlined,
   EditOutlined,
+  FileDoneOutlined,
   FileSearchOutlined,
   IdcardOutlined,
+  LoginOutlined,
+  LogoutOutlined,
   PlusOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
@@ -43,7 +48,7 @@ import {
 import { useEffect, useMemo, useState, type HTMLAttributes, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, getErrorMessage } from "../../api/client";
-import type { AIProviderStatus, AuditEvent, Employee, HRRecord, HRRecordInput, HRWorkItem, OrgUnit, WorkbenchOverview } from "../../api/types";
+import type { AIProviderStatus, AuditEvent, Employee, EmployeeCheckin, HRRecord, HRRecordInput, HRWorkflow, HRWorkItem, LeaveBalance, OrgUnit, WorkflowAction, WorkbenchOverview } from "../../api/types";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
 import { AttendancePage } from "../employees/AttendancePage";
@@ -313,6 +318,136 @@ function renderPayloadInput(field: PayloadField) {
   return <Input placeholder={field.placeholder} />;
 }
 
+function workflowActionButtonType(action: WorkflowAction): "primary" | "default" {
+  return action.variant === "primary" ? "primary" : "default";
+}
+
+function WorkflowActions({
+  workflow,
+  loading,
+  actionLoading,
+  onAction,
+}: {
+  workflow: HRWorkflow | null;
+  loading: boolean;
+  actionLoading: boolean;
+  onAction: (action: string, comment?: string) => Promise<void>;
+}) {
+  const [pendingAction, setPendingAction] = useState<WorkflowAction | null>(null);
+  const [comment, setComment] = useState("");
+  const actions = workflow?.actions ?? [];
+  const openTasks = workflow?.approvalTasks.filter((task) => task.status === "open") ?? [];
+  const events = workflow?.events ?? [];
+
+  const runAction = async (action: WorkflowAction) => {
+    if (action.requiresComment) {
+      setPendingAction(action);
+      setComment("");
+      return;
+    }
+    await onAction(action.action);
+  };
+
+  return (
+    <div className="workflow-action-panel" data-vc-kind="workflow-actions">
+      <div className="workflow-action-header">
+        <div>
+          <Typography.Text strong>下一步处理</Typography.Text>
+          <Typography.Paragraph type="secondary">
+            {actions.length ? "用审批动作推进状态，系统会写入 workflow event 和审计事件。" : "当前记录没有可执行动作。"}
+          </Typography.Paragraph>
+        </div>
+        {loading ? <Tag color="blue">加载中</Tag> : null}
+      </div>
+      <Space wrap>
+        {actions.map((action) => (
+          <Button
+            key={action.action}
+            type={workflowActionButtonType(action)}
+            danger={action.variant === "danger"}
+            disabled={!action.enabled}
+            loading={actionLoading}
+            title={action.reason}
+            onClick={() => void runAction(action)}
+            data-vc-action={`workflow.${workflow?.record.resource}.${action.action}`}
+          >
+            {action.label}
+          </Button>
+        ))}
+      </Space>
+      {openTasks.length ? (
+        <div className="workflow-task-strip">
+          {openTasks.map((task) => (
+            <Tag color={riskColor(task.riskLevel)} key={task.id}>待处理：{task.action}</Tag>
+          ))}
+        </div>
+      ) : null}
+      {events.length ? (
+        <Timeline
+          className="workflow-event-timeline"
+          items={events.slice(0, 4).map((event) => ({
+            color: event.toStatus === "approved" ? "green" : event.toStatus === "rejected" ? "red" : "blue",
+            content: (
+              <span>
+                <Typography.Text strong>{event.action}</Typography.Text>
+                <Typography.Text type="secondary"> {event.fromStatus}{" -> "}{event.toStatus} · {new Date(event.createdAt).toLocaleString()}</Typography.Text>
+                {event.comment ? <Typography.Paragraph className="workflow-event-comment">{event.comment}</Typography.Paragraph> : null}
+              </span>
+            ),
+          }))}
+        />
+      ) : null}
+      <Modal
+        title={pendingAction ? `${pendingAction.label}说明` : "处理说明"}
+        open={Boolean(pendingAction)}
+        onCancel={() => setPendingAction(null)}
+        onOk={() => {
+          if (!pendingAction) return;
+          void onAction(pendingAction.action, comment).then(() => setPendingAction(null));
+        }}
+        okButtonProps={{ danger: pendingAction?.variant === "danger", loading: actionLoading }}
+        okText="确认"
+        cancelText="取消"
+      >
+        <Input.TextArea
+          rows={4}
+          value={comment}
+          onChange={(event) => setComment(event.target.value)}
+          placeholder="填写驳回、取消或人工处理说明"
+        />
+      </Modal>
+    </div>
+  );
+}
+
+function HRRecordMobileCards({ records, onOpen }: { records: HRRecord[]; onOpen: (record: HRRecord) => void }) {
+  return (
+    <div className="hr-mobile-record-list" data-vc-kind="hr-mobile-record-list">
+      {records.map((record) => (
+        <button
+          key={record.id}
+          type="button"
+          className="hr-mobile-record-card"
+          onClick={() => onOpen(record)}
+          data-vc-kind="hr-mobile-record"
+          data-vc-object-type={record.recordType}
+          data-vc-object-id={record.id}
+          data-vc-label={record.title}
+        >
+          <span className="hr-mobile-card-title">{record.title}</span>
+          <span className="hr-mobile-card-meta">{record.employeeName || record.orgUnitName || "global"}</span>
+          <span className="hr-mobile-card-tags">
+            <Tag color={statusColor(record.status)}>{record.status}</Tag>
+            <Tag color={riskColor(record.riskLevel)}>{record.riskLevel}</Tag>
+            {record.humanReviewRequired ? <Tag color="red">human review</Tag> : null}
+          </span>
+          <Typography.Text type="secondary">{payloadPreview(record)}</Typography.Text>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function HRResourcePanel({ resource, description }: { resource: string; description: string }) {
   const [items, setItems] = useState<HRRecord[]>([]);
   const [total, setTotal] = useState(0);
@@ -320,6 +455,9 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<HRRecord | null>(null);
+  const [workflow, setWorkflow] = useState<HRWorkflow | null>(null);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [editing, setEditing] = useState<HRRecordEditor | null>(null);
   const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -343,6 +481,28 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
   };
 
   useEffect(() => { void reload(); }, [resource]);
+
+  useEffect(() => {
+    if (!selected) {
+      setWorkflow(null);
+      return;
+    }
+    let mounted = true;
+    setWorkflowLoading(true);
+    api.hrWorkflow(resource, selected.id)
+      .then((result) => {
+        if (!mounted) return;
+        setWorkflow(result);
+        setSelected(result.record);
+      })
+      .catch((err) => {
+        if (mounted) setError(getErrorMessage(err, "workflow 加载失败"));
+      })
+      .finally(() => {
+        if (mounted) setWorkflowLoading(false);
+      });
+    return () => { mounted = false; };
+  }, [resource, selected?.id]);
 
   useEffect(() => {
     if (!editing) {
@@ -395,27 +555,19 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
     }
   };
 
-  const updateStatus = async (record: HRRecord, status: string) => {
-    setSaving(true);
+  const applyWorkflowAction = async (record: HRRecord, action: string, comment?: string) => {
+    setActionLoading(true);
     setError("");
     try {
-      const saved = await api.updateHRRecord(resource, record.id, {
-        title: record.title,
-        employeeId: record.employeeId,
-        orgUnitId: record.orgUnitId,
-        scopeType: record.scopeType,
-        scopeId: record.scopeId,
-        riskLevel: record.riskLevel,
-        humanReviewRequired: record.humanReviewRequired,
-        status,
-        payload: record.payload,
-      });
-      setSelected(saved);
+      const result = await api.applyHRWorkflowAction(resource, record.id, { action, comment });
+      setSelected(result.record);
+      setWorkflow(result.workflow);
       await reload();
+      message.success("审批动作已记录");
     } catch (err) {
-      setError(getErrorMessage(err, "状态更新失败"));
+      setError(getErrorMessage(err, "审批动作失败"));
     } finally {
-      setSaving(false);
+      setActionLoading(false);
     }
   };
 
@@ -446,7 +598,9 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
         </Button>
       </div>
       <InlineError message={error} onRetry={reload} />
+      <HRRecordMobileCards records={items} onOpen={setSelected} />
       <Table
+        className="hr-desktop-record-table"
         rowKey="id"
         size="middle"
         loading={loading}
@@ -495,16 +649,16 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
               <Descriptions.Item label="风险"><Tag color={riskColor(selected.riskLevel)}>{selected.riskLevel}</Tag></Descriptions.Item>
               <Descriptions.Item label="Scope">{selected.scopeType}{selected.scopeId ? `/${selected.scopeId}` : ""}</Descriptions.Item>
             </Descriptions>
+            <WorkflowActions
+              workflow={workflow}
+              loading={workflowLoading}
+              actionLoading={actionLoading}
+              onAction={(action, comment) => applyWorkflowAction(selected, action, comment)}
+            />
             <pre className="json-preview">{JSON.stringify(selected.payload, null, 2)}</pre>
             <Space wrap>
               <Button icon={<EditOutlined />} onClick={() => openEditor(selected)} data-vc-action={`hr.${resource}.edit`}>
                 编辑
-              </Button>
-              <Button loading={saving} onClick={() => updateStatus(selected, selected.status === "approved" ? "submitted" : "approved")} data-vc-action={`hr.${resource}.approve`}>
-                标记审批
-              </Button>
-              <Button loading={saving} onClick={() => updateStatus(selected, "waiting_human_review")} data-vc-action={`hr.${resource}.human-review`}>
-                请求人工复核
               </Button>
               <Popconfirm
                 title="删除这条记录？"
@@ -721,7 +875,266 @@ export function OrgPeoplePage() {
   );
 }
 
+function employeeOpsTabForResource(resource: string) {
+  switch (resource) {
+    case "leave-applications":
+      return "leave";
+    case "attendance-requests":
+      return "attendance-requests";
+    case "shift-assignments":
+      return "shifts";
+    case "expense-claims":
+      return "expenses";
+    case "salary-slips":
+      return "salary";
+    default:
+      return "approvals";
+  }
+}
+
+function EmployeeSelfServicePanel({ onOpenTab }: { onOpenTab: (key: string) => void }) {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [balances, setBalances] = useState<LeaveBalance[]>([]);
+  const [checkins, setCheckins] = useState<EmployeeCheckin[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    api.employees(1, 50)
+      .then((page) => {
+        if (!mounted) return;
+        const rows = page.rows ?? [];
+        setEmployees(rows);
+        setSelectedEmployeeId((current) => current || rows.find((employee) => employee.id === "emp-003")?.id || rows[0]?.id || "");
+      })
+      .catch((err) => {
+        if (mounted) setError(getErrorMessage(err, "员工列表加载失败"));
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  const reloadSelf = async (employeeId = selectedEmployeeId) => {
+    if (!employeeId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const [balanceRows, checkinPage] = await Promise.all([
+        api.leaveBalances(employeeId),
+        api.employeeCheckins(1, 6, employeeId),
+      ]);
+      setBalances(balanceRows);
+      setCheckins(checkinPage.rows ?? []);
+    } catch (err) {
+      setError(getErrorMessage(err, "个人事务加载失败"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void reloadSelf(selectedEmployeeId); }, [selectedEmployeeId]);
+
+  const createCheckin = async (logType: "IN" | "OUT") => {
+    if (!selectedEmployeeId) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api.createEmployeeCheckin({ employeeId: selectedEmployeeId, logType, source: "web" });
+      await reloadSelf(selectedEmployeeId);
+      message.success(logType === "IN" ? "上班签到已记录" : "下班签退已记录");
+    } catch (err) {
+      setError(getErrorMessage(err, "打卡失败"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId);
+  const annualBalance = balances.find((balance) => balance.leaveTypeCode === "annual");
+  const latestCheckin = checkins[0];
+
+  return (
+    <section className="employee-self-service" data-vc-kind="employee-self-service">
+      <InlineError message={error} onRetry={() => reloadSelf()} />
+      <div className="employee-self-header">
+        <div>
+          <Typography.Title level={4}>个人考勤</Typography.Title>
+          <Typography.Text type="secondary">{selectedEmployee?.primaryAssignment?.orgUnitName || "选择员工后查看打卡、余额和请求入口。"}</Typography.Text>
+        </div>
+        <Select
+          className="employee-selector"
+          value={selectedEmployeeId || undefined}
+          onChange={setSelectedEmployeeId}
+          options={employees.map((employee) => ({ value: employee.id, label: `${employee.name} / ${employee.employeeNo}` }))}
+          loading={!employees.length}
+          placeholder="选择员工"
+        />
+      </div>
+      <div className="employee-action-grid">
+        <Card className="employee-action-card" loading={loading}>
+          <Space orientation="vertical" size="middle">
+            <Typography.Text strong>今日打卡</Typography.Text>
+            <Typography.Text type="secondary">{latestCheckin ? `${latestCheckin.logType} · ${new Date(latestCheckin.logTime).toLocaleString()}` : "今日暂无打卡日志"}</Typography.Text>
+            <Space wrap>
+              <Button type="primary" icon={<LoginOutlined />} loading={saving} onClick={() => void createCheckin("IN")}>上班签到</Button>
+              <Button icon={<LogoutOutlined />} loading={saving} onClick={() => void createCheckin("OUT")}>下班签退</Button>
+            </Space>
+          </Space>
+        </Card>
+        <Card className="employee-action-card" loading={loading}>
+          <Space orientation="vertical" size="middle">
+            <Typography.Text strong>快捷申请</Typography.Text>
+            <Typography.Text type="secondary">申请提交后进入请求与审批队列。</Typography.Text>
+            <Space wrap>
+              <Button icon={<PlusOutlined />} onClick={() => onOpenTab("leave")}>请假</Button>
+              <Button icon={<ClockCircleOutlined />} onClick={() => onOpenTab("attendance-requests")}>补卡/外勤</Button>
+              <Button icon={<FileDoneOutlined />} onClick={() => onOpenTab("expenses")}>报销</Button>
+            </Space>
+          </Space>
+        </Card>
+        <Card className="employee-action-card" loading={loading}>
+          <Statistic title="年假余额" value={annualBalance?.balanceDays ?? 0} suffix="天" />
+        </Card>
+        <Card className="employee-action-card" loading={loading}>
+          <Statistic title="最近日志" value={checkins.length} suffix="条" />
+        </Card>
+      </div>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={12}>
+          <div className="employee-ledger-panel">
+            <Typography.Title level={5}>假勤余额</Typography.Title>
+            <Table
+              className="hr-desktop-record-table"
+              rowKey={(record) => `${record.employeeId}-${record.leaveTypeCode}`}
+              size="small"
+              loading={loading}
+              pagination={false}
+              dataSource={balances}
+              columns={[
+                { title: "类型", dataIndex: "leaveTypeName" },
+                { title: "已分配", dataIndex: "allocatedDays", render: (value: number) => `${value} 天` },
+                { title: "已使用", dataIndex: "usedDays", render: (value: number) => `${value} 天` },
+                { title: "余额", dataIndex: "balanceDays", render: (value: number) => <Tag color={value <= 1 ? "red" : "green"}>{value} 天</Tag> },
+              ]}
+            />
+            <div className="hr-mobile-record-list">
+              {balances.map((balance) => (
+                <div className="hr-mobile-record-card" key={`${balance.employeeId}-${balance.leaveTypeCode}`}>
+                  <span className="hr-mobile-card-title">{balance.leaveTypeName}</span>
+                  <span className="hr-mobile-card-meta">已分配 {balance.allocatedDays} 天 · 已使用 {balance.usedDays} 天</span>
+                  <Tag color={balance.balanceDays <= 1 ? "red" : "green"}>{balance.balanceDays} 天</Tag>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Col>
+        <Col xs={24} lg={12}>
+          <div className="employee-ledger-panel">
+            <Typography.Title level={5}>原始打卡日志</Typography.Title>
+            <div className="employee-checkin-list">
+              {checkins.map((checkin) => (
+                <article className="employee-checkin-row" key={checkin.id}>
+                  <Tag color={checkin.logType === "IN" ? "blue" : "purple"}>{checkin.logType}</Tag>
+                  <span>{new Date(checkin.logTime).toLocaleString()}</span>
+                  <Typography.Text type="secondary">{checkin.source}</Typography.Text>
+                </article>
+              ))}
+              {!checkins.length ? <EmptyBlock description="暂无打卡日志" /> : null}
+            </div>
+          </div>
+        </Col>
+      </Row>
+    </section>
+  );
+}
+
+function RequestQueuePanel({ onOpenResource }: { onOpenResource: (resource: string) => void }) {
+  const [items, setItems] = useState<HRWorkItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selected, setSelected] = useState<HRWorkItem | null>(null);
+
+  const reload = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const page = await api.workbenchWorkItems(1, 30);
+      setItems((page.rows ?? []).filter((item) => item.module === "employee_ops"));
+    } catch (err) {
+      setError(getErrorMessage(err, "请求队列加载失败"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void reload(); }, []);
+
+  const teamApprovals = items.filter((item) => item.humanReviewRequired || ["submitted", "pending", "in_review"].includes(item.status));
+  const myRequests = items.filter((item) => item.employeeName);
+
+  return (
+    <section className="employee-request-queue" data-vc-kind="employee-request-queue">
+      <InlineError message={error} onRetry={reload} />
+      <div className="employee-action-grid">
+        <Card loading={loading}><Statistic title="我的请求" value={myRequests.length} /></Card>
+        <Card loading={loading}><Statistic title="团队待批" value={teamApprovals.length} /></Card>
+        <Card loading={loading}><Statistic title="高风险/人审" value={items.filter((item) => item.riskLevel === "high" || item.humanReviewRequired).length} /></Card>
+      </div>
+      <div className="request-card-list">
+        {items.map((item) => (
+          <article className="request-card" key={`${item.resource}-${item.id}`} data-vc-kind="request-card" data-vc-object-type={item.recordType} data-vc-object-id={item.id}>
+            <div>
+              <Typography.Text strong>{item.title}</Typography.Text>
+              <Typography.Paragraph type="secondary">{resourceLabels[item.resource] ?? item.resource} · {item.employeeName || item.orgUnitName || "global"}</Typography.Paragraph>
+            </div>
+            <Space wrap>
+              <Tag color={statusColor(item.status)}>{item.status}</Tag>
+              <Tag color={riskColor(item.riskLevel)}>{item.riskLevel}</Tag>
+              {item.humanReviewRequired ? <Tag color="red">human review</Tag> : null}
+            </Space>
+            <Space wrap>
+              <Button size="small" onClick={() => setSelected(item)}>摘要</Button>
+              <Button size="small" type="primary" icon={<ArrowRightOutlined />} onClick={() => onOpenResource(item.resource)}>处理</Button>
+            </Space>
+          </article>
+        ))}
+        {!items.length && !loading ? <EmptyBlock description="暂无员工事务请求" /> : null}
+      </div>
+      <Drawer
+        title={selected?.title}
+        open={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        width={520}
+      >
+        {selected ? (
+          <Space orientation="vertical" size="middle" className="drawer-stack">
+            <Descriptions column={1} bordered size="small">
+              <Descriptions.Item label="资源">{resourceLabels[selected.resource] ?? selected.resource}</Descriptions.Item>
+              <Descriptions.Item label="人员/组织">{selected.employeeName || selected.orgUnitName || "global"}</Descriptions.Item>
+              <Descriptions.Item label="状态"><Tag color={statusColor(selected.status)}>{selected.status}</Tag></Descriptions.Item>
+              <Descriptions.Item label="风险"><Tag color={riskColor(selected.riskLevel)}>{selected.riskLevel}</Tag></Descriptions.Item>
+              <Descriptions.Item label="建议动作">{selected.action}</Descriptions.Item>
+            </Descriptions>
+            <Alert showIcon type="info" title="处理入口" description="进入对应列表后，打开记录详情即可执行提交、复核、批准、驳回或取消动作。" />
+            <Button type="primary" icon={<ArrowRightOutlined />} onClick={() => {
+              onOpenResource(selected.resource);
+              setSelected(null);
+            }}>
+              打开{resourceLabels[selected.resource] ?? selected.resource}
+            </Button>
+          </Space>
+        ) : null}
+      </Drawer>
+    </section>
+  );
+}
+
 export function EmployeeOpsPage() {
+  const [activeTab, setActiveTab] = useState("self");
+  const openResource = (resource: string) => setActiveTab(employeeOpsTabForResource(resource));
+
   return (
     <DomainFrame
       title="员工事务"
@@ -731,21 +1144,20 @@ export function EmployeeOpsPage() {
     >
       <WorkbenchCueStrip
         items={[
-          { icon: <UserOutlined />, title: "My Requests", description: "请假、补卡、报销和工资单草稿先进入个人请求队列。", tag: "employee self-service" },
-          { icon: <TeamOutlined />, title: "Team Requests", description: "团队待审批事项按风险、状态和人工复核要求集中处理。", tag: "mentor / manager" },
-          { icon: <SafetyCertificateOutlined />, title: "Protected Payroll Preview", description: "薪资只展示受保护预览和审计线索，不自动发放或裁决。", tag: "high-risk guarded" },
+          { icon: <UserOutlined />, title: "个人打卡", description: "原始签到/签退日志沉淀到考勤汇总。", tag: "self-service" },
+          { icon: <TeamOutlined />, title: "请求与审批", description: "请假、补卡、报销和工资单草稿集中流转。", tag: "workflow" },
+          { icon: <SafetyCertificateOutlined />, title: "薪资保护", description: "工资单只读预览，敏感操作保留人工确认。", tag: "guarded" },
         ]}
       />
       <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
         items={[
-          { key: "quick", label: "Quick Links", children: <QuickLinkGrid items={[
-            { icon: <ClockCircleOutlined />, title: "考勤态势", description: "实时考勤、异常和 AI 分析预览。", path: "/app/attendance" },
-            { icon: <CheckCircleOutlined />, title: "My Requests", description: "请假、补卡、报销等个人请求。", path: "/app/employee-ops" },
-            { icon: <TeamOutlined />, title: "Team Requests", description: "团队待审批和人工复核队列。", path: "/app/dashboard" },
-          ]} /> },
-          { key: "attendance", label: "考勤态势", children: <AttendancePage /> },
+          { key: "self", label: "个人考勤", children: <EmployeeSelfServicePanel onOpenTab={setActiveTab} /> },
+          { key: "approvals", label: "请求与审批", children: <RequestQueuePanel onOpenResource={openResource} /> },
+          { key: "attendance", label: "HR 态势", children: <AttendancePage /> },
           { key: "leave", label: "请假", children: <HRResourcePanel resource="leave-applications" description="请假申请、额度消耗和审批状态。" /> },
-          { key: "requests", label: "补卡/外勤", children: <HRResourcePanel resource="attendance-requests" description="补卡、外勤和异常考勤解释上下文。" /> },
+          { key: "attendance-requests", label: "补卡/外勤", children: <HRResourcePanel resource="attendance-requests" description="补卡、外勤和异常考勤解释上下文。" /> },
           { key: "shifts", label: "排班", children: <HRResourcePanel resource="shift-assignments" description="班次、排班范围和员工事务关联上下文。" /> },
           { key: "expenses", label: "报销", children: <HRResourcePanel resource="expense-claims" description="报销申请、金额摘要和审批状态。" /> },
           { key: "salary", label: "工资单", children: <HRResourcePanel resource="salary-slips" description="工资单草稿、风险边界和人工复核状态。" /> },

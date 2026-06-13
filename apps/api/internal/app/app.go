@@ -66,10 +66,15 @@ func New(cfg config.Config, db *store.Store) http.Handler {
 	mux.Handle("PUT /api/attendance/{id}/checkout", server.authenticated(http.HandlerFunc(server.checkoutAttendance)))
 	mux.Handle("GET /api/workbench/overview", server.authenticated(http.HandlerFunc(server.workbenchOverview)))
 	mux.Handle("GET /api/workbench/work-items", server.authenticated(http.HandlerFunc(server.workbenchWorkItems)))
+	mux.Handle("GET /api/hr/leave-balances", server.authenticated(http.HandlerFunc(server.listLeaveBalances)))
+	mux.Handle("GET /api/hr/checkins", server.authenticated(http.HandlerFunc(server.listEmployeeCheckins)))
+	mux.Handle("POST /api/hr/checkins", server.authenticated(http.HandlerFunc(server.createEmployeeCheckin)))
 	for _, resource := range store.HRResourceNames() {
 		resource := resource
 		mux.Handle("GET /api/hr/"+resource, server.authenticated(server.listHRRecords(resource)))
 		mux.Handle("POST /api/hr/"+resource, server.authenticated(server.createHRRecord(resource)))
+		mux.Handle("GET /api/hr/"+resource+"/{id}/workflow", server.authenticated(server.getHRWorkflow(resource)))
+		mux.Handle("POST /api/hr/"+resource+"/{id}/workflow/actions", server.authenticated(server.applyHRWorkflowAction(resource)))
 		mux.Handle("PUT /api/hr/"+resource+"/{id}", server.authenticated(server.updateHRRecord(resource)))
 		mux.Handle("DELETE /api/hr/"+resource+"/{id}", server.authenticated(server.deleteHRRecord(resource)))
 	}

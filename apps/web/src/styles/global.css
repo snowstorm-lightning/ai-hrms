@@ -610,6 +610,164 @@ select {
   width: 100%;
 }
 
+.workflow-action-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.workflow-action-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.workflow-action-header .ant-typography {
+  margin-bottom: 0;
+}
+
+.workflow-task-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workflow-event-timeline {
+  margin-top: 6px;
+}
+
+.workflow-event-comment {
+  margin: 4px 0 0 !important;
+  color: #475569;
+}
+
+.hr-mobile-record-list {
+  display: none;
+  gap: 10px;
+}
+
+.hr-mobile-record-card {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+}
+
+button.hr-mobile-record-card {
+  cursor: pointer;
+}
+
+button.hr-mobile-record-card:hover,
+button.hr-mobile-record-card:focus-visible {
+  border-color: #1677ff;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
+  outline: none;
+}
+
+.hr-mobile-card-title {
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.hr-mobile-card-meta {
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+.hr-mobile-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.employee-self-service,
+.employee-request-queue {
+  display: grid;
+  gap: 16px;
+}
+
+.employee-self-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.employee-self-header h4 {
+  margin-top: 0 !important;
+  margin-bottom: 4px !important;
+}
+
+.employee-selector {
+  width: min(320px, 100%);
+}
+
+.employee-action-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.5fr) repeat(2, minmax(160px, 0.7fr));
+  gap: 12px;
+}
+
+.employee-action-card {
+  min-height: 142px;
+}
+
+.employee-ledger-panel {
+  min-height: 100%;
+  padding: 16px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.employee-ledger-panel h5 {
+  margin-top: 0 !important;
+}
+
+.employee-checkin-list {
+  display: grid;
+  gap: 8px;
+}
+
+.employee-checkin-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.request-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.request-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.request-card .ant-typography {
+  margin-bottom: 0;
+}
+
 .json-preview {
   max-height: 260px;
   overflow: auto;
@@ -2280,6 +2438,10 @@ select {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .employee-action-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .agent-hero {
     grid-template-columns: 1fr;
   }
@@ -2332,6 +2494,17 @@ select {
   .attendance-toolbar {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .employee-self-header,
+  .workflow-action-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .request-card {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
   }
 
   .action-result-guide {
@@ -2474,8 +2647,25 @@ select {
   .domain-quick-grid,
   .domain-cue-strip,
   .domain-lifecycle-strip,
+  .employee-action-grid,
   .reviewer-scenario-grid {
     grid-template-columns: 1fr;
+  }
+
+  .hr-desktop-record-table {
+    display: none;
+  }
+
+  .hr-mobile-record-list {
+    display: grid;
+  }
+
+  .employee-checkin-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .employee-checkin-row .ant-typography {
+    grid-column: 2;
   }
 
   .quick-link-card {

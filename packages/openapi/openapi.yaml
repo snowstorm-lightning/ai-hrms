@@ -672,6 +672,74 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /hr/leave-balances:
+    get:
+      tags: [HR]
+      operationId: listLeaveBalances
+      summary: List scoped leave balances
+      parameters:
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Leave balances aggregated from allocations and ledger entries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaveBalanceListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /hr/checkins:
+    get:
+      tags: [HR]
+      operationId: listEmployeeCheckins
+      summary: List raw employee check-in logs
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+        - name: employeeId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Paged raw employee check-ins.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeCheckinPageEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [HR]
+      operationId: createEmployeeCheckin
+      summary: Create a raw employee check-in log
+      description: Inserts an immutable check-in/check-out log and updates the daily attendance summary without making punitive or performance decisions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeCheckinInput"
+      responses:
+        "201":
+          description: Created check-in log.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeCheckinEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /hr/{resource}:
     get:
       tags: [HR]
@@ -765,6 +833,59 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /hr/{resource}/{id}/workflow:
+    get:
+      tags: [HR]
+      operationId: getHRWorkflow
+      summary: Get workflow state, available actions, tasks, and events for an HR record
+      parameters:
+        - $ref: "#/components/parameters/HRResource"
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Current workflow context.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HRWorkflowEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /hr/{resource}/{id}/workflow/actions:
+    post:
+      tags: [HR]
+      operationId: applyHRWorkflowAction
+      summary: Apply a governed workflow action to an HR record
+      description: Moves records through draft, submitted, in_review, approved, rejected, or cancelled states and records workflow plus audit evidence. High-impact actions require human confirmation.
+      parameters:
+        - $ref: "#/components/parameters/HRResource"
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowActionInput"
+      responses:
+        "200":
+          description: Workflow action result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowActionResultEnvelope"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -1551,6 +1672,53 @@ components:
             data:
               $ref: "#/components/schemas/HRWorkItemPage"
 
+    HRWorkflowEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/HRWorkflow"
+
+    WorkflowActionResultEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/WorkflowActionResult"
+
+    LeaveBalanceListEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/LeaveBalance"
+
+    EmployeeCheckinEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/EmployeeCheckin"
+
+    EmployeeCheckinPageEnvelope:
+      allOf:
+        - $ref: "#/components/schemas/ApiEnvelope"
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: "#/components/schemas/EmployeeCheckinPage"
+
     CommentListEnvelope:
       allOf:
         - $ref: "#/components/schemas/ApiEnvelope"
@@ -1645,6 +1813,228 @@ components:
               type: array
               items:
                 $ref: "#/components/schemas/HRRecord"
+
+    WorkflowAction:
+      type: object
+      required: [action, label, nextStatus, variant, requiresComment, enabled]
+      properties:
+        action:
+          type: string
+          enum: [submit, start_review, approve, reject, cancel]
+        label:
+          type: string
+        nextStatus:
+          type: string
+          enum: [submitted, in_review, approved, rejected, cancelled]
+        variant:
+          type: string
+          enum: [primary, default, danger]
+        requiresComment:
+          type: boolean
+        enabled:
+          type: boolean
+        reason:
+          type: string
+
+    WorkflowActionInput:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [submit, start_review, approve, reject, cancel]
+        comment:
+          type: string
+
+    WorkflowEvent:
+      type: object
+      required: [id, resource, recordId, actorName, action, fromStatus, toStatus, comment, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        resource:
+          $ref: "#/components/schemas/HRResource"
+        recordId:
+          type: string
+          format: uuid
+        actorUserId:
+          type: [string, "null"]
+          format: uuid
+        actorName:
+          type: string
+        action:
+          type: string
+        fromStatus:
+          type: string
+        toStatus:
+          type: string
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ApprovalTask:
+      type: object
+      required: [id, resource, recordId, recordType, title, status, action, assignedToName, requestedByName, scopeType, riskLevel, comment, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        resource:
+          $ref: "#/components/schemas/HRResource"
+        recordId:
+          type: string
+          format: uuid
+        recordType:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [open, approved, rejected, cancelled]
+        action:
+          type: string
+        assignedToUserId:
+          type: [string, "null"]
+          format: uuid
+        assignedToName:
+          type: string
+        requestedByName:
+          type: string
+        scopeType:
+          type: string
+          enum: [global, legal_entity, org_unit]
+        scopeId:
+          type: [string, "null"]
+          format: uuid
+        riskLevel:
+          type: string
+          enum: [low, medium, high]
+        comment:
+          type: string
+        completedAt:
+          type: [string, "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    HRWorkflow:
+      type: object
+      required: [record, actions, events, approvalTasks]
+      properties:
+        record:
+          $ref: "#/components/schemas/HRRecord"
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowAction"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowEvent"
+        approvalTasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApprovalTask"
+
+    WorkflowActionResult:
+      type: object
+      required: [record, workflow]
+      properties:
+        record:
+          $ref: "#/components/schemas/HRRecord"
+        workflow:
+          $ref: "#/components/schemas/HRWorkflow"
+        event:
+          $ref: "#/components/schemas/WorkflowEvent"
+
+    LeaveBalance:
+      type: object
+      required: [employeeId, employeeName, leaveTypeId, leaveTypeCode, leaveTypeName, periodStart, periodEnd, allocatedDays, ledgerDeltaDays, usedDays, balanceDays]
+      properties:
+        employeeId:
+          type: string
+          format: uuid
+        employeeName:
+          type: string
+        leaveTypeId:
+          type: string
+          format: uuid
+        leaveTypeCode:
+          type: string
+        leaveTypeName:
+          type: string
+        periodStart:
+          type: string
+          format: date
+        periodEnd:
+          type: string
+          format: date
+        allocatedDays:
+          type: number
+        ledgerDeltaDays:
+          type: number
+        usedDays:
+          type: number
+        balanceDays:
+          type: number
+
+    EmployeeCheckinInput:
+      type: object
+      required: [employeeId, logType]
+      properties:
+        employeeId:
+          type: string
+          format: uuid
+        logType:
+          type: string
+          enum: [IN, OUT]
+        logTime:
+          type: string
+          format: date-time
+        latitude:
+          type: [number, "null"]
+        longitude:
+          type: [number, "null"]
+        source:
+          type: string
+          default: web
+
+    EmployeeCheckin:
+      allOf:
+        - $ref: "#/components/schemas/EmployeeCheckinInput"
+        - type: object
+          required: [id, employeeName, orgUnitName, logTime, source, createdAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            employeeName:
+              type: string
+            orgUnitName:
+              type: string
+            attendanceRecordId:
+              type: [string, "null"]
+              format: uuid
+            createdAt:
+              type: string
+              format: date-time
+
+    EmployeeCheckinPage:
+      allOf:
+        - $ref: "#/components/schemas/Page"
+        - type: object
+          properties:
+            rows:
+              type: array
+              items:
+                $ref: "#/components/schemas/EmployeeCheckin"
 
     HRWorkItem:
       type: object

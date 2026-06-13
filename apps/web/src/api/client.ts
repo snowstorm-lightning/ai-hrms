@@ -9,13 +9,18 @@ import type {
   AttendanceAgentAnalysis,
   AttendanceOverview,
   AuditEvent,
+  ApprovalTask,
   Capability,
   CommentItem,
   ContextItem,
+  EmployeeCheckin,
+  EmployeeCheckinInput,
   Employee,
+  HRWorkflow,
   HRRecord,
   HRRecordInput,
   HRWorkItem,
+  LeaveBalance,
   LearningCourse,
   LearningEnrollment,
   LearningLesson,
@@ -34,6 +39,8 @@ import type {
   VisualContextRequest,
   VisualCopilotEvent,
   VisualCopilotResponse,
+  WorkflowEvent,
+  WorkflowActionResult,
   WorkbenchOverview,
 } from "./types";
 
@@ -67,6 +74,13 @@ const demoRoles: Role[] = [
 ];
 
 const demoCapabilities: Capability[] = [
+  { code: "employee.read", description: "Read scoped employee records" },
+  { code: "employee.write", description: "Manage scoped employee records" },
+  { code: "attendance.manage", description: "Manage attendance and correction requests" },
+  { code: "leave.approve", description: "Approve leave requests and write leave ledger entries" },
+  { code: "recruitment.manage", description: "Manage recruitment workflow actions" },
+  { code: "performance.review", description: "Review performance workflow actions" },
+  { code: "payroll.read_sensitive", description: "Read protected payroll previews" },
   { code: "rag.search", description: "Search scoped knowledge" },
   { code: "agent.execute_read", description: "Preview read-only agent runs" },
   { code: "agent.execute_write", description: "Execute approved agent actions" },
@@ -115,6 +129,12 @@ let demoAttendance: Attendance[] = [
   { id: "att-003", employeeId: "emp-005", employeeName: "顾明远", mobile: "13800000005", orgUnitName: "协同产品研发部", attendanceStatus: 4, attendanceInTime: "2026-05-29T08:55:00+08:00", attendanceOutTime: "2026-05-29T17:10:00+08:00", day: "2026-05-29", remarks: "提前离场参加客户复盘，待 HRBP 核对外勤记录" },
   { id: "att-004", employeeId: "emp-004", employeeName: "周雨桐", mobile: "13800000004", orgUnitName: "增长策略部", attendanceStatus: 8, attendanceInTime: null, attendanceOutTime: null, day: "2026-05-29", remarks: "事假已提交，待流程归档" },
   { id: "att-005", employeeId: "emp-006", employeeName: "沈知衡", mobile: "13800000006", orgUnitName: "风险策略部", attendanceStatus: 6, attendanceInTime: null, attendanceOutTime: null, day: "2026-05-29", remarks: "出差参加 AI 安全评审" },
+];
+
+let demoEmployeeCheckins: EmployeeCheckin[] = [
+  { id: "checkin-001", employeeId: "emp-003", employeeName: "林晨", orgUnitName: "AI 平台工程部", logType: "IN", logTime: "2026-05-29T09:02:00+08:00", source: "web", attendanceRecordId: "att-001", createdAt: "2026-05-29T09:02:00+08:00" },
+  { id: "checkin-002", employeeId: "emp-002", employeeName: "陈向南", orgUnitName: "企业服务交付与客户成功部", logType: "IN", logTime: "2026-05-29T09:18:00+08:00", source: "web", attendanceRecordId: "att-002", createdAt: "2026-05-29T09:18:00+08:00" },
+  { id: "checkin-003", employeeId: "emp-002", employeeName: "陈向南", orgUnitName: "企业服务交付与客户成功部", logType: "OUT", logTime: "2026-05-29T18:15:00+08:00", source: "web", attendanceRecordId: "att-002", createdAt: "2026-05-29T18:15:00+08:00" },
 ];
 
 function demoLatestAttendanceDay() {
@@ -963,6 +983,302 @@ function demoWorkbenchItems(page: number, size: number): Page<HRWorkItem> {
   return demoPaged(rows, page, size);
 }
 
+type DemoWorkflowTransition = {
+  action: string;
+  label: string;
+  fromStatuses: string[];
+  nextStatus: string;
+  variant: "primary" | "default" | "danger";
+  requiresComment?: boolean;
+};
+
+const demoWorkflowTransitions: DemoWorkflowTransition[] = [
+  { action: "submit", label: "提交", fromStatuses: ["draft"], nextStatus: "submitted", variant: "primary" },
+  { action: "start_review", label: "开始复核", fromStatuses: ["submitted", "pending", "waiting_human_review", "open", "scheduled", "planned", "active"], nextStatus: "in_review", variant: "default" },
+  { action: "approve", label: "批准", fromStatuses: ["submitted", "pending", "waiting_human_review", "open", "scheduled", "planned", "active", "in_review"], nextStatus: "approved", variant: "primary" },
+  { action: "reject", label: "驳回", fromStatuses: ["submitted", "pending", "waiting_human_review", "open", "scheduled", "planned", "active", "in_review"], nextStatus: "rejected", variant: "danger", requiresComment: true },
+  { action: "cancel", label: "取消已批准", fromStatuses: ["approved"], nextStatus: "cancelled", variant: "default", requiresComment: true },
+];
+
+let demoWorkflowEvents: Record<string, WorkflowEvent[]> = {};
+let demoApprovalTasks: Record<string, ApprovalTask[]> = {};
+
+function workflowKey(resource: string, id: string) {
+  return `${resource}:${id}`;
+}
+
+function demoFindHRRecord(resource: string, id: string) {
+  return (demoHRRecords[resource] ?? []).find((record) => record.id === id);
+}
+
+function demoWorkflowTransitionFor(action: string, status: string) {
+  return demoWorkflowTransitions.find((transition) => transition.action === action && transition.fromStatuses.includes(status));
+}
+
+function demoWorkflowActions(record: HRRecord) {
+  return demoWorkflowTransitions
+    .filter((transition) => transition.fromStatuses.includes(record.status))
+    .map((transition) => ({
+      action: transition.action,
+      label: transition.label,
+      nextStatus: transition.nextStatus,
+      variant: transition.variant,
+      requiresComment: Boolean(transition.requiresComment),
+      enabled: true,
+    }));
+}
+
+function demoEnsureApprovalTask(record: HRRecord, comment = "") {
+  const key = workflowKey(record.resource, record.id);
+  if (!record.humanReviewRequired && !["submitted", "pending", "waiting_human_review", "in_review"].includes(record.status)) {
+    return;
+  }
+  const tasks = demoApprovalTasks[key] ?? [];
+  const open = tasks.find((task) => task.status === "open");
+  if (open) {
+    demoApprovalTasks[key] = tasks.map((task) => task.id === open.id ? {
+      ...task,
+      title: record.title,
+      riskLevel: record.riskLevel,
+      comment: comment || task.comment,
+      updatedAt: new Date().toISOString(),
+    } : task);
+    return;
+  }
+  const now = new Date().toISOString();
+  demoApprovalTasks[key] = [{
+    id: `approval-${record.id}-${Date.now()}`,
+    resource: record.resource,
+    recordId: record.id,
+    recordType: record.recordType,
+    title: record.title,
+    status: "open",
+    action: "review",
+    assignedToUserId: null,
+    assignedToName: "",
+    requestedByName: demoUser.username,
+    scopeType: record.scopeType,
+    scopeId: record.scopeId,
+    riskLevel: record.riskLevel,
+    comment,
+    createdAt: now,
+    updatedAt: now,
+  }, ...tasks];
+}
+
+function demoCloseApprovalTasks(record: HRRecord, status: string, action: string, comment: string) {
+  const key = workflowKey(record.resource, record.id);
+  demoApprovalTasks[key] = (demoApprovalTasks[key] ?? []).map((task) => task.status === "open" ? {
+    ...task,
+    status,
+    action,
+    assignedToUserId: demoUser.id,
+    assignedToName: demoUser.username,
+    comment,
+    completedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  } : task);
+}
+
+function demoHRWorkflow(resource: string, id: string): HRWorkflow {
+  const record = demoFindHRRecord(resource, id);
+  if (!record) {
+    throw new Error("HR record not found");
+  }
+  demoEnsureApprovalTask(record);
+  const key = workflowKey(resource, id);
+  return {
+    record,
+    actions: demoWorkflowActions(record),
+    events: demoWorkflowEvents[key] ?? [],
+    approvalTasks: demoApprovalTasks[key] ?? [],
+  };
+}
+
+function demoApplyAttendanceWorkflow(record: HRRecord) {
+  const employee = demoEmployees.find((item) => item.id === record.employeeId);
+  if (!employee) return;
+  const requestType = String(record.payload.requestType ?? "correction");
+  const day = String(record.payload.fromDate ?? new Date().toISOString().slice(0, 10));
+  const existing = demoAttendance.find((item) => item.employeeId === employee.id && item.day === day);
+  const status = requestType === "field_work" ? 5 : requestType === "business_trip" ? 6 : 22;
+  const remarks = `${String(record.payload.reason ?? "员工申请")}；审批通过后写入考勤汇总，仅供人工复核`;
+  if (existing) {
+    demoAttendance = demoAttendance.map((item) => item.id === existing.id ? { ...item, attendanceStatus: status, remarks } : item);
+    return;
+  }
+  demoAttendance = [{
+    id: `att-${Date.now()}`,
+    employeeId: employee.id,
+    employeeName: employee.name,
+    mobile: employee.mobile,
+    orgUnitName: employee.primaryAssignment?.orgUnitName ?? "",
+    attendanceStatus: status,
+    attendanceInTime: null,
+    attendanceOutTime: null,
+    day,
+    remarks,
+  }, ...demoAttendance];
+}
+
+function demoApplyHRWorkflowAction(resource: string, id: string, values: { action: string; comment?: string }): WorkflowActionResult {
+  const record = demoFindHRRecord(resource, id);
+  if (!record) {
+    throw new Error("HR record not found");
+  }
+  const action = values.action.trim();
+  const comment = (values.comment ?? "").trim();
+  const transition = demoWorkflowTransitionFor(action, record.status);
+  if (!transition) {
+    throw new Error("当前状态不支持该审批动作");
+  }
+  if (transition.requiresComment && !comment) {
+    throw new Error("该动作需要填写处理说明");
+  }
+  const fromStatus = record.status;
+  const now = new Date().toISOString();
+  const nextHumanReview = ["approved", "rejected", "cancelled"].includes(transition.nextStatus)
+    ? false
+    : ["submitted", "in_review"].includes(transition.nextStatus)
+      ? true
+      : record.humanReviewRequired;
+  demoHRRecords[resource] = (demoHRRecords[resource] ?? []).map((item) => item.id === id ? {
+    ...item,
+    status: transition.nextStatus,
+    humanReviewRequired: nextHumanReview,
+    updatedAt: now,
+  } : item);
+  const updated = demoFindHRRecord(resource, id);
+  if (!updated) {
+    throw new Error("HR record not found");
+  }
+  const event: WorkflowEvent = {
+    id: `workflow-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    resource,
+    recordId: id,
+    actorUserId: demoUser.id,
+    actorName: demoUser.username,
+    action,
+    fromStatus,
+    toStatus: transition.nextStatus,
+    comment,
+    createdAt: now,
+  };
+  const key = workflowKey(resource, id);
+  demoWorkflowEvents[key] = [event, ...(demoWorkflowEvents[key] ?? [])];
+  if (["submitted", "in_review"].includes(transition.nextStatus)) {
+    demoEnsureApprovalTask(updated, comment);
+  }
+  if (["approved", "rejected", "cancelled"].includes(transition.nextStatus)) {
+    demoCloseApprovalTasks(updated, transition.nextStatus, action, comment);
+  }
+  if (resource === "attendance-requests" && transition.nextStatus === "approved") {
+    demoApplyAttendanceWorkflow(updated);
+  }
+  appendDemoAudit({
+    eventType: `hr.${resource}.workflow.${action}`,
+    objectType: updated.recordType,
+    objectId: updated.id,
+    riskLevel: updated.riskLevel,
+    oldValueSummary: { status: fromStatus },
+    newValueSummary: { status: updated.status, comment: comment || undefined },
+  });
+  return { record: updated, workflow: demoHRWorkflow(resource, id), event };
+}
+
+function demoLeaveBalances(employeeId?: string): LeaveBalance[] {
+  const employees = employeeId ? demoEmployees.filter((employee) => employee.id === employeeId) : demoEmployees.slice(0, 4);
+  return employees.flatMap((employee) => {
+    const leaveTypes = [
+      { leaveTypeId: "leave-type-annual", leaveTypeCode: "annual", leaveTypeName: "年假", allocatedDays: 12 },
+      { leaveTypeId: "leave-type-sick", leaveTypeCode: "sick", leaveTypeName: "病假", allocatedDays: 5 },
+      { leaveTypeId: "leave-type-compensatory", leaveTypeCode: "compensatory", leaveTypeName: "调休", allocatedDays: 2 },
+    ];
+    return leaveTypes.map((type) => {
+      const usedDays = (demoHRRecords["leave-applications"] ?? [])
+        .filter((record) => record.employeeId === employee.id && record.status === "approved" && String(record.payload.leaveType ?? "annual") === type.leaveTypeCode)
+        .reduce((sum, record) => sum + Number(record.payload.days ?? 0), 0);
+      return {
+        employeeId: employee.id,
+        employeeName: employee.name,
+        leaveTypeId: type.leaveTypeId,
+        leaveTypeCode: type.leaveTypeCode,
+        leaveTypeName: type.leaveTypeName,
+        periodStart: "2026-01-01",
+        periodEnd: "2026-12-31",
+        allocatedDays: type.allocatedDays,
+        ledgerDeltaDays: -usedDays,
+        usedDays,
+        balanceDays: type.allocatedDays - usedDays,
+      };
+    });
+  });
+}
+
+function demoListEmployeeCheckins(page: number, size: number, employeeId?: string): Page<EmployeeCheckin> {
+  const rows = demoEmployeeCheckins
+    .filter((item) => !employeeId || item.employeeId === employeeId)
+    .sort((left, right) => right.logTime.localeCompare(left.logTime));
+  return demoPaged(rows, page, size);
+}
+
+function demoCreateEmployeeCheckin(values: EmployeeCheckinInput): EmployeeCheckin {
+  const employee = demoEmployees.find((item) => item.id === values.employeeId);
+  if (!employee) {
+    throw new Error("员工不存在或不可见");
+  }
+  const logType = values.logType === "OUT" ? "OUT" : "IN";
+  const logTime = values.logTime ?? new Date().toISOString();
+  const day = logTime.slice(0, 10);
+  const existing = demoAttendance.find((item) => item.employeeId === employee.id && item.day === day);
+  let attendanceId = existing?.id;
+  if (existing) {
+    demoAttendance = demoAttendance.map((item) => item.id === existing.id ? {
+      ...item,
+      attendanceStatus: 1,
+      attendanceInTime: logType === "IN" ? (item.attendanceInTime ?? logTime) : item.attendanceInTime,
+      attendanceOutTime: logType === "OUT" ? logTime : item.attendanceOutTime,
+      remarks: "员工自助打卡",
+    } : item);
+  } else {
+    attendanceId = `att-${Date.now()}`;
+    demoAttendance = [{
+      id: attendanceId,
+      employeeId: employee.id,
+      employeeName: employee.name,
+      mobile: employee.mobile,
+      orgUnitName: employee.primaryAssignment?.orgUnitName ?? "",
+      attendanceStatus: 1,
+      attendanceInTime: logType === "IN" ? logTime : null,
+      attendanceOutTime: logType === "OUT" ? logTime : null,
+      day,
+      remarks: "员工自助打卡",
+    }, ...demoAttendance];
+  }
+  const checkin: EmployeeCheckin = {
+    id: `checkin-${Date.now()}`,
+    employeeId: employee.id,
+    employeeName: employee.name,
+    orgUnitName: employee.primaryAssignment?.orgUnitName ?? "",
+    logType,
+    logTime,
+    latitude: values.latitude ?? null,
+    longitude: values.longitude ?? null,
+    source: values.source ?? "web",
+    attendanceRecordId: attendanceId,
+    createdAt: new Date().toISOString(),
+  };
+  demoEmployeeCheckins = [checkin, ...demoEmployeeCheckins];
+  appendDemoAudit({
+    eventType: "hr.employee_checkin.created",
+    objectType: "Employee Checkin",
+    objectId: checkin.id,
+    riskLevel: "low",
+    newValueSummary: { employeeId: employee.id, logType },
+  });
+  return checkin;
+}
+
 function demoAssignments(id: string): NonNullable<Employee["assignments"]> {
   const employee = demoEmployees.find((item) => item.id === id);
   return employee?.assignments ?? (employee?.primaryAssignment ? [employee.primaryAssignment] : []);
@@ -1808,8 +2124,23 @@ export const api = {
   auditEvents: (page = 1, size = 10) => demoMode ? Promise.resolve(demoPaged(demoAuditEvents, page, size)) : request<Page<AuditEvent>>(`/audit/events?page=${page}&size=${size}`),
   workbenchOverview: () => demoMode ? Promise.resolve(demoWorkbenchOverview()) : request<WorkbenchOverview>("/workbench/overview"),
   workbenchWorkItems: (page = 1, size = 10) => demoMode ? Promise.resolve(demoWorkbenchItems(page, size)) : request<Page<HRWorkItem>>(`/workbench/work-items?page=${page}&size=${size}`),
+  leaveBalances: (employeeId?: string) => demoMode
+    ? Promise.resolve(demoLeaveBalances(employeeId))
+    : request<LeaveBalance[]>(`/hr/leave-balances${employeeId ? `?employeeId=${encodeURIComponent(employeeId)}` : ""}`),
+  employeeCheckins: (page = 1, size = 10, employeeId?: string) => demoMode
+    ? Promise.resolve(demoListEmployeeCheckins(page, size, employeeId))
+    : request<Page<EmployeeCheckin>>(`/hr/checkins?page=${page}&size=${size}${employeeId ? `&employeeId=${encodeURIComponent(employeeId)}` : ""}`),
+  createEmployeeCheckin: (values: EmployeeCheckinInput) => demoMode
+    ? Promise.resolve(demoCreateEmployeeCheckin(values))
+    : request<EmployeeCheckin>("/hr/checkins", { method: "POST", body: JSON.stringify(values) }),
   hrRecords: (resource: string, page = 1, size = 10) =>
     demoMode ? Promise.resolve(demoPaged(demoHRRecords[resource] ?? [], page, size)) : request<Page<HRRecord>>(`/hr/${resource}?page=${page}&size=${size}`),
+  hrWorkflow: (resource: string, id: string) => demoMode
+    ? Promise.resolve(demoHRWorkflow(resource, id))
+    : request<HRWorkflow>(`/hr/${resource}/${id}/workflow`),
+  applyHRWorkflowAction: (resource: string, id: string, values: { action: string; comment?: string }) => demoMode
+    ? Promise.resolve(demoApplyHRWorkflowAction(resource, id, values))
+    : request<WorkflowActionResult>(`/hr/${resource}/${id}/workflow/actions`, { method: "POST", body: JSON.stringify(values) }),
   createHRRecord: (resource: string, values: HRRecordInput) => {
     if (demoMode) {
       const meta = demoHRResourceMeta[resource];
@@ -1832,6 +2163,7 @@ export const api = {
         riskLevel: record.riskLevel,
         newValueSummary: { title: record.title, status: record.status, humanReviewRequired: record.humanReviewRequired },
       });
+      demoEnsureApprovalTask(record);
       return Promise.resolve(record);
     }
     return request<HRRecord>(`/hr/${resource}`, { method: "POST", body: JSON.stringify(values) });
