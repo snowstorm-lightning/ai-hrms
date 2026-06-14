@@ -24,10 +24,53 @@ function canUseForAI(document: RAGDocument) {
   return document.status === "published" && document.sensitivity !== "restricted";
 }
 
+function statusLabel(value: string) {
+  const labels: Record<string, string> = {
+    draft: "草稿",
+    published: "已发布",
+  };
+  return labels[value] ?? value;
+}
+
+function trustLabel(value: string) {
+  const labels: Record<string, string> = {
+    official: "官方",
+    reviewed: "已复核",
+    internal: "内部资料",
+  };
+  return labels[value] ?? value;
+}
+
+function sensitivityLabel(value: string) {
+  const labels: Record<string, string> = {
+    normal: "普通",
+    internal: "内部",
+    restricted: "受限",
+  };
+  return labels[value] ?? value;
+}
+
+function providerLabel(value: string | undefined) {
+  if (!value) return "未返回";
+  if (value === "fake") return "演示适配器";
+  if (value === "local-preview") return "本地预览";
+  if (value === "metadata-only") return "仅元数据";
+  return value;
+}
+
 function scopeText(document: RAGDocument) {
   const scopes = document.scopes ?? [];
-  if (!scopes.length) return "global";
-  return scopes.map((scope) => scope.roleCode ? `${scope.scopeType}:${scope.roleCode}` : scope.scopeType).join(", ");
+  if (!scopes.length) return "全局可见";
+  const labels: Record<string, string> = {
+    global: "全局",
+    legal_entity: "法人",
+    org_unit: "组织",
+    role: "角色",
+  };
+  return scopes.map((scope) => {
+    const label = labels[scope.scopeType] ?? scope.scopeType;
+    return scope.roleCode ? `${label}：${scope.roleCode}` : label;
+  }).join("、");
 }
 
 export function KnowledgePage() {
@@ -111,14 +154,14 @@ export function KnowledgePage() {
       {modalContextHolder}
       <PageTitle
         title="治理型知识库"
-        description="组织知识层不是普通文档表，而是 AI-HRMS 回答、计划、Agent run 和审计证据的受控来源。"
+        description="这里管理可被 AI 引用的资料：每份资料都有来源、可信等级、敏感级别、可见范围和审计记录。"
       />
       <InlineError message={error} onRetry={reload} />
       <TaskPath
         title="知识引用闭环"
         steps={[
           { title: "检索或选择资料", detail: "先定位候选资料和引用范围", status: result ? "done" : "current" },
-          { title: "检查治理状态", detail: "看 status、sensitivity、scope 是否允许引用", status: result ? "done" : "next" },
+          { title: "检查治理状态", detail: "看发布状态、敏感级别和可见范围是否允许引用", status: result ? "done" : "next" },
           { title: "生成候选引用", detail: "只把可用资料带入回答", status: result ? "current" : "next" },
           { title: "重建或复核", detail: "过期、受限、草稿资料先处理再使用", status: result?.refusalReason ? "blocked" : "next" },
         ]}
@@ -130,8 +173,8 @@ export function KnowledgePage() {
             <Alert
               showIcon
               type="info"
-              title="RAG Search：回答必须暴露资料治理状态和检索路径"
-              description="检索先按 status、trustLevel、sensitivity、scope 过滤，再用 PostgreSQL lexical + pgvector candidates 做 RRF 融合。reranker 暂不启用，保留为后续受控阶段。"
+              title="引用回答必须说明资料来源和治理状态"
+              description="系统会先检查发布状态、可信等级、敏感级别和可见范围，再从已治理资料中挑选候选引用；重排模型暂不启用，保留为后续受控阶段。"
             />
             <div className="knowledge-search-row">
               <Input data-vc-field="rag.query" aria-label="RAG search query" placeholder="输入要回答的问题或需要核验的政策点" value={query} onChange={(event) => setQuery(event.target.value)} onPressEnter={search} />
@@ -143,9 +186,9 @@ export function KnowledgePage() {
               <div className="result-panel">
                 <TrustMetaBar riskLevel={result.riskLevel ?? "unknown"} confidence={result.confidence === undefined ? 0 : Math.round(result.confidence * 100)} evidenceCount={result.citations.length} humanReviewRequired={result.humanReviewRequired ?? true} auditStatus={result.auditStatus ?? "metadata_missing"} />
                 <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }} className="knowledge-retrieval-meta">
-                  <Descriptions.Item label="retrieval">{result.provider ?? "not returned"}</Descriptions.Item>
-                  <Descriptions.Item label="model">{result.model ?? "not returned"}</Descriptions.Item>
-                  <Descriptions.Item label="top score">{result.citations[0]?.score ? result.citations[0].score.toFixed(2) : "not returned"}</Descriptions.Item>
+                  <Descriptions.Item label="检索来源">{providerLabel(result.provider)}</Descriptions.Item>
+                  <Descriptions.Item label="模型">{providerLabel(result.model)}</Descriptions.Item>
+                  <Descriptions.Item label="最高匹配分">{result.citations[0]?.score ? result.citations[0].score.toFixed(2) : "未返回"}</Descriptions.Item>
                 </Descriptions>
                 <Typography.Paragraph>{result.refusalReason ? "没有可引用资料，已拒绝回答。" : result.answer}</Typography.Paragraph>
                 <CitationList citations={result.citations} />
@@ -155,7 +198,7 @@ export function KnowledgePage() {
               <Alert
                 showIcon
                 type={rebuildJob.provider === "fake" ? "warning" : "success"}
-                title={`Rebuild ${rebuildJob.status} / ${rebuildJob.provider}`}
+                title={`重建${rebuildJob.status === "completed" ? "完成" : "已提交"} / ${providerLabel(rebuildJob.provider)}`}
                 description={rebuildJob.summary}
               />
             ) : null}
@@ -170,14 +213,14 @@ export function KnowledgePage() {
 
       <section className="section-card knowledge-pipeline" data-vc-kind="rag-pipeline">
         <Space wrap size="middle">
-          <Tag color="blue">chunkStrategy=heading_sentence_context_v2_qwen3_2048</Tag>
-          <Tag color="cyan">body=760 runes</Tag>
-          <Tag color="geekblue">overlap=120 runes</Tag>
-          <Tag color="purple">retrieval=hybrid RRF</Tag>
-          <Tag color="default">reranker=planned only</Tag>
+          <Tag color="blue">分块策略：标题 + 句子上下文</Tag>
+          <Tag color="cyan">正文窗口：760 字符</Tag>
+          <Tag color="geekblue">重叠窗口：120 字符</Tag>
+          <Tag color="purple">检索方式：关键词 + 向量融合</Tag>
+          <Tag color="default">重排模型：暂不启用</Tag>
         </Space>
         <Typography.Paragraph type="secondary">
-          Chunk 会保存正文、章节路径、上下文前缀和策略版本；模型或策略变化时使用“重建向量”刷新 chunks/embeddings。受限资料只做治理展示，不进入正式回答引用。
+          分块会保存正文、章节路径、上下文前缀和策略版本；模型或策略变化时使用“重建向量”刷新检索索引。受限资料只做治理展示，不进入正式回答引用。
         </Typography.Paragraph>
       </section>
 
@@ -193,14 +236,14 @@ export function KnowledgePage() {
           >
             <div className="knowledge-card-top">
               <span className="knowledge-card-icon"><DatabaseOutlined /></span>
-              <Tag color={document.status === "published" ? "green" : "default"}>{document.status}</Tag>
+              <Tag color={document.status === "published" ? "green" : "default"}>{statusLabel(document.status)}</Tag>
             </div>
             <Typography.Text strong>{document.title}</Typography.Text>
-            <Typography.Paragraph type="secondary">{document.content ?? "该资料只展示治理元数据；真实内容由 Go/RAG 层按 scope 返回。"}</Typography.Paragraph>
+            <Typography.Paragraph type="secondary">{document.content ?? "该资料只展示治理元数据；真实内容会按可见范围返回。"}</Typography.Paragraph>
             <Space wrap>
-              <Tag color={trustColor(document.trustLevel)}>trustLevel={document.trustLevel}</Tag>
-              <Tag color={sensitivityColor(document.sensitivity)}>sensitivity={document.sensitivity}</Tag>
-              <Tag>scope={scopeText(document)}</Tag>
+              <Tag color={trustColor(document.trustLevel)}>可信等级：{trustLabel(document.trustLevel)}</Tag>
+              <Tag color={sensitivityColor(document.sensitivity)}>敏感级别：{sensitivityLabel(document.sensitivity)}</Tag>
+              <Tag>可见范围：{scopeText(document)}</Tag>
             </Space>
             <Alert
               showIcon
@@ -215,7 +258,7 @@ export function KnowledgePage() {
                 onClick={() => {
                   if (!canUseForAI(document)) {
                     setResult({
-                      answer: `${document.title} 当前只能做治理预览，不能作为正式 AI 回答引用。请先处理 status/sensitivity/scope 并由人工复核。`,
+                      answer: `${document.title} 当前只能做治理预览，不能作为正式 AI 回答引用。请先处理发布状态、敏感级别和可见范围，并由人工复核。`,
                       citations: [],
                       refusalReason: "governance_preview_only",
                       provider: "local-preview",
@@ -228,7 +271,7 @@ export function KnowledgePage() {
                     return;
                   }
                   setResult({
-                    answer: `治理预览：${document.title} 可以作为候选引用。正式回答仍必须通过 /rag/search，按 scope、sensitivity 和检索分数确认。`,
+                    answer: `治理预览：${document.title} 可以作为候选引用。正式回答仍必须通过受控检索，按可见范围、敏感级别和检索分数确认。`,
                     citations: [{ documentId: document.id, chunkId: `${document.id}-preview`, title: document.title, snippet: document.content ?? "Demo citation preview", trustLevel: document.trustLevel, sensitivity: document.sensitivity, score: 0.72 }],
                     provider: "local-preview",
                     model: "metadata-only",
@@ -251,7 +294,7 @@ export function KnowledgePage() {
                 onClick={() => {
                   modal.confirm({
                     title: "重建该资料的 chunk 与 embedding？",
-                    content: "该操作会替换旧 chunk/embedding，并写入 ingest job 与审计事件。不会修改原文、scope 或发布时间。",
+                    content: "该操作会替换旧分块和向量索引，并写入导入任务与审计事件。不会修改原文、可见范围或发布时间。",
                     okText: "重建",
                     cancelText: "取消",
                     onOk: () => rebuildDocument(document),
@@ -282,10 +325,10 @@ export function KnowledgePage() {
         columns={[
           { title: "标题", dataIndex: "title", width: 260, ellipsis: true },
           { title: "来源", width: 220, ellipsis: true, render: (_, row) => sources.find((source) => source.id === row.sourceId)?.name ?? "未绑定" },
-          { title: "状态", dataIndex: "status", width: 120, render: (status) => <Tag color={status === "published" ? "green" : "default"}>{status}</Tag> },
-          { title: "可信等级", dataIndex: "trustLevel", width: 140, render: (value) => <Tag color={trustColor(value)}>{value}</Tag> },
-          { title: "敏感级别", dataIndex: "sensitivity", width: 140, render: (value) => <Tag color={sensitivityColor(value)}>{value}</Tag> },
-          { title: "AI 使用", width: 150, render: (_, row) => canUseForAI(row) ? <Tag color="green">allowed</Tag> : <Tag icon={<WarningOutlined />} color="orange">review first</Tag> },
+          { title: "状态", dataIndex: "status", width: 120, render: (status) => <Tag color={status === "published" ? "green" : "default"}>{statusLabel(status)}</Tag> },
+          { title: "可信等级", dataIndex: "trustLevel", width: 140, render: (value) => <Tag color={trustColor(value)}>{trustLabel(value)}</Tag> },
+          { title: "敏感级别", dataIndex: "sensitivity", width: 140, render: (value) => <Tag color={sensitivityColor(value)}>{sensitivityLabel(value)}</Tag> },
+          { title: "AI 使用", width: 150, render: (_, row) => canUseForAI(row) ? <Tag color="green">可引用</Tag> : <Tag icon={<WarningOutlined />} color="orange">先复核</Tag> },
         ]}
       />
 
@@ -315,14 +358,14 @@ export function KnowledgePage() {
           <Form.Item name="sourceId" label="来源"><Select allowClear options={sources.map((item) => ({ value: item.id, label: item.name }))} /></Form.Item>
           <Form.Item name="title" label="标题" rules={[{ required: true }]}><Input /></Form.Item>
           <Form.Item name="status" label="状态"><Select options={[{ value: "draft", label: "草稿" }, { value: "published", label: "发布" }]} /></Form.Item>
-          <Form.Item name="trustLevel" label="可信等级"><Select options={[{ value: "official", label: "official" }, { value: "reviewed", label: "reviewed" }, { value: "internal", label: "internal" }]} /></Form.Item>
-          <Form.Item name="sensitivity" label="敏感级别"><Select options={[{ value: "normal", label: "normal" }, { value: "internal", label: "internal" }, { value: "restricted", label: "restricted" }]} /></Form.Item>
+          <Form.Item name="trustLevel" label="可信等级"><Select options={[{ value: "official", label: "官方" }, { value: "reviewed", label: "已复核" }, { value: "internal", label: "内部资料" }]} /></Form.Item>
+          <Form.Item name="sensitivity" label="敏感级别"><Select options={[{ value: "normal", label: "普通" }, { value: "internal", label: "内部" }, { value: "restricted", label: "受限" }]} /></Form.Item>
           <Form.Item name="content" label="内容" rules={[{ required: true }]}><Input.TextArea rows={8} /></Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title="RAG Ingest Job"
+        title="资料导入与重建"
         open={ingestOpen}
         onCancel={() => setIngestOpen(false)}
         onOk={() => ingestForm.submit()}
@@ -333,14 +376,14 @@ export function KnowledgePage() {
           <Alert
             showIcon
             type="info"
-            title="真实模式会通过 Go 授权后调用 Python Agent Boundary"
-            description="Agent 负责生成 embedding，PostgreSQL/pgvector 存储向量，检索仍按 scope、sensitivity、status 过滤。"
+            title="真实模式会先经过 Go 授权，再调用受控向量生成流程"
+            description="系统负责生成向量并写入 PostgreSQL/pgvector；检索仍按可见范围、敏感级别和发布状态过滤。"
           />
           {ingestJob ? (
             <Alert
               showIcon
               type={ingestJob.status === "completed" ? "success" : "warning"}
-              title={`Job ${ingestJob.status} / ${ingestJob.provider}`}
+              title={`导入${ingestJob.status === "completed" ? "完成" : "已提交"} / ${providerLabel(ingestJob.provider)}`}
               description={ingestJob.summary || ingestJob.error || "已创建 ingest job。"}
             />
           ) : null}
@@ -355,7 +398,7 @@ export function KnowledgePage() {
                 const job = await api.createRAGIngestJob(values);
                 setIngestJob(job);
                 await reload();
-                message.success("Ingest job 已完成，资料进入可治理知识层。");
+                message.success("资料导入已完成，已进入可治理知识层。");
               } catch (err) {
                 setError(getErrorMessage(err, "Ingest job 创建失败"));
               } finally {
@@ -364,7 +407,7 @@ export function KnowledgePage() {
             }}
           >
             <Form.Item name="sourceId" label="来源"><Select allowClear options={sources.map((item) => ({ value: item.id, label: item.name }))} /></Form.Item>
-            <Form.Item name="jobType" label="Job 类型"><Select options={[{ value: "ingest", label: "ingest" }]} /></Form.Item>
+            <Form.Item name="jobType" label="任务类型"><Select options={[{ value: "ingest", label: "导入资料" }]} /></Form.Item>
             <Form.Item name="title" label="资料标题" rules={[{ required: true }]}><Input /></Form.Item>
             <Form.Item name="content" label="资料内容" rules={[{ required: true }]}><Input.TextArea rows={7} /></Form.Item>
           </Form>

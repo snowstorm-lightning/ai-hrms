@@ -13,16 +13,25 @@ function riskColor(risk: string) {
   return "blue";
 }
 
+function riskLabel(risk: string) {
+  const labels: Record<string, string> = {
+    high: "高风险",
+    medium: "中风险",
+    low: "低风险",
+  };
+  return labels[risk] ?? risk;
+}
+
 function eventLabel(eventType: string) {
   const type = eventType.toLowerCase();
-  if (type.includes("blocked")) return "High-risk blocked";
-  if (type.includes("citation")) return "Knowledge citation";
-  if (type.includes("visual_copilot")) return "Visual Copilot evidence";
-  if (type.includes("tool") || type.includes("preview")) return "Agent tool preview";
+  if (type.includes("blocked")) return "高风险阻断";
+  if (type.includes("citation")) return "知识引用";
+  if (type.includes("visual_copilot")) return "圈选助手证据";
+  if (type.includes("tool") || type.includes("preview")) return "工具调用预览";
   if (type.includes("human.review") || type.endsWith(".reviewed") || type.includes("review.requested")) return "人工复核";
-  if (type.includes("co_growth")) return "Co-Growth evidence";
-  if (type.includes("command")) return "AI suggestion";
-  return "Audit event";
+  if (type.includes("co_growth")) return "共生成长证据";
+  if (type.includes("command")) return "AI 建议";
+  return "审计事件";
 }
 
 function auditSummary(value: unknown) {
@@ -34,8 +43,8 @@ function auditSummary(value: unknown) {
     data.blockedReason ? `阻断原因：${String(data.blockedReason)}` : "",
     data.riskReason ? `风险原因：${String(data.riskReason)}` : "",
     typeof data.humanReviewRequired === "boolean" ? `人工确认：${data.humanReviewRequired ? "需要" : "不需要"}` : "",
-    data.provider ? `provider=${String(data.provider)}` : "",
-    Array.isArray(data.citations) && data.citations.length ? `引用=${data.citations.length}` : "",
+    data.provider ? `来源：${String(data.provider)}` : "",
+    Array.isArray(data.citations) && data.citations.length ? `引用：${data.citations.length}` : "",
     data.queryPreview ? `查询：${String(data.queryPreview)}` : "",
   ].filter(Boolean);
   if (parts.length) {
@@ -115,11 +124,11 @@ export function AuditPage() {
         <Col xs={24} lg={12}>
           <Card title="可解释摘要">
             <div className="audit-explain-grid">
-              <div><FileSearchOutlined /><span>Knowledge citation：回答使用了哪些资料、片段和范围。</span></div>
-              <div><AuditOutlined /><span>Agent tool preview：执行前展示工具、参数和风险。</span></div>
+              <div><FileSearchOutlined /><span>知识引用：回答使用了哪些资料、片段和范围。</span></div>
+              <div><AuditOutlined /><span>工具调用预览：执行前展示工具、参数和风险。</span></div>
               <div><SafetyCertificateOutlined /><span>人工复核：高风险建议等待人工确认。</span></div>
-              <div><CloseCircleOutlined /><span>Blocked event：系统明确阻断自动化人事裁决。</span></div>
-              <div><CheckCircleOutlined /><span>Reversible marker：低中风险动作保留回滚或补偿说明。</span></div>
+              <div><CloseCircleOutlined /><span>阻断事件：系统明确阻断自动化人事裁决。</span></div>
+              <div><CheckCircleOutlined /><span>可补偿标记：低中风险动作保留回滚或补偿说明。</span></div>
             </div>
           </Card>
         </Col>
@@ -130,7 +139,7 @@ export function AuditPage() {
           <Col xs={24} md={8} key={item.id}>
             <Card className="audit-risk-card" data-vc-kind="audit-risk-card" data-vc-object-type="audit_event" data-vc-object-id={item.id} data-vc-label={item.eventType}>
               <Space orientation="vertical">
-                <Tag color={riskColor(item.riskLevel)}>{item.riskLevel}</Tag>
+                <Tag color={riskColor(item.riskLevel)}>{riskLabel(item.riskLevel)}</Tag>
                 <Typography.Text strong>{eventLabel(item.eventType)}</Typography.Text>
                 <Typography.Text type="secondary">{item.eventType}</Typography.Text>
                 <Typography.Paragraph>{auditSummary(item.newValueSummary)}</Typography.Paragraph>
@@ -157,7 +166,7 @@ export function AuditPage() {
           { title: "事件类型", dataIndex: "eventType", width: 260, ellipsis: true },
           { title: "分类", width: 180, render: (_, row) => <Tag>{eventLabel(row.eventType)}</Tag> },
           { title: "对象", width: 240, render: (_, row) => <><Tag>{row.objectType}</Tag><Typography.Text className="audit-object-id">{row.objectId}</Typography.Text></> },
-          { title: "风险", dataIndex: "riskLevel", width: 100, render: (risk) => <Tag color={riskColor(risk)}>{risk}</Tag> },
+          { title: "风险", dataIndex: "riskLevel", width: 100, render: (risk) => <Tag color={riskColor(risk)}>{riskLabel(risk)}</Tag> },
           { title: "来源", dataIndex: "source", width: 120 },
           { title: "证据摘要", width: 300, render: (_, row) => <Typography.Text className="audit-summary-text" ellipsis>{auditSummary(row.newValueSummary)}</Typography.Text> },
           { title: "时间", dataIndex: "createdAt", width: 220 },
@@ -172,7 +181,7 @@ export function AuditPage() {
             <span className="hr-mobile-card-meta">{item.eventType}</span>
             <span className="hr-mobile-card-meta">{item.objectType}/{item.objectId}</span>
             <span className="hr-mobile-card-tags">
-              <Tag color={riskColor(item.riskLevel)}>{item.riskLevel}</Tag>
+              <Tag color={riskColor(item.riskLevel)}>{riskLabel(item.riskLevel)}</Tag>
               <Tag>{item.source}</Tag>
               <Tag>{new Date(item.createdAt).toLocaleString()}</Tag>
             </span>

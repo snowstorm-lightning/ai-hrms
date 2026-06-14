@@ -26,13 +26,51 @@ type CommandResult = {
 
 const promptLibrary = [
   { label: "解释制度并给引用", value: "解释新员工 7 天内必须完成哪些事项，并给出引用来源。", riskLevel: "low" },
-  { label: "生成新人 30 天成长计划", value: "为云衡互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。", riskLevel: "medium" },
+  { label: "生成新人 30 天成长计划", value: "为云衡互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习任务。", riskLevel: "medium" },
   { label: "检查高风险建议", value: "检查一条面试建议是否涉及隐私、公平性或自动化录用风险。", riskLevel: "high" },
   { label: "生成下周带教计划", value: "为 HR 和导师生成下周带教计划，并标注哪些步骤需要人工确认。", riskLevel: "medium" },
-  { label: "拆成 Agent workflow", value: "把新人学习推荐任务拆成 Agent workflow：检索、生成、检查、人工确认、审计。", riskLevel: "medium" },
-  { label: "预览学习推荐 Agent run", value: "预览一次学习推荐 Agent run，展示工具调用和审计状态。", riskLevel: "medium" },
+  { label: "拆成执行工作流", value: "把新人学习推荐任务拆成可审计工作流：检索、生成、检查、人工确认、审计。", riskLevel: "medium" },
+  { label: "预览学习推荐运行", value: "预览一次学习推荐运行，展示工具调用和审计状态。", riskLevel: "medium" },
   { label: "总结审计风险模式", value: "总结最近审计事件中的高风险模式，不输出任何人事裁决。", riskLevel: "high" },
 ];
+
+function riskLabel(risk: string) {
+  const labels: Record<string, string> = {
+    low: "低风险",
+    medium: "中风险",
+    high: "高风险",
+  };
+  return labels[risk] ?? risk;
+}
+
+function previewStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    previewed: "已预览",
+    blocked: "已阻断",
+  };
+  return labels[status] ?? status;
+}
+
+function toolNameLabel(tool: string) {
+  const labels: Record<string, string> = {
+    rag_search: "知识检索",
+    learning_recommend: "学习推荐",
+    people_decision_execute: "人事裁决写入",
+  };
+  return labels[tool] ?? tool;
+}
+
+function auditEventLabel(event: string) {
+  const labels: Record<string, string> = {
+    "ai.command.recommendation.preview": "AI 建议预览",
+    "rag.citation.used": "已记录引用",
+    "human.review.requested": "已请求人工复核",
+    "agent.run.previewed": "已生成运行预览",
+    "high_risk.action.blocked": "高风险动作已阻断",
+    "audit.event.ready": "审计记录已准备",
+  };
+  return labels[event] ?? event;
+}
 
 function buildResult(chat: AIChatResponse, run: AgentRun, fallbackRiskLevel: string): CommandResult {
   const riskLevel = maxRiskLevel(chat.riskLevel || "low", fallbackRiskLevel);
@@ -48,10 +86,10 @@ function buildResult(chat: AIChatResponse, run: AgentRun, fallbackRiskLevel: str
       ? ["生成风险说明", "请求 HR 人工确认", "查看引用和审计草案"]
       : riskLevel === "medium"
         ? ["生成执行计划预览", "请求导师/HR 复核", "把证据写入审计"]
-        : ["生成低风险解释", "保存为 Agent run", "写入检索日志"],
+        : ["生成低风险解释", "保存为运行预览", "写入检索日志"],
     toolPreview: [
       { tool: "rag_search", purpose: "检索已发布制度和治理资料", riskLevel: "low", status: "previewed" },
-      { tool: "learning_recommend", purpose: "生成学习 mission 草案", riskLevel: "medium", status: "previewed" },
+      { tool: "learning_recommend", purpose: "生成学习任务草案", riskLevel: "medium", status: "previewed" },
       { tool: "people_decision_execute", purpose: "自动做录用/淘汰/降薪判断", riskLevel: "high", status: "blocked" },
     ],
     auditPreview: [
@@ -68,7 +106,7 @@ function buildResult(chat: AIChatResponse, run: AgentRun, fallbackRiskLevel: str
 
 export function AiCommandCenterPage() {
   const navigate = useNavigate();
-  const [prompt, setPrompt] = useState("为云衡互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习 mission。");
+  const [prompt, setPrompt] = useState("为云衡互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习任务。");
   const [riskLevel, setRiskLevel] = useState("medium");
   const [result, setResult] = useState<CommandResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -90,7 +128,7 @@ export function AiCommandCenterPage() {
           provider: chat.provider ?? "go-api",
           model: chat.model ?? "program",
           riskLevel: effectiveRiskLevel,
-          summary: "Execution Router 判定该请求可由程序或检索完成，因此没有创建 Agent run。",
+          summary: "执行路由判定该请求可由程序或检索完成，因此没有创建新的智能体运行。",
           createdAt: new Date().toISOString(),
         };
       setResult(buildResult(chat, createdRun, riskLevel));
@@ -104,14 +142,14 @@ export function AiCommandCenterPage() {
   return (
     <div className="ai-command-page" data-vc-page="ai-command">
       <PageTitle
-        title="Agentic HR Command Center"
-        description="不是聊天框，而是 HR Agent 操作台：检索、解释、建议、生成计划、预览工具调用，并把人工确认写入审计。"
+        title="AI 指挥中心"
+        description="这是 HR 的任务操作台：检索、解释、生成计划、预览工具调用，并把人工确认写入审计。"
       />
       <InlineError message={error} />
       <TaskPath
         title="AI 指挥闭环"
         steps={[
-          { title: "选业务场景", detail: "用样例 prompt 或直接输入任务", status: result ? "done" : "current" },
+          { title: "选业务场景", detail: "用样例任务或直接输入需求", status: result ? "done" : "current" },
           { title: "生成治理型建议", detail: "得到计划、风险、引用和工具预览", status: result ? "done" : "next" },
           { title: "人工判断", detail: "高风险只进入确认，不自动执行", status: result?.humanReviewRequired ? "blocked" : result ? "current" : "next" },
           { title: "追踪证据", detail: "去 Agent 或审计页继续看链路", status: result ? "next" : "next" },
@@ -125,7 +163,7 @@ export function AiCommandCenterPage() {
               showIcon
               type="info"
               title="统一风险策略"
-              description="low=只读解释；medium=生成计划和工具预览，写操作前需要复核；high=阻断执行，等待明确人工确认。"
+              description="低风险只读解释；中风险生成计划和工具预览，写操作前需要复核；高风险阻断执行，等待明确人工确认。"
             />
             <div className="prompt-library" data-vc-kind="ai-command-prompt-library">
               {promptLibrary.map((item) => (
@@ -167,7 +205,7 @@ export function AiCommandCenterPage() {
           </Space>
         </Card>
 
-        <Card className="command-side-panel" title="Human-Agent Policy">
+        <Card className="command-side-panel" title="人机协作边界">
           <div className="command-policy-list">
             <div><RobotOutlined /><span>AI 负责检索、解释、建议和生成计划。</span></div>
             <div><SafetyCertificateOutlined /><span>高风险建议只生成预览，不自动执行。</span></div>
@@ -178,7 +216,7 @@ export function AiCommandCenterPage() {
       </section>
 
       {result ? (
-        <Card className="section-card structured-result" title="HR Scenario Workbench" data-vc-kind="ai-result">
+        <Card className="section-card structured-result" title="HR 场景工作台" data-vc-kind="ai-result">
           <TrustMetaBar
             riskLevel={result.riskLevel}
             confidence={result.confidence}
@@ -192,9 +230,9 @@ export function AiCommandCenterPage() {
           <ContextPacketPanel packet={result.contextPacket} />
           <ActionResultGuide
             title={result.humanReviewRequired ? "建议已停在人工确认前" : "建议已生成，可继续核验证据"}
-            description={result.humanReviewRequired ? "下一步不要把它当成已执行结果，先让 HR/导师查看证据和审计链。" : "低风险或中风险内容仍建议检查引用和工具预览，再决定是否沉淀为 Agent run。"}
+            description={result.humanReviewRequired ? "下一步不要把它当成已执行结果，先让 HR/导师查看证据和审计链。" : "低风险或中风险内容仍建议检查引用和工具预览，再决定是否沉淀为运行预览。"}
             actions={[
-              { label: "查看 Agent 运行", onClick: () => navigate("/app/agents"), type: "primary", icon: <RobotOutlined /> },
+              { label: "查看智能体运行", onClick: () => navigate("/app/agents"), type: "primary", icon: <RobotOutlined /> },
               { label: "查看审计记录", onClick: () => navigate("/app/audit"), icon: <AuditOutlined /> },
             ]}
           />
@@ -202,21 +240,21 @@ export function AiCommandCenterPage() {
           <HumanReviewBanner riskLevel={result.riskLevel} humanReviewRequired={result.humanReviewRequired} />
           <div className="result-section-grid">
             <article>
-              <Typography.Title level={4}>Scenario</Typography.Title>
+              <Typography.Title level={4}>业务场景</Typography.Title>
               <Space wrap>
-                <Tag>object=employee:林晨 / 平台研发新人</Tag>
-                <Tag>policy=onboarding / AI safety</Tag>
-                <Tag>mode=preview</Tag>
+                <Tag>对象：林晨 / 平台研发新人</Tag>
+                <Tag>制度：入职 / AI 安全</Tag>
+                <Tag>模式：预览</Tag>
               </Space>
-              <Typography.Title level={4}>Proposed Plan</Typography.Title>
+              <Typography.Title level={4}>建议草案</Typography.Title>
               <Typography.Paragraph>{result.answer}</Typography.Paragraph>
             </article>
             <article>
-              <Typography.Title level={4}>Human Decision Gate</Typography.Title>
+              <Typography.Title level={4}>人工判断点</Typography.Title>
               <Typography.Paragraph type="secondary">
                 这一步不是让 AI 做最终裁决，而是把计划、证据、工具预览和审计草案交给 HR/导师确认。
               </Typography.Paragraph>
-              <Typography.Title level={4}>Suggested Actions</Typography.Title>
+              <Typography.Title level={4}>建议下一步</Typography.Title>
               <Space wrap>
                 {result.suggestedActions.map((action) => (
                   <Button
@@ -230,27 +268,27 @@ export function AiCommandCenterPage() {
             </article>
           </div>
           <Divider />
-          <Typography.Title level={4}>Evidence / Citation</Typography.Title>
+          <Typography.Title level={4}>证据与引用</Typography.Title>
           <CitationList citations={result.citations} />
           <Divider />
-          <Typography.Title level={4}>Tool Preview</Typography.Title>
+          <Typography.Title level={4}>工具调用预览</Typography.Title>
           <div className="tool-preview-grid">
             {result.toolPreview.map((tool) => (
               <div className={tool.status === "blocked" ? "tool-preview-card blocked" : "tool-preview-card"} key={tool.tool}>
-                <Typography.Text strong>{tool.tool}</Typography.Text>
+                <Typography.Text strong>{toolNameLabel(tool.tool)}</Typography.Text>
                 <Typography.Text type="secondary">{tool.purpose}</Typography.Text>
                 <Space wrap>
-                  <Tag color={tool.riskLevel === "high" ? "red" : tool.riskLevel === "medium" ? "orange" : "blue"}>{tool.riskLevel}</Tag>
-                  <Tag>{tool.status}</Tag>
+                  <Tag color={tool.riskLevel === "high" ? "red" : tool.riskLevel === "medium" ? "orange" : "blue"}>{riskLabel(tool.riskLevel)}</Tag>
+                  <Tag>{previewStatusLabel(tool.status)}</Tag>
                 </Space>
               </div>
             ))}
           </div>
           <Divider />
-          <Typography.Title level={4}>Audit Preview</Typography.Title>
+          <Typography.Title level={4}>审计预览</Typography.Title>
           <Col span={24}>
             <Space wrap>
-              {result.auditPreview.map((event) => <Tag key={event}>{event}</Tag>)}
+              {result.auditPreview.map((event) => <Tag key={event}>{auditEventLabel(event)}</Tag>)}
             </Space>
           </Col>
         </Card>
