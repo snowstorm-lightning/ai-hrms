@@ -80,8 +80,10 @@ export function MessagesPage() {
             <span className="hr-mobile-card-tags">
               <Tag>{row.category}</Tag>
             </span>
-            <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(row.content) }} />
-            <Button size="small" type="primary" data-vc-action="message.comments.open" onClick={() => openComments(row)}>查看评论</Button>
+            <div className="message-mobile-content" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(row.content) }} />
+            <div className="message-mobile-actions">
+              <Button size="small" type="primary" data-vc-action="message.comments.open" onClick={() => openComments(row)}>查看评论</Button>
+            </div>
           </article>
         ))}
         {total > 10 ? (
@@ -131,7 +133,7 @@ export function MessagesPage() {
             try {
               await api.createMessage(values);
               closePostEditor();
-              await reload();
+              await reload(1);
             } catch (err) {
               setError(getErrorMessage(err, "消息保存失败"));
             } finally {
@@ -157,6 +159,7 @@ export function MessagesPage() {
           )) : null}
         </div>
         <Form
+          className="comment-form"
           form={commentForm}
           layout="inline"
           onFinish={async (values) => {

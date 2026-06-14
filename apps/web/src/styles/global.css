@@ -2604,6 +2604,26 @@ button.hr-mobile-record-card:focus-visible {
   gap: 4px;
 }
 
+.message-mobile-content {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: #475569;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.message-mobile-content p {
+  display: inline;
+  margin: 0;
+}
+
+.message-mobile-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .comment-row {
   padding: 10px 0;
   border-bottom: 1px solid #f0f2f5;
@@ -2866,6 +2886,19 @@ button.hr-mobile-record-card:focus-visible {
   .ant-modal-root .ant-modal-footer .ant-btn {
     flex: 1 1 0;
     min-width: 0;
+  }
+
+  .comment-form {
+    display: grid !important;
+    gap: 8px;
+  }
+
+  .comment-form .ant-form-item {
+    margin-right: 0 !important;
+  }
+
+  .comment-form .ant-btn {
+    width: 100%;
   }
 
   .global-search {
