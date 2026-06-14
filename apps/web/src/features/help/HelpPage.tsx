@@ -27,7 +27,7 @@ const roleGuides = [
   { icon: <TeamOutlined />, role: "HR", copy: "用组织数据、知识引用和审计事件生成可复核的人力资源建议。" },
   { icon: <BookOutlined />, role: "员工", copy: "在共生成长页完成 AI 素养任务、工作复盘和成长证据沉淀。" },
   { icon: <CheckCircleOutlined />, role: "导师", copy: "处理复盘反馈、学习建议确认和高风险人工复核。" },
-  { icon: <SafetyCertificateOutlined />, role: "管理者", copy: "看组织能力、智能体运行、风险模式和治理状态。" },
+  { icon: <SafetyCertificateOutlined />, role: "管理者", copy: "看组织能力、智能任务运行、风险模式和治理状态。" },
 ];
 
 export function HelpPage() {

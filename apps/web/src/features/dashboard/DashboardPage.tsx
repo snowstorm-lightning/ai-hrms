@@ -139,7 +139,7 @@ export function DashboardPage() {
     { title: "Agent task audit trail", path: "/app/agents", tag: "Audit", text: "Preview action drafts, request human confirmation, and trace audit status." },
   ] : [
     { title: "新人 30 天成长计划", path: "/app/ai-command", tag: "AI 指挥", text: "生成带资料引用、风险说明和人工复核点的治理型建议。" },
-    { title: "考勤异常复核", path: "/app/attendance", tag: "智能体预览", text: "下钻考勤信号，运行只读分析，不做人事裁决。" },
+    { title: "考勤异常复核", path: "/app/attendance", tag: "智能任务预览", text: "下钻考勤信号，运行只读分析，不做人事裁决。" },
     { title: "资料引用问答", path: "/app/docs", tag: "知识治理", text: "查看可见范围、可信等级、敏感级别和资料详情。" },
     { title: "智能任务运行审计", path: "/app/agents", tag: "审计闭环", text: "查看动作草稿、确认要求，并追踪审计状态。" },
   ], [language]);
@@ -199,7 +199,7 @@ export function DashboardPage() {
     hr: ["查看组织趋势和高风险待确认事项", "用证据支持制度解释与学习计划", "把 AI 建议写入审计而不是直接执行"],
     employee: ["获得与模拟工作绑定的学习任务", "记录提问、AI 输出、人工修改和验证", "把成长证据沉淀到个人档案"],
     mentor: ["复核员工复盘和高风险学习建议", "给出人工确认与纠偏意见", "把带教动作纳入证据链"],
-    manager: ["查看团队能力趋势而不是个人排名", "理解智能体运行的范围和风险", "确认 AI 协作过程是否可复用为工作流"],
+    manager: ["查看团队能力趋势而不是个人排名", "理解智能任务运行的范围和风险", "确认 AI 协作过程是否可复用为工作流"],
   }), [language]);
 
   const personaOptions = language === "en-US"

@@ -60,8 +60,8 @@ function providerLabel(value: string | undefined) {
 
 function humanizeDocumentText(value: string) {
   return value
-    .replaceAll("Agent Run", "智能体运行")
-    .replaceAll("Agent run", "智能体运行")
+    .replaceAll("Agent Run", "智能任务运行")
+    .replaceAll("Agent run", "智能任务运行")
     .replaceAll("toolPreview", "动作草稿")
     .replaceAll("riskLevel", "风险等级")
     .replaceAll("requiredCapability", "所需权限")

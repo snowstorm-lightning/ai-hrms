@@ -1644,7 +1644,7 @@ export function GrowthPerformancePage() {
 
 export function KnowledgeAgentPage() {
   return (
-    <DomainFrame title="知识与智能体" description="AI 指挥、知识治理、文档库、智能体运行和圈选助手统一作为知识与动作草稿大页。">
+    <DomainFrame title="知识与智能任务" description="AI 指挥、知识治理、文档库、智能任务运行和圈选助手统一作为知识与动作草稿大页。">
       <QuickLinkGrid items={[
         { icon: <RobotOutlined />, title: "AI 指挥中心", description: "组织查询、知识引用和智能任务预览入口。", path: "/app/ai-command" },
         { icon: <DatabaseOutlined />, title: "知识治理", description: "资料来源、可信等级和敏感范围。", path: "/app/knowledge" },

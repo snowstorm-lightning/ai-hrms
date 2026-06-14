@@ -139,7 +139,7 @@ export function AiCommandCenterPage() {
           provider: chat.provider ?? "go-api",
           model: chat.model ?? "program",
           riskLevel: effectiveRiskLevel,
-          summary: "执行路由判定该请求可由程序或检索完成，因此没有创建新的智能体运行。",
+          summary: "执行路由判定该请求可由程序或检索完成，因此没有创建新的智能任务运行。",
           createdAt: new Date().toISOString(),
         };
       setResult(buildResult(chat, createdRun, riskLevel));

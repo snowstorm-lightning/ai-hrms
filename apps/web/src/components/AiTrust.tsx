@@ -71,7 +71,7 @@ function sourceLabel(value: string) {
     page_route: "当前页面",
     rag_document: "知识资料",
     audit_event: "审计事件",
-    agent_run: "智能体运行",
+    agent_run: "智能任务运行",
     hr_record: "HR 记录",
     program: "系统规则",
     routing: "系统路由",

@@ -170,7 +170,7 @@ export function AgentRunsPage() {
           <Alert
             showIcon
             type="info"
-            title="智能体运行默认先进入预览"
+            title="智能任务运行默认先进入预览"
             description="读操作可预览；写操作和高风险人事影响必须先查看确认要求，再由 HR 在审批上下文中提交确认。"
           />
           <Form

@@ -1563,7 +1563,7 @@ function routePageLabel(route: string) {
   if (route.includes("docs")) return "文档库";
   if (route.includes("audit")) return "信任与审计";
   if (route.includes("settings")) return "设置";
-  if (route.includes("agents")) return "智能任务运行控制";
+  if (route.includes("agents")) return "智能任务运行中心";
   if (route.includes("learning")) return "学习层";
   if (route.includes("co-growth")) return "Co-Growth Engine";
   if (route.includes("ai-command")) return "AI 指挥中心";
@@ -1834,7 +1834,7 @@ function businessRefTypeLabel(type: string) {
     case "rag_document":
       return "份知识资料";
     case "agent_run":
-      return "条智能体运行";
+      return "条智能任务运行";
     case "audit_event":
       return "条审计事件";
     case "learning":
