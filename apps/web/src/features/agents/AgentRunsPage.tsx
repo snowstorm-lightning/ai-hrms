@@ -1,6 +1,6 @@
 import { ApiOutlined, AuditOutlined, CheckCircleOutlined, ClockCircleOutlined, RobotOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, Form, Input, Select, Space, Table, Tag, Timeline, Typography, message } from "antd";
-import { useEffect, useMemo, useState, type HTMLAttributes } from "react";
+import { useEffect, useMemo, useRef, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
 import type { AgentRun, AgentToolPreviewResponse, AgentWorkflowDemoResult } from "../../api/types";
 import { ExecutionDecisionPanel, HumanReviewBanner, TrustMetaBar, TrustPacketBar } from "../../components/AiTrust";
@@ -112,10 +112,20 @@ export function AgentRunsPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<AgentToolPreviewResponse | null>(null);
+  const [previewTitle, setPreviewTitle] = useState("");
   const [workflowPreview, setWorkflowPreview] = useState<{ runId: string; result: AgentWorkflowDemoResult } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [form] = Form.useForm();
   const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
+  const previewRef = useRef<HTMLDivElement | null>(null);
+
+  const showPreview = (title: string, nextPreview: AgentToolPreviewResponse) => {
+    setPreviewTitle(title);
+    setPreview(nextPreview);
+    window.requestAnimationFrame(() => {
+      previewRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -212,7 +222,8 @@ export function AgentRunsPage() {
       </section>
 
       {preview ? (
-        <Card className="section-card" title="动作草稿结果">
+        <Card className="section-card result-panel-highlight" title="动作草稿结果" ref={previewRef}>
+          <Typography.Text strong>{previewTitle || "动作草稿结果"}</Typography.Text>
           <Alert
             showIcon
             type={preview.accepted ? "success" : "warning"}
@@ -272,7 +283,7 @@ export function AgentRunsPage() {
                   setActionLoading(`${run.id}:tool`);
                   setError("");
                   try {
-                    setPreview(await api.previewAgentTool({ runId: run.id, toolName: run.riskLevel === "high" ? "people_decision_execute" : "learning_recommend", arguments: { runType: run.runType } }));
+                    showPreview(`当前任务：${runTypeLabel(run.runType)} / ${riskLabel(run.riskLevel)}`, await api.previewAgentTool({ runId: run.id, toolName: run.riskLevel === "high" ? "people_decision_execute" : "learning_recommend", arguments: { runType: run.runType } }));
                   } catch (err) {
                     setError(getErrorMessage(err, "动作草稿生成失败"));
                   } finally {
