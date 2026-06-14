@@ -199,6 +199,27 @@ function riskLabel(risk: string) {
   return risk;
 }
 
+function providerLabel(provider: string | undefined) {
+  if (!provider) return "未返回";
+  if (provider === "fake") return "演示适配器";
+  if (provider === "boundary") return "边界模式";
+  if (provider === "deepseek") return "DeepSeek";
+  if (provider === "qwen3") return "Qwen3";
+  return provider;
+}
+
+function workActionLabel(action: string) {
+  const labels: Record<string, string> = {
+    human_review: "人工复核",
+    approve: "审批通过",
+    reject: "退回",
+    review: "复核",
+    audit: "审计",
+    submit: "提交",
+  };
+  return labels[action] ?? action;
+}
+
 function statusColor(status: string) {
   if (["approved", "completed", "closed"].includes(status)) return "green";
   if (["draft", "planned", "scheduled"].includes(status)) return "blue";
@@ -918,7 +939,7 @@ function DomainFrame({ title, description, module, children, alert }: { title: s
           <Space size={8} wrap>
             {demoMode ? <Tag color="blue">演示环境</Tag> : null}
             <Tag color={providerStatus?.chatProvider === "deepseek" ? "geekblue" : "default"}>
-              AI {providerStatus?.chatProvider ?? "boundary"} / RAG {providerStatus?.embeddingProvider ?? "unknown"}
+              AI {providerLabel(providerStatus?.chatProvider ?? "boundary")} / RAG {providerLabel(providerStatus?.embeddingProvider)}
             </Tag>
           </Space>
         )}
@@ -1182,7 +1203,7 @@ function RequestQueuePanel({ onOpenResource }: { onOpenResource: (resource: stri
               <Descriptions.Item label="人员/组织">{selected.employeeName || selected.orgUnitName || "global"}</Descriptions.Item>
               <Descriptions.Item label="状态"><Tag color={statusColor(selected.status)}>{statusLabel(selected.status)}</Tag></Descriptions.Item>
               <Descriptions.Item label="风险"><Tag color={riskColor(selected.riskLevel)}>{riskLabel(selected.riskLevel)}</Tag></Descriptions.Item>
-              <Descriptions.Item label="建议动作">{selected.action}</Descriptions.Item>
+              <Descriptions.Item label="建议动作">{workActionLabel(selected.action)}</Descriptions.Item>
             </Descriptions>
             <Alert showIcon type="info" title="处理入口" description="进入对应列表后，打开记录详情即可执行提交、复核、批准、驳回或取消动作。" />
             <Button type="primary" icon={<ArrowRightOutlined />} onClick={() => {
@@ -1509,7 +1530,7 @@ export function TrustAuditPage() {
                 { title: "事项", dataIndex: "title" },
                 { title: "模块", dataIndex: "module", render: (module: string) => moduleLabels[module] ?? module },
                 { title: "风险", dataIndex: "riskLevel", render: (risk: string) => <Tag color={riskColor(risk)}>{riskLabel(risk)}</Tag> },
-                { title: "动作", dataIndex: "action" },
+                { title: "动作", dataIndex: "action", render: (action: string) => workActionLabel(action) },
               ]}
             />
             <div className="hr-mobile-record-list">
@@ -1524,7 +1545,7 @@ export function TrustAuditPage() {
                     <Tag color={riskColor(item.riskLevel)}>{riskLabel(item.riskLevel)}</Tag>
                     {item.humanReviewRequired ? <Tag color="red">人工复核</Tag> : null}
                   </span>
-                  <Typography.Text type="secondary">{item.action}</Typography.Text>
+                  <Typography.Text type="secondary">{workActionLabel(item.action)}</Typography.Text>
                 </article>
               ))}
             </div>

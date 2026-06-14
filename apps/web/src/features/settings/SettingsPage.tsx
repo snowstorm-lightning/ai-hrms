@@ -9,6 +9,14 @@ import { useAuth } from "../../app/AuthContext";
 import { useI18n, languageOptions } from "../../i18n";
 import { PageTitle } from "../../components/PageTitle";
 
+function providerLabel(provider: string | undefined) {
+  if (!provider) return "未返回";
+  if (provider === "fake") return "演示适配器";
+  if (provider === "deepseek") return "DeepSeek";
+  if (provider === "qwen3") return "Qwen3";
+  return provider;
+}
+
 export function SettingsPage() {
   const { settings, updateSettings, setLanguage, setSidebarWidth, resetSettings, resetSidebarWidth } = useAppSettings();
   const { user } = useAuth();
@@ -69,7 +77,7 @@ export function SettingsPage() {
             <Slider min={minSidebarWidth} max={maxSidebarWidth} step={4} value={settings.sidebarWidth} onChange={setSidebarWidth} />
             <Space>
               <Button onClick={resetSidebarWidth}>{t("settings.resetWidth")}</Button>
-              <Tag color="default">default={defaultSidebarWidth}px</Tag>
+              <Tag color="default">默认 {defaultSidebarWidth}px</Tag>
             </Space>
           </Space>
         </Card>
@@ -105,9 +113,9 @@ export function SettingsPage() {
             <Descriptions.Item label={t("settings.roles")}>{user?.roles?.join(", ") || "-"}</Descriptions.Item>
             <Descriptions.Item label={t("settings.providerStatus")}>
               <Space wrap>
-                <Tag color={providerStatus?.chatProvider === "deepseek" ? "geekblue" : "default"}>AI={providerStatus?.chatProvider ?? "unknown"}</Tag>
-                <Tag>RAG={providerStatus?.embeddingProvider ?? "unknown"}</Tag>
-                <Tag>dim={providerStatus?.embeddingDimensions ?? "unknown"}</Tag>
+                <Tag color={providerStatus?.chatProvider === "deepseek" ? "geekblue" : "default"}>AI：{providerLabel(providerStatus?.chatProvider)}</Tag>
+                <Tag>RAG：{providerLabel(providerStatus?.embeddingProvider)}</Tag>
+                <Tag>向量维度：{providerStatus?.embeddingDimensions ?? "未返回"}</Tag>
               </Space>
             </Descriptions.Item>
           </Descriptions>
