@@ -1390,7 +1390,7 @@ function demoVisualResponse(values: VisualContextRequest, intent: string): Visua
       actions: [
         { type: "explain", label: "解释选区", riskLevel: "low" },
         { type: "open_evidence", label: "查看证据链", riskLevel: "medium" },
-        { type: "request_review", label: "请求人工确认", riskLevel: "high", blocked: true },
+        { type: "request_review", label: "查看确认要求", riskLevel: "high", blocked: true },
       ],
     },
   };
@@ -2492,7 +2492,7 @@ export const api = {
         accepted,
         message: accepted
           ? "Demo preview：只读工具可进入预览，执行前仍记录审计。"
-          : "Demo preview：该工具可能产生写操作或人事影响，必须请求人工确认。",
+          : "Demo preview：该工具可能产生写操作或人事影响，必须先查看确认要求。",
         requiredRisk: accepted ? "low" : "high",
         resultPreview: { toolName: values.toolName, arguments: redactDemoValue(values.arguments), auditStatus: accepted ? "previewed" : "blocked_waiting_review" },
       };
@@ -2507,7 +2507,7 @@ export const api = {
       audit_status: highRisk ? "blocked_pending_human_review" : "preview_logged",
       demo_only: true,
       execution_mode: "preview_only",
-      boundary: "LangGraph demo only: no HR data is written, no tool is executed, and human review is required before any real workflow run.",
+      boundary: "当前只是执行链路演示：不会写入 HR 数据，也不会真正调用工具；真实工作流执行前必须经过权限、审计和人工确认。",
       steps: [
         { name: "goal", status: "received" },
         { name: "risk_classification", status: highRisk ? "high" : "medium" },

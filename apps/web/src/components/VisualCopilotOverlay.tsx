@@ -1475,7 +1475,7 @@ function visualSemanticHintFromText(text: string) {
   if (/知识|RAG|引用|资料|文档/.test(text)) {
     return "knowledge_or_docs";
   }
-  if (/Agent|运行|工具预览|人工确认/.test(text)) {
+  if (/Agent|运行|智能任务|工具预览|动作草稿|人工确认|确认要求/.test(text)) {
     return "agent_or_review";
   }
   return "selected_content";

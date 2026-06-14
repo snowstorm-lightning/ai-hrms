@@ -898,7 +898,7 @@ func (s *Server) respondAIChatActionPreview(w http.ResponseWriter, r *http.Reque
 		Items:       []domain.ContextItem{{Type: "tool_preview", Label: toolName, Summary: toolPreview.Purpose, Source: "go.tool_registry", Provenance: "tool_catalog", RiskLevel: toolPreview.RiskLevel}},
 		SourceCount: map[string]int{"tool_registry": 1},
 		Staleness:   "live_registry",
-		Boundary:    "动作类请求只生成工具预览，不调用 DeepSeek，不执行写操作；真实执行必须经过权限复核、参数校验、人工确认和审计。",
+		Boundary:    "动作类请求只生成动作草稿，不调用 DeepSeek，不执行写操作；真实执行必须经过权限复核、参数校验、确认要求检查和审计。",
 	}
 	trust := buildTrustPacket(decision, 0.9, nil, "tool_preview_logged", &toolPreview)
 	summary := promptAuditSummary(prompt, decision)
@@ -916,7 +916,7 @@ func (s *Server) respondAIChatActionPreview(w http.ResponseWriter, r *http.Reque
 		RiskLevel:       toolPreview.RiskLevel,
 		NewValueSummary: summary,
 	})
-	message := fmt.Sprintf("已生成工具预览：%s。该请求没有执行任何写操作；需要人工确认、权限复核和审计记录后才能继续。", toolPreview.Purpose)
+	message := fmt.Sprintf("已生成动作草稿：%s。该请求没有执行任何写操作；需要查看确认要求、权限复核和审计记录后才能继续。", toolPreview.Purpose)
 	if toolPreview.Decision == "blocked" {
 		message = fmt.Sprintf("该动作已被阻断：%s。系统不会通过 AI 自动执行高风险人事动作。", toolPreview.Purpose)
 	}
@@ -1098,7 +1098,7 @@ func deterministicRAGAnswer(query string, citations []domain.RAGCitation) string
 	case containsAny(lower, []string{"scope", "法人", "组织", "权限范围", "数据范围"}):
 		return "scope 决定你能看到哪些 RAG 文档、业务数据、角色授权和审计记录。legal_entity 是法人实体边界，适合公司主体和合同边界；org_unit 是组织树节点，适合部门、团队和下级组织。系统应 fail-closed：没有明确授权时不返回受限数据，也不用全局资料替代受限资料。"
 	case containsAny(lower, []string{"人工确认", "toolpreview", "工具预览", "审计", "audit", "agent run", "agent"}):
-		return "涉及写入、权限变更、员工资料修改、组织或法人调整、RAG 发布、Agent 执行或高风险建议时，系统先生成 toolPreview，说明工具、参数摘要、读写范围、风险、scope、是否可逆和所需 capability，再等待人工确认并记录审计。只读解释可以直接返回，但仍会保留引用、置信度和 auditStatus。"
+		return "涉及写入、权限变更、员工资料修改、组织或法人调整、资料发布、智能任务执行或高风险建议时，系统先生成动作草稿，说明动作、参数摘要、读写范围、风险、可见范围、是否可逆和所需权限，再由人确认并记录审计。只读解释可以直接返回，但仍会保留引用、置信度和审计状态。"
 	case containsAny(lower, []string{"隐私", "敏感", "个人信息", "员工数据", "脱敏", "外部模型"}):
 		return "员工数据要按最小必要原则使用：只返回当前任务需要且你有权查看的字段。手机号、证件、地址、薪酬、绩效明细、医疗、纪律处分和劳动争议属于高敏信息；外发给模型或写入日志前应脱敏或摘要化。"
 	}
@@ -1383,7 +1383,7 @@ func visualRAGQuery(requested, route string, packet domain.ContextPacket) string
 		case "rag_document":
 			focus = append(focus, "知识资料治理、引用可信度、RAG scope")
 		case "agent_run":
-			focus = append(focus, "Agent run、工具预览、人工确认")
+			focus = append(focus, "智能任务、动作草稿、确认要求")
 		case "audit_event":
 			focus = append(focus, "审计证据、风险事件、human review")
 		case "learning":
@@ -1789,7 +1789,7 @@ func (s *Server) createAgentRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tooLong(req.Prompt, 1200) || tooLong(req.RunType, 120) {
-		httpx.Error(w, http.StatusBadRequest, 4001, "Agent run prompt 过长，请缩短目标并只传递必要上下文")
+		httpx.Error(w, http.StatusBadRequest, 4001, "智能任务目标过长，请缩短目标并只传递必要上下文")
 		return
 	}
 	decision := decidePromptHarness(req.RunType + " " + req.Prompt)
@@ -1802,7 +1802,7 @@ func (s *Server) createAgentRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	run, err := s.store.CreateAgentRun(r.Context(), domain.AgentRun{
-		RunType: req.RunType, RiskLevel: req.RiskLevel, Summary: "Agent run routed by Go harness as " + decision.ExecutionMode + ".",
+		RunType: req.RunType, RiskLevel: req.RiskLevel, Summary: "智能任务已进入受控预览：" + decision.ExecutionMode + "。",
 	}, principal(r).UserID, map[string]any{
 		"userId":            principal(r).UserID,
 		"roles":             principal(r).RoleCodes(),
@@ -1844,11 +1844,11 @@ func (s *Server) langgraphWorkflowDemo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tooLong(req.Goal, 1200) || len(req.Context) > 12 {
-		httpx.Error(w, http.StatusBadRequest, 4001, "Workflow preview 请求过大")
+		httpx.Error(w, http.StatusBadRequest, 4001, "执行链路预览请求过大")
 		return
 	}
 	if s.agent == nil || !s.agent.Enabled() {
-		httpx.Error(w, http.StatusServiceUnavailable, 5001, "Agent boundary is not configured")
+		httpx.Error(w, http.StatusServiceUnavailable, 5001, "智能任务边界尚未配置")
 		return
 	}
 	result, err := s.agent.WorkflowDemo(r.Context(), req.Goal, req.Context)
@@ -1859,7 +1859,7 @@ func (s *Server) langgraphWorkflowDemo(w http.ResponseWriter, r *http.Request) {
 	result["demo_only"] = true
 	result["execution_mode"] = "preview_only"
 	if _, ok := result["boundary"]; !ok {
-		result["boundary"] = "LangGraph demo only: no HR data is written, no tool is executed, and human review is required before any real workflow run."
+		result["boundary"] = "当前只是执行链路演示：不会写入 HR 数据，也不会真正调用工具；真实工作流执行前必须经过权限、审计和人工确认。"
 	}
 	decision := decidePromptHarness(req.Goal)
 	summary := promptAuditSummary(req.Goal, decision)
@@ -1889,7 +1889,7 @@ func (s *Server) previewAgentTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if tooLong(req.ToolName, 120) || len(req.Arguments) > 20 {
-		httpx.Error(w, http.StatusBadRequest, 4001, "工具预览请求过大")
+		httpx.Error(w, http.StatusBadRequest, 4001, "动作草稿请求过大")
 		return
 	}
 	if strings.TrimSpace(req.UserID) != "" {
@@ -1903,7 +1903,7 @@ func (s *Server) previewAgentTool(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !owned {
-			httpx.Error(w, http.StatusForbidden, 4003, "Agent run 不属于当前用户")
+			httpx.Error(w, http.StatusForbidden, 4003, "该智能任务不属于当前用户")
 			return
 		}
 	}
@@ -1914,7 +1914,7 @@ func (s *Server) previewAgentTool(w http.ResponseWriter, r *http.Request) {
 		toolPreview.Accepted = false
 		toolPreview.PreviewOnly = true
 		toolPreview.Decision = "detached_preview_only"
-		toolPreview.Reason = "未绑定当前用户的 Agent run，系统只返回 detached preview，不记录为可执行工具调用。"
+		toolPreview.Reason = "未绑定当前用户的智能任务，系统只返回独立草稿，不记录为可执行工具调用。"
 	}
 	if toolPreview.RequiredCapability != "" && !principal(r).HasCapability(toolPreview.RequiredCapability) {
 		accepted = false
@@ -1923,9 +1923,9 @@ func (s *Server) previewAgentTool(w http.ResponseWriter, r *http.Request) {
 		toolPreview.Decision = "missing_required_capability"
 		toolPreview.Reason = "当前用户缺少该工具要求的模块 capability，只能查看被拒绝的预览。"
 	}
-	message := "工具已进入预览，执行前仍由 Go 重新校验权限。"
+	message := "动作草稿已生成，执行前仍由 Go 重新校验权限。"
 	if !accepted {
-		message = "该工具需要写执行权限或二次确认。"
+		message = "该动作需要写执行权限或查看确认要求。"
 	}
 	if err := s.store.CreateAgentToolCall(r.Context(), req.RunID, req.ToolName, req.Arguments, accepted, message); err != nil {
 		s.respondErr(w, err)
@@ -2473,7 +2473,7 @@ func (s *Server) handleVisual(w http.ResponseWriter, r *http.Request, status, in
 		"actions": []map[string]any{
 			{"type": "explain", "label": "解释选区", "riskLevel": "low"},
 			{"type": "open_evidence", "label": "查看证据链", "riskLevel": "medium"},
-			{"type": "request_review", "label": "请求人工确认", "riskLevel": "high", "blocked": true},
+			{"type": "request_review", "label": "查看确认要求", "riskLevel": "high", "blocked": true},
 		},
 	}
 	event, err := s.store.CreateVisualCopilotEvent(r.Context(), principal(r).UserID, sanitizedReq, status, intent, confidence, result)

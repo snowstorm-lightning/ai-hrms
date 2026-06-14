@@ -38,7 +38,7 @@ func (s *Server) createUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Password == "" {
-		req.Password = "password"
+		req.Password = "12345678900"
 	}
 	user, err := s.store.CreateUser(r.Context(), req.Mobile, req.Username, req.Password)
 	if err != nil {

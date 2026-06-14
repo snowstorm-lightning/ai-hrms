@@ -66,7 +66,7 @@ func decidePromptHarness(message string) domain.HarnessDecision {
 	employeeStatusLookup := containsAny(lower, []string{"员工数量", "员工状态", "员工统计", "employee count", "employee status", "headcount"})
 	legalEntityLookup := deterministic && containsAny(lower, []string{"法人", "公司", "legal entity", "company"})
 	orgUnitLookup := deterministic && containsAny(lower, []string{"组织", "部门", "scope", "org unit", "department"})
-	agentRunLookup := deterministic && containsAny(lower, []string{"agent run", "智能体运行", "agent 运行", "运行中心", "工具调用", "tool call"})
+	agentRunLookup := deterministic && containsAny(lower, []string{"agent run", "智能体运行", "智能任务", "agent 运行", "运行中心", "动作草稿", "工具调用", "tool call"})
 
 	switch {
 	case employeeStatusLookup:
@@ -102,7 +102,7 @@ func decidePromptHarness(message string) domain.HarnessDecision {
 			ExecutionMode:       executionDeterministic,
 			RiskLevel:           "low",
 			HumanReviewRequired: false,
-			Reason:              "Agent run 状态和最近运行记录属于结构化运行台查询，由 SQL 读取审计化状态，不调用 LLM 或新的 Agent run。",
+			Reason:              "智能任务状态和最近运行记录属于结构化运行台查询，由 SQL 读取审计化状态，不调用 LLM 或新的智能任务。",
 			RoutedBy:            append(routedBy, "program.sql.agent_runs"),
 		}
 	case action:
@@ -112,7 +112,7 @@ func decidePromptHarness(message string) domain.HarnessDecision {
 			RiskLevel:           maxRisk(riskLevel, "medium"),
 			UseLLM:              false,
 			HumanReviewRequired: true,
-			Reason:              "用户意图包含动作请求，先生成工具预览；真实执行只能由后端白名单工具在人确认后完成。",
+			Reason:              "用户意图包含动作请求，先生成动作草稿；真实执行只能由后端白名单工具在确认后完成。",
 			RoutedBy:            append(routedBy, "tool.preview.required"),
 		}
 	case complex:
@@ -476,7 +476,7 @@ func tableCellSummary(value any) string {
 func routeSummary(route string) string {
 	switch {
 	case strings.Contains(route, "dashboard"):
-		return "这是 AI-HRMS Command Dashboard，用于展示组织数据、知识、学习成长、Agent 运行和审计治理的统一入口。"
+		return "这是 AI-HRMS 指挥看板，用于展示组织数据、知识、学习成长、智能任务和审计治理的统一入口。"
 	case strings.Contains(route, "ai-command"):
 		return "这是 AI 指挥中心，用于生成带证据、风险和人工确认边界的 HR 建议。"
 	case strings.Contains(route, "knowledge"):
@@ -484,9 +484,9 @@ func routeSummary(route string) string {
 	case strings.Contains(route, "docs"):
 		return "这是 AI-HRMS 文档库，用于阅读受治理资料，并通过 RAG 生成带引用的精准回答。"
 	case strings.Contains(route, "agents"):
-		return "这是 Agent Run Center，用于查看工具预览、运行状态和人工确认。"
+		return "这是智能任务运行中心，用于查看动作草稿、运行状态和确认要求。"
 	case strings.Contains(route, "audit"):
-		return "这是 Audit & Evidence，用于追踪建议、工具调用、人工确认和证据链。"
+		return "这是信任与审计页面，用于追踪建议、动作草稿、人工确认和证据链。"
 	case strings.Contains(route, "settings"):
 		return "这是设置页面，用于管理语言、侧边栏宽度、界面密度和 Visual Copilot 默认行为。"
 	case strings.Contains(route, "users"):
@@ -598,7 +598,7 @@ func previewForTool(tool string, args map[string]any, hasWrite bool) domain.Tool
 	}
 	reason := "确定性工具：由 Go 白名单 handler 校验参数、权限和 scope。"
 	if !accepted {
-		reason = "该工具涉及写操作或高影响 HR 边界，只能生成预览并请求人工确认。"
+		reason = "该工具涉及写操作或高影响 HR 边界，只能生成预览并提示确认要求。"
 	}
 	return domain.ToolPreview{
 		ToolName:           tool,
@@ -748,7 +748,7 @@ func visualExplanation(requested string, packet domain.ContextPacket, decision d
 		lines = []string{"我没有拿到足够的页面语义。请圈选具体表格行、卡片、按钮或字段，再说明你想知道“是谁、是什么、为什么、怎么做或依据在哪里”。"}
 	}
 	if decision.ExecutionMode == executionActionPreview {
-		lines = append(lines, "这类请求只生成工具预览；真实执行必须经过权限复核、人工确认和审计记录。")
+		lines = append(lines, "这类请求只生成动作草稿；真实执行必须经过权限复核、确认要求检查和审计记录。")
 	} else if decision.ExecutionMode == executionHumanReviewRequired || decision.RiskLevel == "high" {
 		lines = append(lines, "这类问题触及高影响人事边界，系统只能解释依据和风险，不能自动形成录用、晋升、降薪、淘汰或处罚结论。")
 	}
@@ -934,10 +934,10 @@ func visualActionAnswer(packet domain.ContextPacket, decision domain.HarnessDeci
 		return lines
 	}
 	if users := visualItemsByType(packet.Items, "user"); len(users) > 0 {
-		return []string{fmt.Sprintf("如果你要对这 %d 个账号执行编辑、权限变更或禁用操作，系统必须先生成工具预览，再由有权限的人确认。", len(users))}
+		return []string{fmt.Sprintf("如果你要对这 %d 个账号执行编辑、权限变更或禁用操作，系统必须先生成动作草稿，再由有权限的人确认。", len(users))}
 	}
 	if decision.ExecutionMode == executionActionPreview {
-		return []string{"这个请求被识别为动作意图。系统会先展示工具预览、影响范围、风险和所需权限，不会直接写入数据。"}
+		return []string{"这个请求被识别为动作意图。系统会先展示动作草稿、影响范围、风险和所需权限，不会直接写入数据。"}
 	}
 	return []string{"我没有识别到明确按钮或动作。请圈选按钮、菜单项或表单提交区域。"}
 }
@@ -1208,9 +1208,9 @@ func visualDOMModuleExplanation(label, summary string, metadata map[string]any) 
 	case strings.Contains(lower, "ai-hrms-command-dashboard"):
 		return "这部分是 AI-HRMS 指挥看板首页主区域，用来说明产品定位、输入示例命令，并把用户引导到 AI 指挥中心、信任层和人机工作流。"
 	case strings.Contains(lower, "trust-layer-snapshot"):
-		return "这部分是信任层快照，用来展示风险级别、置信度、证据数量、工具预览状态、是否需要人工确认和审计状态。"
+		return "这部分是信任层快照，用来展示风险级别、置信度、证据数量、动作草稿状态、是否需要人工确认和审计状态。"
 	case strings.Contains(lower, "human-agent-workflow"):
-		return "这部分是人机协作流程，把 Goal、Context、Agent Plan、Tool Preview、Human Review 和 Audit 串成可审计路径。"
+		return "这部分是人机协作流程，把目标、上下文、行动计划、动作草稿、人工确认和审计串成可审计路径。"
 	case strings.Contains(lower, "rag-search") || strings.Contains(lower, "docs-rag"):
 		return "这部分是 RAG 检索入口。涉及引用、制度依据或资料位置的问题应通过这里检索，并返回 citation、可信等级、敏感级别和审计记录。"
 	case strings.Contains(lower, "docs-document"):

@@ -57,7 +57,7 @@ func (s *Store) CreateAgentRun(ctx context.Context, input domain.AgentRun, userI
 	}
 	summary := input.Summary
 	if summary == "" {
-		summary = "Agent run created with delegated Go context."
+		summary = "智能任务已创建，并绑定受控上下文。"
 	}
 	status := "previewed"
 	if input.RiskLevel == "high" {
@@ -80,14 +80,14 @@ func (s *Store) CreateAgentRun(ctx context.Context, input domain.AgentRun, userI
 		_, _ = s.pool.Exec(ctx, `
 			INSERT INTO agent_messages (run_id, role, content)
 			VALUES ($1,'user',$2), ($1,'assistant',$3)
-		`, run.ID, prompt, "已生成可审计的执行记录。涉及写操作时需要预览和确认。")
+		`, run.ID, prompt, "已生成可审计的执行记录。涉及写操作时需要动作草稿和确认。")
 	}
 	if input.RiskLevel != "low" {
 		_, _ = s.pool.Exec(ctx, `
 			INSERT INTO agent_action_plans (run_id, title, risk_level, status, requires_confirmation, plan, rollback_plan)
 			VALUES ($1,$2,$3,'draft',true,$4,$5)
-		`, run.ID, "需要确认的 Agent 行动计划", input.RiskLevel,
-			`[{"step":"preview","description":"先生成预览和影响范围"}]`,
+		`, run.ID, "需要确认的智能任务计划", input.RiskLevel,
+			`[{"step":"preview","description":"先生成动作草稿和影响范围"}]`,
 			`[{"step":"compensate","description":"按审计事件回滚或补偿"}]`)
 	}
 	return &run, nil
