@@ -2459,6 +2459,13 @@ button.hr-mobile-record-card:focus-visible {
   border-radius: 8px;
 }
 
+.guide-path-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
 .role-guide-card .ant-card-body {
   display: grid;
   gap: 8px;
@@ -2797,6 +2804,11 @@ button.hr-mobile-record-card:focus-visible {
   .guide-hero,
   .guide-flow {
     grid-template-columns: 1fr;
+  }
+
+  .guide-path-actions .ant-btn {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .knowledge-search-row,

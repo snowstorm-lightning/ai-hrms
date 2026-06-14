@@ -1,4 +1,5 @@
 import {
+  ArrowRightOutlined,
   AuditOutlined,
   BookOutlined,
   CheckCircleOutlined,
@@ -9,16 +10,17 @@ import {
   SafetyCertificateOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
-import { Alert, Card, Col, Row, Space, Steps, Tag, Timeline, Typography } from "antd";
+import { Alert, Button, Card, Col, Row, Space, Steps, Tag, Timeline, Typography } from "antd";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../app/AuthContext";
 import { PageTitle } from "../../components/PageTitle";
 
 const dailyPath = [
-  { title: "看指挥看板", content: "先确认组织、知识库、智能体、审计和高风险待确认状态。" },
-  { title: "问指挥中心", content: "让系统生成解释、计划或动作草稿；高风险只进入人工确认。" },
-  { title: "查知识库", content: "打开引用来源、可信等级、敏感级别和可见范围。" },
-  { title: "看智能体运行", content: "查看任务类型、动作草稿、人工复核状态与审计状态。" },
-  { title: "留复盘证据", content: "在审计页回看建议、人工确认和证据链。" },
+  { title: "看指挥看板", content: "先确认组织、知识库、智能任务、审计和高风险待确认状态。", path: "/app/dashboard", cta: "打开指挥看板" },
+  { title: "问指挥中心", content: "让系统生成解释、计划或动作草稿；高风险只进入人工确认。", path: "/app/ai-command", cta: "去指挥中心提问" },
+  { title: "查知识库", content: "打开引用来源、可信等级、敏感级别和可见范围。", path: "/app/docs", cta: "去文档库核验" },
+  { title: "看智能任务", content: "查看任务类型、动作草稿、人工复核状态与审计状态。", path: "/app/agents", cta: "看运行中心" },
+  { title: "留复盘证据", content: "在审计页回看建议、人工确认和证据链。", path: "/app/audit", cta: "查看审计证据" },
 ];
 
 const roleGuides = [
@@ -30,6 +32,7 @@ const roleGuides = [
 
 export function HelpPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = Boolean(user?.roles?.includes("group_admin"));
 
   return (
@@ -71,7 +74,14 @@ export function HelpPage() {
       </section>
 
       <Card title="推荐体验路径" className="guide-card">
-        <Steps current={0} items={dailyPath} />
+        <Steps current={0} items={dailyPath.map((item) => ({ title: item.title, content: item.content }))} />
+        <div className="guide-path-actions">
+          {dailyPath.map((item) => (
+            <Button key={item.path} icon={<ArrowRightOutlined />} onClick={() => navigate(item.path)}>
+              {item.cta}
+            </Button>
+          ))}
+        </div>
       </Card>
 
       <Row gutter={[16, 16]}>
