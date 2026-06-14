@@ -52,6 +52,11 @@ function AuthenticatedWorkspace() {
   );
 }
 
+function RedirectWithSearch({ to }: { to: string }) {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search}`} replace />;
+}
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -68,6 +73,8 @@ export function AppRouter() {
                   <Route path="org-people" element={<OrgPeoplePage />} />
                   <Route path="employee-ops" element={<EmployeeOpsPage />} />
                   <Route path="recruitment-lifecycle" element={<RecruitmentLifecyclePage />} />
+                  <Route path="recruiting" element={<RedirectWithSearch to="/app/recruitment-lifecycle" />} />
+                  <Route path="recruitment" element={<RedirectWithSearch to="/app/recruitment-lifecycle" />} />
                   <Route path="growth-performance" element={<GrowthPerformancePage />} />
                   <Route path="knowledge-agent" element={<KnowledgeAgentPage />} />
                   <Route path="trust-audit" element={<TrustAuditPage />} />

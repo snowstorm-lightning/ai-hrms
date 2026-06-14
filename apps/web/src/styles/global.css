@@ -2733,6 +2733,46 @@ button.hr-mobile-record-card:focus-visible {
 }
 
 @media (max-width: 700px) {
+  .ant-modal-root .ant-modal-wrap {
+    overflow: hidden;
+  }
+
+  .ant-modal-root .ant-modal {
+    top: 0;
+    max-width: calc(100vw - 16px);
+    margin: 8px auto;
+    padding-bottom: 0;
+  }
+
+  .ant-modal-root .ant-modal-content {
+    display: flex;
+    max-height: calc(100dvh - 16px);
+    flex-direction: column;
+    padding: 20px 16px 12px;
+  }
+
+  .ant-modal-root .ant-modal-body {
+    min-height: 0;
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  .ant-modal-root .ant-modal-footer {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 12px;
+    padding-top: 12px;
+    background: #fff;
+  }
+
+  .ant-modal-root .ant-modal-footer .ant-btn {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
   .global-search {
     display: none;
   }

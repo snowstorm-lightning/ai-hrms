@@ -1204,15 +1204,27 @@ export function EmployeeOpsPage() {
   const routeResource = searchParams.get("resource");
   const createMode = searchParams.get("mode") === "create";
   const defaultEmployeeId = searchParams.get("employeeId");
+  const normalizeEmployeeTab = (tab: string | null) => {
+    if (tab === "requests" || tab === "request") return "approvals";
+    if (tab === "quick") return "self";
+    return tab || "self";
+  };
   const tabFromURL = () => {
-    const tab = routeResource ? employeeOpsTabForResource(routeResource) : searchParams.get("tab") || "self";
+    const tab = routeResource ? employeeOpsTabForResource(routeResource) : normalizeEmployeeTab(searchParams.get("tab"));
     return employeeTabs.includes(tab) ? tab : "self";
   };
   const [activeTab, setActiveTab] = useState(tabFromURL);
   const focusId = searchParams.get("id");
 
   useEffect(() => {
-    setActiveTab(tabFromURL());
+    const tab = tabFromURL();
+    setActiveTab(tab);
+    const rawTab = searchParams.get("tab");
+    if (!routeResource && rawTab && rawTab !== tab) {
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", tab);
+      setSearchParams(next, { replace: true });
+    }
   }, [searchParams]);
 
   const changeTab = (key: string) => {
@@ -1289,16 +1301,30 @@ export function EmployeeOpsPage() {
 export function RecruitmentLifecyclePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const recruitmentTabs = ["requisitions", "openings", "applicants", "interviews", "offers"];
+  const normalizeRecruitmentTab = (tab: string | null) => {
+    if (tab === "requirements" || tab === "requirement") return "requisitions";
+    if (tab === "candidates" || tab === "candidate") return "applicants";
+    if (tab === "interview") return "interviews";
+    if (tab === "offer") return "offers";
+    return tab || "requisitions";
+  };
   const tabFromURL = () => {
     const resource = searchParams.get("resource");
-    const tab = resource ? recruitmentTabForResource(resource) : searchParams.get("tab") || "requisitions";
+    const tab = resource ? recruitmentTabForResource(resource) : normalizeRecruitmentTab(searchParams.get("tab"));
     return recruitmentTabs.includes(tab) ? tab : "requisitions";
   };
   const [activeTab, setActiveTab] = useState(tabFromURL);
   const focusId = searchParams.get("id");
 
   useEffect(() => {
-    setActiveTab(tabFromURL());
+    const tab = tabFromURL();
+    setActiveTab(tab);
+    const rawTab = searchParams.get("tab");
+    if (!searchParams.get("resource") && rawTab && rawTab !== tab) {
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", tab);
+      setSearchParams(next, { replace: true });
+    }
   }, [searchParams]);
 
   const changeTab = (key: string) => {
@@ -1350,16 +1376,30 @@ export function RecruitmentLifecyclePage() {
 export function GrowthPerformancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const growthTabs = ["quick", "training", "goals", "cycles", "appraisals"];
+  const normalizeGrowthTab = (tab: string | null) => {
+    if (tab === "co-growth" || tab === "mission" || tab === "missions") return "quick";
+    if (tab === "goal") return "goals";
+    if (tab === "cycle") return "cycles";
+    if (tab === "appraisal") return "appraisals";
+    return tab || "quick";
+  };
   const tabFromURL = () => {
     const resource = searchParams.get("resource");
-    const tab = resource ? growthTabForResource(resource) : searchParams.get("tab") || "quick";
+    const tab = resource ? growthTabForResource(resource) : normalizeGrowthTab(searchParams.get("tab"));
     return growthTabs.includes(tab) ? tab : "quick";
   };
   const [activeTab, setActiveTab] = useState(tabFromURL);
   const focusId = searchParams.get("id");
 
   useEffect(() => {
-    setActiveTab(tabFromURL());
+    const tab = tabFromURL();
+    setActiveTab(tab);
+    const rawTab = searchParams.get("tab");
+    if (!searchParams.get("resource") && rawTab && rawTab !== tab) {
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", tab);
+      setSearchParams(next, { replace: true });
+    }
   }, [searchParams]);
 
   const changeTab = (key: string) => {
