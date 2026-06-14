@@ -11,7 +11,7 @@ import {
   TeamOutlined,
   UsergroupAddOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Card, DatePicker, Drawer, Progress, Select, Space, Statistic, Table, Tag, Typography, message } from "antd";
+import { Alert, Button, Card, DatePicker, Drawer, Pagination, Progress, Select, Space, Statistic, Table, Tag, Typography, message } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
@@ -87,6 +87,7 @@ export function AttendancePage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTitle, setDrawerTitle] = useState("考勤明细");
   const [detailFilter, setDetailFilter] = useState<DetailFilter>({ type: "all" });
+  const [detailPage, setDetailPage] = useState(1);
 
   const reload = async (day = selectedDay) => {
     setLoading(true);
@@ -176,10 +177,16 @@ export function AttendancePage() {
     }
     return [...recordRows, ...exceptionRows.filter((row) => row.exceptionType === "absence")];
   }, [detailFilter, overview]);
+  const detailPageSize = 8;
+  const mobileDetailRows = useMemo(
+    () => detailRows.slice((detailPage - 1) * detailPageSize, detailPage * detailPageSize),
+    [detailPage, detailRows],
+  );
 
   const openDetails = (title: string, filter: DetailFilter) => {
     setDrawerTitle(title);
     setDetailFilter(filter);
+    setDetailPage(1);
     setDrawerOpen(true);
   };
 
@@ -409,7 +416,7 @@ export function AttendancePage() {
       ) : null}
 
       <Drawer
-        title={drawerTitle}
+        title={`${drawerTitle}（${detailRows.length} 条）`}
         open={drawerOpen}
         size="min(736px, 100vw)"
         onClose={() => setDrawerOpen(false)}
@@ -507,7 +514,7 @@ export function AttendancePage() {
         />
         <div className="hr-mobile-record-list" data-vc-kind="attendance-detail-mobile-list">
           {!detailRows.length ? <EmptyBlock description="暂无明细记录" /> : null}
-          {detailRows.map((row) => (
+          {mobileDetailRows.map((row) => (
             <article className="hr-mobile-record-card" key={row.key} data-vc-kind="attendance-detail-mobile-card" data-vc-object-type="attendance" data-vc-object-id={row.id} data-vc-label={`${row.employeeName} ${row.statusLabel}`}>
               <span className="hr-mobile-card-title">{row.employeeName}</span>
               <span className="hr-mobile-card-meta">{row.mobile} · {row.orgUnitName}</span>
@@ -541,6 +548,17 @@ export function AttendancePage() {
               </Button>
             </article>
           ))}
+          {detailRows.length > detailPageSize ? (
+            <Pagination
+              className="hr-mobile-pagination"
+              size="small"
+              current={detailPage}
+              pageSize={detailPageSize}
+              total={detailRows.length}
+              showSizeChanger={false}
+              onChange={setDetailPage}
+            />
+          ) : null}
         </div>
       </Drawer>
     </main>
