@@ -141,7 +141,7 @@ export function DashboardPage() {
     { title: "新人 30 天成长计划", path: "/app/ai-command", tag: "AI 指挥", text: "生成带资料引用、风险说明和人工复核点的治理型建议。" },
     { title: "考勤异常复核", path: "/app/attendance", tag: "智能体预览", text: "下钻考勤信号，运行只读分析，不做人事裁决。" },
     { title: "资料引用问答", path: "/app/docs", tag: "知识治理", text: "查看可见范围、可信等级、敏感级别和资料详情。" },
-    { title: "智能任务运行审计", path: "/app/agents", tag: "审计闭环", text: "查看动作草稿、请求人工确认，并追踪审计状态。" },
+    { title: "智能任务运行审计", path: "/app/agents", tag: "审计闭环", text: "查看动作草稿、确认要求，并追踪审计状态。" },
   ], [language]);
 
   const evidenceChain = useMemo(() => language === "en-US" ? [

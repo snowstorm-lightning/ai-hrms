@@ -171,7 +171,7 @@ export function AgentRunsPage() {
             showIcon
             type="info"
             title="智能体运行默认先进入预览"
-            description="读操作可预览；写操作和高风险人事影响必须请求人工确认，提交前系统会重新校验权限和可见范围。"
+            description="读操作可预览；写操作和高风险人事影响必须先查看确认要求，再由 HR 在审批上下文中提交确认。"
           />
           <Form
             form={form}
@@ -296,9 +296,11 @@ export function AgentRunsPage() {
               <Button
                 size="small"
                 icon={<CheckCircleOutlined />}
-                onClick={() => message.info(demoMode ? "已生成人工确认请求提示，未执行业务写入。" : "已生成人工确认请求提示，需审批后才能继续执行。")}
+                onClick={() => message.info(run.riskLevel === "high"
+                  ? "确认要求：高风险任务需 HR 查看证据、动作草稿和审计链后，在审批上下文中人工确认。"
+                  : "确认要求：当前为预览演示；执行前仍需权限、可见范围和审计校验。")}
               >
-                请求人工确认
+                查看确认要求
               </Button>
               <Button
                 size="small"
