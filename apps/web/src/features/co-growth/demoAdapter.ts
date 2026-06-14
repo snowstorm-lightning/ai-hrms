@@ -29,14 +29,14 @@ const quickPromptRules: Array<{ keyword: string; suggestion: CoachSuggestion }> 
       impactOnWork: "positive",
       humanReviewRequired: false,
       evidenceRefs: ["workload-medium", "ev-mission-agent-workflow"],
-      suggestedActions: ["保留 60 分钟周预算", "今天只做一个 15 分钟 mission", "周末再进入 Agent Workflow Lab"],
+      suggestedActions: ["保留 60 分钟周预算", "今天只做一个 15 分钟任务", "周末再进入智能体工作流实验室"],
     },
   },
   {
     keyword: "Agent",
     suggestion: {
-      title: "生成 Agent 工作流实验",
-      summary: "建议用个性化学习任务推荐 Agent 作为实验：读取偏好、检查负荷、检索原理卡、生成 mission、人工确认、写入证据。",
+      title: "生成智能体工作流实验",
+      summary: "建议用个性化学习任务推荐智能体作为实验：读取偏好、检查负荷、检索原理卡、生成任务、人工确认、写入证据。",
       riskLevel: "medium",
       confidence: 88,
       estimatedMinutes: 30,

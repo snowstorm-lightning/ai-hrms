@@ -410,7 +410,7 @@ export const promptVersions: PromptVersion[] = [
   },
   {
     version: "v3",
-    prompt: "我是云衡互联网科技有限公司（虚构样本组织）有编程基础的平台研发新人林晨，本周工作负荷中等，可用 60 分钟学习。请把接口联调任务改造成 1 个不超过 30 分钟的 AI 实战 mission，包含学习目标、工作产出、风险等级、证据记录和人工确认点。",
+    prompt: "我是云衡互联网科技有限公司（虚构样本组织）有编程基础的平台研发新人林晨，本周工作负荷中等，可用 60 分钟学习。请把接口联调任务改造成 1 个不超过 30 分钟的 AI 实战任务，包含学习目标、工作产出、风险等级、证据记录和人工确认点。",
     improvement: "明确时间、模拟任务、输出结构、风险和证据链，适合沉淀为 workflow。",
     reliabilityGain: 86,
   },
@@ -445,7 +445,7 @@ export const teamHeatmap: TeamHeatmapCapability[] = [
   { capability: "AI 原理理解", beginner: 5, user: 4, collaborator: 2, evaluator: 1, orchestrator: 0, weakestSignal: "知道工具但不理解幻觉机制", recommendedIntervention: "5 分钟原理卡 + 上下文对比实验" },
   { capability: "Prompt 与上下文设计", beginner: 2, user: 5, collaborator: 4, evaluator: 1, orchestrator: 0, weakestSignal: "prompt 缺少验收标准", recommendedIntervention: "结构化 prompt 模板和版本复盘" },
   { capability: "输出验证与判断", beginner: 4, user: 4, collaborator: 3, evaluator: 1, orchestrator: 0, weakestSignal: "引用不足时仍采用结论", recommendedIntervention: "可靠性检查清单和事实核验练习" },
-  { capability: "工作流协作", beginner: 6, user: 3, collaborator: 2, evaluator: 1, orchestrator: 0, weakestSignal: "停留在单轮聊天", recommendedIntervention: "Agent Workflow Lab 小项目" },
+  { capability: "工作流协作", beginner: 6, user: 3, collaborator: 2, evaluator: 1, orchestrator: 0, weakestSignal: "停留在单轮聊天", recommendedIntervention: "智能体工作流实验室小项目" },
   { capability: "责任与治理", beginner: 2, user: 4, collaborator: 3, evaluator: 3, orchestrator: 0, weakestSignal: "高风险场景人工边界不清", recommendedIntervention: "治理沙盒和 human-in-the-loop 案例" },
 ];
 
@@ -536,7 +536,7 @@ function buildEmployee(
     ? "5-10 分钟微学习 + 工作内嵌任务，延后深度实验"
     : currentWorkload === "medium"
       ? "每日 10-15 分钟 + 每周一次复盘"
-      : "可安排深度实践、Agent Workflow Lab 和小项目";
+      : "可安排深度实践、智能体工作流实验室和小项目";
 
   const mainMission = activeMissions[0] ?? completedMissions[0] ?? "mission-meeting-minutes";
   return {
@@ -564,13 +564,13 @@ function buildEmployee(
       : ["需要持续补充证据链", "高风险任务必须人工确认"],
     coachSuggestions: [
       coach(`${pace}`, currentWorkload === "high" ? "medium" : "low", mainMission, currentWorkload === "high" ? 8 : 20),
-      coach("保留 evidence、riskLevel、confidence 和人工确认点", "medium", mainMission, 10),
+      coach("保留证据、风险等级、置信度和人工确认点", "medium", mainMission, 10),
     ],
     principleCards: learningMissions.find((mission) => mission.id === mainMission)?.principleCardIds ?? ["context-quality"],
-    workflowExperiments: aiLiteracyLevel === "orchestrator" || aiLiteracyLevel === "evaluator" ? ["个性化学习任务推荐 Agent"] : [],
+    workflowExperiments: aiLiteracyLevel === "orchestrator" || aiLiteracyLevel === "evaluator" ? ["个性化学习任务推荐智能体"] : [],
     growthPortfolioItems: [
       "已完成 AI 原理卡",
-      "工作实战 mission 记录",
+      "工作实战任务记录",
       "AI 使用复盘",
       "可复用 prompt 模板",
     ],
@@ -601,8 +601,8 @@ export const coGrowthDemoData: CoGrowthDemoState = {
   missions: learningMissions,
   principleCards,
   coachSuggestions: [
-    coach("本周建议从 20 分钟 RAG 原理卡开始，再做一次工作内嵌 mission", "low", "mission-rag-knowledge", 20),
-    coach("工作负荷中等，Agent Workflow Lab 可以作为周末深度实践，不建议挤占交付时段", "medium", "mission-agent-workflow", 30),
+    coach("本周建议从 20 分钟 RAG 原理卡开始，再做一次工作内嵌任务", "low", "mission-rag-knowledge", 20),
+    coach("工作负荷中等，智能体工作流实验室可以作为周末深度实践，不建议挤占交付时段", "medium", "mission-agent-workflow", 30),
     coach("面试、候选人和报酬相关内容只做风险检查，不生成最终人事结论", "high", "mission-interview-bias", 12),
   ],
   workflowNodes,

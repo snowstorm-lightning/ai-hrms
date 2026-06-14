@@ -166,6 +166,17 @@ function RiskTag({ risk }: { risk: RiskLevel }) {
   return <Tag color={riskColor[risk]}>{label}</Tag>;
 }
 
+function riskText(risk: RiskLevel) {
+  return risk === "high" ? "高风险" : risk === "medium" ? "中风险" : "低风险";
+}
+
+function impactText(impact: string) {
+  if (impact === "high") return "高";
+  if (impact === "medium") return "中";
+  if (impact === "low") return "低";
+  return impact;
+}
+
 function statusColor(status: MissionStatus) {
   if (status === "completed" || status === "reflected") return "green";
   if (status === "in_progress" || status === "accepted") return "blue";
@@ -190,9 +201,9 @@ function buildReflectionDraft(mission: LearningMission): MissionReflectionDraft 
   return {
     title: `${mission.title} 复盘草稿`,
     prompt: `帮我复盘一次 AI 使用过程：${mission.title}`,
-    summary: `围绕「${mission.learningGoal}」，本次任务应形成「${mission.workOutput}」。复盘重点是检查 AI 输出是否被证据支撑、人工修改是否保留、下一次 prompt 或工作流是否可复用。`,
+    summary: `围绕「${mission.learningGoal}」，本次任务应形成「${mission.workOutput}」。复盘重点是检查 AI 输出是否被证据支撑、人工修改是否保留、下一次提问或工作流是否可复用。`,
     humanChecks: mission.humanConfirmationPoints,
-    nextActions: ["保存 AI 输出与人工修改", "补充引用、截图或校验记录", "把可复用步骤沉淀到 Workflow Lab"],
+    nextActions: ["保存 AI 输出与人工修改", "补充引用、截图或校验记录", "把可复用步骤沉淀到工作流实验室"],
     evidenceId: `ev-${mission.id}-reflection`,
   };
 }
@@ -209,15 +220,15 @@ function GuidedReturnBanner({
   onBack: () => void;
 }) {
   const copy = destination === "evidence"
-    ? "你正在查看这个 mission 生成的复盘证据；对应 evidenceId 会在下方高亮。"
-    : "你正在把这个 mission 的下一步沉淀成可复用 workflow；看完链路后可以回到任务结果继续整理证据。";
+    ? "你正在查看这个任务生成的复盘证据；对应证据编号会在下方高亮。"
+    : "你正在把这个任务的下一步沉淀成可复用工作流；看完链路后可以回到任务结果继续整理证据。";
 
   return (
     <div className="guided-return-banner" data-vc-kind="guided-return-banner">
       <div>
         <Space wrap>
-          <Tag color="blue">来自 Mission</Tag>
-          {result?.reflectionDraft ? <Tag color="cyan">evidenceId={result.reflectionDraft.evidenceId}</Tag> : null}
+          <Tag color="blue">来自任务</Tag>
+          {result?.reflectionDraft ? <Tag color="cyan">证据编号：{result.reflectionDraft.evidenceId}</Tag> : null}
         </Space>
         <Typography.Text strong>{mission.title}</Typography.Text>
         <Typography.Text type="secondary">{copy}</Typography.Text>
@@ -408,7 +419,7 @@ export function CoGrowthPage() {
       <header className="co-growth-topbar">
         <button className="co-growth-brand" onClick={() => navigate("/co-growth")} type="button">
           <ExperimentOutlined />
-          <span>AI-HRMS / Co-Growth OS</span>
+          <span>AI-HRMS / 共生成长</span>
         </button>
         <div className="co-growth-top-actions">
           <Button type="primary" icon={<ArrowLeftOutlined />} onClick={() => navigate("/app/growth-performance?tab=quick")}>
@@ -432,15 +443,15 @@ export function CoGrowthPage() {
         className="co-growth-boundary"
         type="info"
         showIcon
-        title="Co-Growth 是 AI-HRMS 的成长引擎模块；页面数据来自云衡互联网科技有限公司（虚构样本组织），不是真实公司或真实员工数据。"
+        title="共生成长是 AI-HRMS 的成长引擎模块；页面数据来自云衡互联网科技有限公司（虚构样本组织），不是真实公司或真实员工数据。"
       />
 
       <section className="co-growth-console" data-vc-kind="co-growth-command-center">
         <div className="co-growth-command-panel">
-          <Badge color="#16a34a" text={isCoGrowthDemoMode ? "受控演示环境" : "API mode：保持原有后端边界"} />
-          <Typography.Title level={1}>AI-HRMS Co-Growth Engine｜人机共生成长引擎</Typography.Title>
+          <Badge color="#16a34a" text={isCoGrowthDemoMode ? "受控演示环境" : "API 模式：保持原有后端边界"} />
+          <Typography.Title level={1}>AI-HRMS 共生成长引擎</Typography.Title>
           <Typography.Paragraph>
-            Co-Growth OS 是 AI-HRMS 的成长引擎，帮助员工学习 AI 原理、把 AI 嵌入模拟工作、复盘人机协作过程，并沉淀为可审计的成长证据。
+            共生成长引擎帮助员工学习 AI 原理、把 AI 嵌入模拟工作、复盘人机协作过程，并沉淀为可审计的成长证据。
           </Typography.Paragraph>
           <Input.Search
             data-vc-field="co_growth.ai_instruction"
@@ -464,7 +475,7 @@ export function CoGrowthPage() {
           <div className="coach-panel-header">
             <RobotBadge />
             <div>
-              <Typography.Title level={4}>规则化 AI Coach</Typography.Title>
+              <Typography.Title level={4}>规则化 AI 教练</Typography.Title>
               <Typography.Text type="secondary">{user?.username ?? demo.currentEmployee.name} · {learningModeLabels[selectedMode]}</Typography.Text>
             </div>
           </div>
@@ -475,10 +486,10 @@ export function CoGrowthPage() {
             description={coachResult.summary}
           />
           <div className="coach-facts">
-            <Tag color={riskColor[coachResult.riskLevel]}>风险：{coachResult.riskLevel}</Tag>
+            <Tag color={riskColor[coachResult.riskLevel]}>风险：{riskText(coachResult.riskLevel)}</Tag>
             <Tag>置信度 {coachResult.confidence}%</Tag>
             <Tag>{coachResult.estimatedMinutes} 分钟</Tag>
-            <Tag>工作影响：{coachResult.impactOnWork}</Tag>
+            <Tag>工作影响：{impactText(coachResult.impactOnWork)}</Tag>
             <Tag color={coachResult.humanReviewRequired ? "red" : "green"}>
               {coachResult.humanReviewRequired ? "需要人工确认" : "无需人工确认"}
             </Tag>
@@ -493,7 +504,7 @@ export function CoGrowthPage() {
         <Statistic title="本周学习预算" value={demo.currentEmployee.weeklyLearningBudgetMinutes} suffix="分钟" />
         <Statistic title="已安排" value={scheduledMinutes} suffix="分钟" />
         <Statistic title="成长证据" value={evidenceItems.length} />
-        <Statistic title="活跃 mission" value={activeMissionIds.length} />
+        <Statistic title="活跃任务" value={activeMissionIds.length} />
         <div className="co-growth-profile-summary">
           <Tag color="purple">{aiLiteracyLevelLabels[demo.currentEmployee.aiLiteracyLevel]}</Tag>
           <Typography.Text>{demo.currentEmployee.role} · {demo.currentEmployee.department} · {demo.currentEmployee.recommendedPace}</Typography.Text>
@@ -504,10 +515,10 @@ export function CoGrowthPage() {
         <TaskPath
           title="Co-Growth 任务闭环"
           steps={[
-            { title: "选 Mission", detail: "从学习目标和工作产出选择今天要做的任务", status: selectedMission ? "done" : "current" },
+            { title: "选任务", detail: "从学习目标和工作产出选择今天要做的任务", status: selectedMission ? "done" : "current" },
             { title: "开始/复盘", detail: "先记录任务进度，再生成复盘草稿", status: selectedMissionResult?.reflectionDraft ? "done" : selectedMissionResult ? "current" : "next" },
-            { title: "查看本次证据", detail: "确认 evidenceId、人工检查点和证据来源", status: selectedMissionResult?.reflectionDraft ? "current" : "next" },
-            { title: "沉淀 Workflow", detail: "把可复用步骤放到 Workflow Lab", status: guidedNavigation?.destination === "workflow" ? "current" : "next" },
+            { title: "查看本次证据", detail: "确认证据编号、人工检查点和证据来源", status: selectedMissionResult?.reflectionDraft ? "current" : "next" },
+            { title: "沉淀工作流", detail: "把可复用步骤放到工作流实验室", status: guidedNavigation?.destination === "workflow" ? "current" : "next" },
           ]}
         />
         <Tabs
@@ -523,10 +534,10 @@ export function CoGrowthPage() {
                   <section className="co-growth-band" data-vc-kind="ai-literacy-map">
                     <div className="section-heading">
                       <div>
-                        <Typography.Title level={3}>AI Literacy Map</Typography.Title>
+                        <Typography.Title level={3}>AI 能力画像</Typography.Title>
                         <Typography.Text type="secondary">使用成长阶段、学习信号和证据充分度描述能力，不做人事评价。</Typography.Text>
                       </div>
-                      <Tag color="geekblue">Learn AI</Tag>
+                      <Tag color="geekblue">学习 AI</Tag>
                     </div>
                     <div className="literacy-map">
                       {demo.literacyMap.map((item) => (
@@ -547,7 +558,7 @@ export function CoGrowthPage() {
                                 setActiveTab("missions");
                               }}
                             >
-                              查看 mission
+                              查看任务
                             </Button>
                           </Space>
                         </article>
@@ -559,7 +570,7 @@ export function CoGrowthPage() {
                     <Card className="co-growth-card" data-vc-kind="work-learning-balance">
                       <div className="section-heading compact">
                         <div>
-                          <Typography.Title level={4}>Work-Learning Balance</Typography.Title>
+                          <Typography.Title level={4}>工作学习平衡</Typography.Title>
                           <Typography.Text type="secondary">学习节奏服从工作交付。</Typography.Text>
                         </div>
                         <FieldTimeOutlined />
@@ -584,8 +595,8 @@ export function CoGrowthPage() {
                     <Card className="co-growth-card" data-vc-kind="personalized-learning-profile">
                       <div className="section-heading compact">
                         <div>
-                          <Typography.Title level={4}>Personalized Learning Profile</Typography.Title>
-                          <Typography.Text type="secondary">切换偏好后，mission 和原理卡推荐同步变化。</Typography.Text>
+                          <Typography.Title level={4}>个性化学习画像</Typography.Title>
+                          <Typography.Text type="secondary">切换偏好后，任务和原理卡推荐同步变化。</Typography.Text>
                         </div>
                         <BulbOutlined />
                       </div>
@@ -604,16 +615,16 @@ export function CoGrowthPage() {
             },
             {
               key: "missions",
-              label: "Mission",
+              label: "任务",
               children: (
                 <div className="co-growth-tab-panel">
                   <section className="co-growth-band" data-vc-kind="learning-mission-board">
                     <div className="section-heading">
                       <div>
-                        <Typography.Title level={3}>Learning Mission Board</Typography.Title>
+                        <Typography.Title level={3}>学习任务看板</Typography.Title>
                         <Typography.Text type="secondary">把模拟工作任务改造成小步可复盘的 AI 学习实战。</Typography.Text>
                       </div>
-                      <Tag color="green">Work with AI</Tag>
+                      <Tag color="green">与 AI 协作</Tag>
                     </div>
                     <div className="mission-grid">
                       {recommendedMissions.map((mission) => (
@@ -678,7 +689,7 @@ export function CoGrowthPage() {
                       <div className="section-heading compact">
                         <div>
                           <Typography.Title level={4}>任务结果与复盘</Typography.Title>
-                          <Typography.Text type="secondary">选中 mission 后，开始状态、工作产出、复盘草稿和证据编号都在这里查看。</Typography.Text>
+                          <Typography.Text type="secondary">选中任务后，开始状态、工作产出、复盘草稿和证据编号都在这里查看。</Typography.Text>
                         </div>
                         <Tag color={selectedMissionResult?.status === "reflected" ? "green" : selectedMissionResult?.status === "started" ? "blue" : "default"}>
                           {selectedMissionResult ? (selectedMissionResult.status === "reflected" ? "已有复盘" : "已开始") : "未开始"}
@@ -716,7 +727,7 @@ export function CoGrowthPage() {
                               <Typography.Text strong>{selectedMissionResult.reflectionDraft.title}</Typography.Text>
                               <Typography.Paragraph type="secondary">{selectedMissionResult.reflectionDraft.summary}</Typography.Paragraph>
                             </div>
-                            <Tag color="cyan">evidenceId={selectedMissionResult.reflectionDraft.evidenceId}</Tag>
+                            <Tag color="cyan">证据编号：{selectedMissionResult.reflectionDraft.evidenceId}</Tag>
                           </div>
                           <Row gutter={[12, 12]}>
                             <Col xs={24} md={12}>
@@ -734,7 +745,7 @@ export function CoGrowthPage() {
                           </Row>
                           <Space wrap className="mission-result-actions">
                             <Button size="small" icon={<AuditOutlined />} onClick={() => openMissionDestination("evidence")}>查看本次证据</Button>
-                            <Button size="small" icon={<ForkOutlined />} onClick={() => openMissionDestination("workflow")}>沉淀为 Workflow</Button>
+                            <Button size="small" icon={<ForkOutlined />} onClick={() => openMissionDestination("workflow")}>沉淀为工作流</Button>
                           </Space>
                         </div>
                       ) : (
@@ -743,7 +754,7 @@ export function CoGrowthPage() {
                           type="info"
                           showIcon
                           title="复盘草稿还没有生成"
-                          description="点击当前 mission 卡片里的「生成复盘」，这里会显示复盘草稿，并同步到治理与趋势里的 Growth Evidence Portfolio。"
+                          description="点击当前任务卡片里的「生成复盘」，这里会显示复盘草稿，并同步到治理与趋势里的成长证据档案。"
                         />
                       )}
                     </div>
@@ -759,10 +770,10 @@ export function CoGrowthPage() {
                   <section className="co-growth-band" data-vc-kind="ai-principle-cards">
                     <div className="section-heading">
                       <div>
-                        <Typography.Title level={3}>AI Principle Cards</Typography.Title>
+                        <Typography.Title level={3}>AI 原理卡</Typography.Title>
                         <Typography.Text type="secondary">理解原理、限制和验证方式。</Typography.Text>
                       </div>
-                      <Tag color="volcano">Learn AI</Tag>
+                      <Tag color="volcano">学习 AI</Tag>
                     </div>
                     <Tabs
                       items={recommendedCards.slice(0, 6).map((card) => ({
@@ -787,7 +798,7 @@ export function CoGrowthPage() {
             },
             {
               key: "workflow",
-              label: "Workflow Lab",
+              label: "工作流实验室",
               children: (
                 <div className="co-growth-tab-panel">
                   <div ref={workflowLabRef} className={guidedNavigation?.destination === "workflow" ? "guided-target" : undefined}>
@@ -798,7 +809,7 @@ export function CoGrowthPage() {
                   </div>
                   <section className="co-growth-split">
                     <Card className="co-growth-card" data-vc-kind="prompt-workflow-versioning">
-                      <Typography.Title level={4}>Prompt / Workflow Versioning</Typography.Title>
+                      <Typography.Title level={4}>提示词与工作流版本</Typography.Title>
                       <Timeline
                         items={demo.promptVersions.map((version) => ({
                           color: version.reliabilityGain > 80 ? "green" : "blue",
@@ -815,7 +826,7 @@ export function CoGrowthPage() {
                     <Card className="co-growth-card" data-vc-kind="reflection-loop">
                       <div className="section-heading compact">
                         <div>
-                          <Typography.Title level={4}>Reflection Loop</Typography.Title>
+                          <Typography.Title level={4}>复盘闭环</Typography.Title>
                           <Typography.Text type="secondary">AI 辅助复盘，人保留最终判断。</Typography.Text>
                         </div>
                         <FireOutlined />
@@ -841,10 +852,10 @@ export function CoGrowthPage() {
                   <section className="co-growth-band" data-vc-kind="team-capability-heatmap">
                     <div className="section-heading">
                       <div>
-                        <Typography.Title level={3}>Team Capability Heatmap</Typography.Title>
+                        <Typography.Title level={3}>团队能力热力图</Typography.Title>
                         <Typography.Text type="secondary">给 HR / 管理者看的聚合趋势，不是个人惩罚名单。</Typography.Text>
                       </div>
-                      <Tag color="cyan">Grow with AI</Tag>
+                      <Tag color="cyan">与 AI 共成长</Tag>
                     </div>
                     <Row gutter={[16, 16]}>
                       {demo.teamInsights.map((insight) => (
@@ -884,7 +895,7 @@ export function CoGrowthPage() {
                         {guidedNavigation?.destination === "evidence" && guidedMission ? (
                           <GuidedReturnBanner destination="evidence" mission={guidedMission} result={guidedMissionResult} onBack={returnToMissionResult} />
                         ) : null}
-                        <Typography.Title level={4}>Growth Evidence Portfolio</Typography.Title>
+                        <Typography.Title level={4}>成长证据档案</Typography.Title>
                         <Timeline
                           items={evidenceItems.map((item) => {
                             const isCurrentEvidence = guidedNavigation?.destination === "evidence" && guidedNavigation.evidenceId === item.id;
@@ -900,7 +911,7 @@ export function CoGrowthPage() {
                                 >
                                   <div className="evidence-item-title">
                                     <Typography.Text strong>{item.title}</Typography.Text>
-                                    {isCurrentEvidence ? <Tag color="cyan">当前 mission 证据</Tag> : null}
+                                    {isCurrentEvidence ? <Tag color="cyan">当前任务证据</Tag> : null}
                                   </div>
                                   <p>{item.description}</p>
                                   <Space wrap>
@@ -916,7 +927,7 @@ export function CoGrowthPage() {
                       </Card>
                     </div>
                     <Card className="co-growth-card" data-vc-kind="governance-sandbox">
-                      <Typography.Title level={4}>AI Governance Sandbox</Typography.Title>
+                      <Typography.Title level={4}>AI 治理沙盒</Typography.Title>
                       <div className="governance-list">
                         {demo.governanceScenarios.map((scenario) => (
                           <article className="governance-item" key={scenario.id}>
@@ -990,10 +1001,10 @@ workflow.add_conditional_edges(
     <section className="workflow-lab co-growth-band" data-vc-kind="agent-workflow-lab">
       <div className="section-heading">
         <div>
-          <Typography.Title level={3}>Agent Workflow Lab</Typography.Title>
-          <Typography.Text type="secondary">从 prompt 迁移到可迭代、可协作、可审计的 workflow。</Typography.Text>
+          <Typography.Title level={3}>智能体工作流实验室</Typography.Title>
+          <Typography.Text type="secondary">从单次提问迁移到可迭代、可协作、可审计的工作流。</Typography.Text>
         </div>
-        <Tag color="purple">Advanced</Tag>
+        <Tag color="purple">进阶</Tag>
       </div>
       <Row gutter={[16, 16]}>
         <Col xs={24} md={7}>
@@ -1035,9 +1046,9 @@ workflow.add_conditional_edges(
             <Typography.Title level={4}>{selected.label}</Typography.Title>
             <RiskTag risk={selected.riskLevel} />
             <p>{selected.description}</p>
-            <InfoBlock title="State / Input" text={selected.input} />
-            <InfoBlock title="Output" text={selected.output} />
-            <InfoBlock title="Tool / Boundary" text={selected.tool ?? "无外部工具调用，保持前端 deterministic mock"} />
+            <InfoBlock title="状态 / 输入" text={selected.input} />
+            <InfoBlock title="输出" text={selected.output} />
+            <InfoBlock title="工具 / 边界" text={selected.tool ?? "无外部工具调用，保持前端确定性演示。"} />
           </div>
         </Col>
       </Row>
