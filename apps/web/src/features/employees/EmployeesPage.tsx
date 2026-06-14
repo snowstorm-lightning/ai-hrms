@@ -276,14 +276,15 @@ export function EmployeesPage() {
             setSaving(true);
             setError("");
             try {
-              if (editing?.id) {
-                await api.updateEmployee(editing.id, payload);
+              const editingId = editing?.id;
+              if (editingId) {
+                await api.updateEmployee(editingId, payload);
               } else {
                 await api.createEmployee(payload);
               }
               closeEditor();
               form.resetFields();
-              await reload();
+              await reload(editingId ? page : 1);
             } catch (err) {
               setError(getErrorMessage(err, "员工保存失败"));
             } finally {

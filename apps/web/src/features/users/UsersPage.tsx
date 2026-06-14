@@ -154,13 +154,14 @@ export function UsersPage() {
             setSaving(true);
             setError("");
             try {
-              if (editing?.id) {
-                await api.updateUser(editing.id, values);
+              const editingId = editing?.id;
+              if (editingId) {
+                await api.updateUser(editingId, values);
               } else {
                 await api.createUser(values);
               }
               closeEditor();
-              await reload();
+              await reload(editingId ? page : 1);
             } catch (err) {
               setError(getErrorMessage(err, "用户保存失败"));
             } finally {
