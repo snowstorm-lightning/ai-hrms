@@ -1795,7 +1795,7 @@ function businessRefTypeLabel(type: string) {
     case "rag_document":
       return "份知识资料";
     case "agent_run":
-      return "个 Agent run";
+      return "条智能体运行";
     case "audit_event":
       return "条审计事件";
     case "learning":

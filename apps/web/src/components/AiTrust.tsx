@@ -30,6 +30,40 @@ export function riskColor(risk: TrustRiskLevel) {
   return riskColors[risk] ?? "default";
 }
 
+function auditStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    recording: "记录中",
+    retrieval_logged: "已记录检索",
+    metadata_missing: "缺少元数据",
+    preview_ready: "预览就绪",
+    previewed: "已预览",
+    preview_not_citation: "仅治理预览",
+    preview_not_search: "仅本地预览",
+    waiting_human_review: "等待人工确认",
+    blocked_pending_human_review: "已阻断，等待人工确认",
+    logged: "已记录",
+  };
+  return labels[status] ?? status;
+}
+
+function executionModeLabel(mode: string) {
+  const labels: Record<string, string> = {
+    deterministic_program: "程序化处理",
+    deterministic_program_flow: "程序化处理",
+    programmatic_query: "程序化查询",
+    rag_answer: "知识检索回答",
+    single_agent: "单智能体预览",
+    multi_agent: "多智能体预览",
+    action_preview: "动作预览",
+    human_review_required: "需要人工复核",
+  };
+  return labels[mode] ?? mode;
+}
+
+function booleanLabel(value: boolean) {
+  return value ? "使用" : "未使用";
+}
+
 export function RiskTag({ risk }: { risk: TrustRiskLevel }) {
   return <Tag color={riskColor(risk)}>{riskLabel(risk)}</Tag>;
 }
@@ -58,7 +92,7 @@ export function TrustMetaBar({
       <Tag color={humanReviewRequired ? "red" : "green"}>
         {humanReviewRequired ? "需要人工复核" : "无需人工复核"}
       </Tag>
-      {auditStatus ? <Tag icon={<AuditOutlined />}>审计：{auditStatus}</Tag> : null}
+      {auditStatus ? <Tag icon={<AuditOutlined />}>审计：{auditStatusLabel(auditStatus)}</Tag> : null}
     </Space>
   );
 }
@@ -91,15 +125,15 @@ export function ExecutionDecisionPanel({ decision }: { decision?: HarnessDecisio
             className="harness-decision-panel"
             showIcon
             type={decision.humanReviewRequired ? "warning" : "info"}
-            title={`Execution Router：${decision.executionMode}`}
+            title={`执行路由：${executionModeLabel(decision.executionMode)}`}
             description={(
               <Space orientation="vertical" size={6}>
                 <Typography.Text>{decision.reason}</Typography.Text>
                 <Space wrap>
-                  <Tag color={riskColor(decision.riskLevel)}>risk={decision.riskLevel}</Tag>
-                  <Tag>intent={decision.intent}</Tag>
-                  <Tag color={decision.useLlm ? "purple" : "default"}>LLM={String(decision.useLlm)}</Tag>
-                  <Tag color={decision.useAgent ? "geekblue" : "default"}>agent={String(decision.useAgent)}</Tag>
+                  <Tag color={riskColor(decision.riskLevel)}>风险：{riskLabel(decision.riskLevel)}</Tag>
+                  <Tag>意图：{decision.intent}</Tag>
+                  <Tag color={decision.useLlm ? "purple" : "default"}>语言模型：{booleanLabel(decision.useLlm)}</Tag>
+                  <Tag color={decision.useAgent ? "geekblue" : "default"}>智能体：{booleanLabel(decision.useAgent)}</Tag>
                   {decision.routedBy.map((item) => <Tag key={item}>{item}</Tag>)}
                 </Space>
               </Space>
@@ -124,8 +158,8 @@ export function ContextPacketPanel({ packet }: { packet?: ContextPacket | null }
           <div className="context-packet-panel" data-vc-kind="context-packet">
             <Typography.Paragraph type="secondary">{packet.boundary}</Typography.Paragraph>
             <Space wrap>
-              {Object.entries(packet.sourceCount).map(([key, value]) => <Tag key={key}>{key}={value}</Tag>)}
-              <Tag>staleness={packet.staleness}</Tag>
+              {Object.entries(packet.sourceCount).map(([key, value]) => <Tag key={key}>{key}：{value}</Tag>)}
+              <Tag>新鲜度：{packet.staleness}</Tag>
             </Space>
             <div className="context-item-list">
               {packet.items.slice(0, 4).map((item, index) => (
@@ -134,7 +168,7 @@ export function ContextPacketPanel({ packet }: { packet?: ContextPacket | null }
                   <Typography.Text type="secondary">{item.summary}</Typography.Text>
                   <Space wrap>
                     <Tag>{item.type}</Tag>
-                    {item.riskLevel ? <Tag color={riskColor(item.riskLevel)}>{item.riskLevel}</Tag> : null}
+                    {item.riskLevel ? <Tag color={riskColor(item.riskLevel)}>{riskLabel(item.riskLevel)}</Tag> : null}
                     <Tag>{item.source}</Tag>
                   </Space>
                 </article>

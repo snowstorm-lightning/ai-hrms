@@ -34,6 +34,17 @@ function eventLabel(eventType: string) {
   return "审计事件";
 }
 
+function auditStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    approved_preview: "预览已批准",
+    previewed: "已预览",
+    waiting_human_review: "等待人工确认",
+    blocked_pending_human_review: "已阻断，等待人工确认",
+    recording: "记录中",
+  };
+  return labels[status] ?? status;
+}
+
 function auditSummary(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return String(value || "已记录事件");
@@ -43,6 +54,9 @@ function auditSummary(value: unknown) {
     data.blockedReason ? `阻断原因：${String(data.blockedReason)}` : "",
     data.riskReason ? `风险原因：${String(data.riskReason)}` : "",
     typeof data.humanReviewRequired === "boolean" ? `人工确认：${data.humanReviewRequired ? "需要" : "不需要"}` : "",
+    data.reviewer ? `复核人：${String(data.reviewer)}` : "",
+    data.auditStatus ? `审计状态：${auditStatusLabel(String(data.auditStatus))}` : "",
+    typeof data.reversible === "boolean" ? `可补偿：${data.reversible ? "是" : "否"}` : "",
     data.provider ? `来源：${String(data.provider)}` : "",
     Array.isArray(data.citations) && data.citations.length ? `引用：${data.citations.length}` : "",
     data.queryPreview ? `查询：${String(data.queryPreview)}` : "",
@@ -50,7 +64,7 @@ function auditSummary(value: unknown) {
   if (parts.length) {
     return parts.join(" · ");
   }
-  return JSON.stringify(value);
+  return "已记录结构化审计数据";
 }
 
 export function AuditPage() {

@@ -34,14 +34,78 @@ function trustColor(value: string) {
   return "orange";
 }
 
+function statusLabel(value: string) {
+  const labels: Record<string, string> = {
+    draft: "草稿",
+    published: "已发布",
+  };
+  return labels[value] ?? value;
+}
+
+function trustLabel(value: string) {
+  const labels: Record<string, string> = {
+    official: "官方",
+    reviewed: "已复核",
+    internal: "内部资料",
+  };
+  return labels[value] ?? value;
+}
+
+function sensitivityLabel(value: string) {
+  const labels: Record<string, string> = {
+    normal: "普通",
+    internal: "内部",
+    restricted: "受限",
+  };
+  return labels[value] ?? value;
+}
+
+function humanizeDocumentText(value: string) {
+  return value
+    .replaceAll("Visual Copilot", "圈选助手")
+    .replaceAll("Agent Run", "智能体运行")
+    .replaceAll("Agent run", "智能体运行")
+    .replaceAll("toolPreview", "工具调用预览")
+    .replaceAll("riskLevel", "风险等级")
+    .replaceAll("requiredCapability", "所需权限")
+    .replaceAll("humanReviewRequired", "需要人工复核")
+    .replaceAll("waiting_human_review", "等待人工确认")
+    .replaceAll("previewed", "已预览")
+    .replaceAll("running", "运行中")
+    .replaceAll("completed", "已完成")
+    .replaceAll("failed", "失败")
+    .replaceAll("blocked", "已阻断")
+    .replaceAll("cancelled", "已取消")
+    .replaceAll("auditStatus", "审计状态")
+    .replaceAll("status=published", "已发布")
+    .replaceAll("trust_level", "可信等级")
+    .replaceAll("sensitivity", "敏感级别")
+    .replaceAll("scope", "可见范围")
+    .replaceAll("chunk", "分块")
+    .replaceAll("embedding", "向量索引")
+    .replaceAll("layout snapshot", "页面线索")
+    .replaceAll("prompt", "提问")
+    .replaceAll("citation", "引用")
+    .replaceAll("audit", "审计");
+}
+
 function scopeText(document: RAGDocument) {
   const scopes = document.scopes ?? [];
-  if (!scopes.length) return "global";
-  return scopes.map((scope) => scope.roleCode ? `${scope.scopeType}:${scope.roleCode}` : scope.scopeType).join(", ");
+  if (!scopes.length) return "全局可见";
+  const labels: Record<string, string> = {
+    global: "全局",
+    legal_entity: "法人",
+    org_unit: "组织",
+    role: "角色",
+  };
+  return scopes.map((scope) => {
+    const label = labels[scope.scopeType] ?? scope.scopeType;
+    return scope.roleCode ? `${label}：${scope.roleCode}` : label;
+  }).join("、");
 }
 
 function documentSummary(document: RAGDocument) {
-  const content = document.content ?? "";
+  const content = humanizeDocumentText(document.content ?? "");
   const firstBodyLine = content
     .split(/\r?\n+/)
     .map((line) => line.trim())
@@ -107,10 +171,10 @@ function sourceName(sources: RAGSource[], document: RAGDocument | null) {
 function GovernanceTags({ document }: { document: RAGDocument }) {
   return (
     <Space wrap>
-      <Tag color={document.status === "published" ? "green" : "default"}>{document.status}</Tag>
-      <Tag color={trustColor(document.trustLevel)}>可信等级={document.trustLevel}</Tag>
-      <Tag color={sensitivityColor(document.sensitivity)}>敏感级别={document.sensitivity}</Tag>
-      <Tag>可见范围={scopeText(document)}</Tag>
+      <Tag color={document.status === "published" ? "green" : "default"}>{statusLabel(document.status)}</Tag>
+      <Tag color={trustColor(document.trustLevel)}>可信等级：{trustLabel(document.trustLevel)}</Tag>
+      <Tag color={sensitivityColor(document.sensitivity)}>敏感级别：{sensitivityLabel(document.sensitivity)}</Tag>
+      <Tag>可见范围：{scopeText(document)}</Tag>
     </Space>
   );
 }
@@ -132,7 +196,7 @@ export function DocsLibraryPage() {
   const [searchParams] = useSearchParams();
   const [sources, setSources] = useState<RAGSource[]>([]);
   const [documents, setDocuments] = useState<RAGDocument[]>([]);
-  const [query, setQuery] = useState("Visual Copilot 什么时候需要 layout snapshot？");
+  const [query, setQuery] = useState("圈选助手什么时候需要页面线索？");
   const [result, setResult] = useState<RAGSearchResult | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string>("all");
   const [trustFilter, setTrustFilter] = useState<string>("all");
@@ -192,7 +256,7 @@ export function DocsLibraryPage() {
               type="info"
               showIcon
               title="精准回答必须走 RAG 引用链"
-              description="涉及“依据在哪里、引用哪份资料、哪个 scope 可见”时，系统会使用 RAG 检索和审计记录；目录页只显示资料简介，完整正文在文档详情页阅读。"
+              description="涉及“依据在哪里、引用哪份资料、谁可以看”时，系统会使用 RAG 检索和审计记录；目录页只显示资料简介，完整正文在文档详情页阅读。"
             />
             <Input.Search
               value={query}
@@ -214,11 +278,11 @@ export function DocsLibraryPage() {
         </Card>
         <Card className="docs-policy-card" title="文档库使用边界">
           <Space orientation="vertical" size="middle">
-            <Tag icon={<SafetyCertificateOutlined />} color="blue">scope.checked</Tag>
-            <Tag icon={<FileSearchOutlined />} color="purple">citation.required</Tag>
-            <Tag icon={<DatabaseOutlined />} color="cyan">retrieval.audit.logged</Tag>
+            <Tag icon={<SafetyCertificateOutlined />} color="blue">已检查可见范围</Tag>
+            <Tag icon={<FileSearchOutlined />} color="purple">必须带引用</Tag>
+            <Tag icon={<DatabaseOutlined />} color="cyan">检索写入审计</Tag>
             <Typography.Paragraph type="secondary">
-              文档库目录用于筛选资料和查看简介；详情页用于完整阅读，资料发布、敏感级别、scope 和向量重建仍在知识治理页完成。
+              文档库目录用于筛选资料和查看简介；详情页用于完整阅读，资料发布、敏感级别、可见范围和向量重建仍在知识治理页完成。
             </Typography.Paragraph>
           </Space>
         </Card>
@@ -237,9 +301,9 @@ export function DocsLibraryPage() {
             onChange={setTrustFilter}
             options={[
               { value: "all", label: "全部可信等级" },
-              { value: "official", label: "official" },
-              { value: "reviewed", label: "reviewed" },
-              { value: "internal", label: "internal" },
+              { value: "official", label: "官方" },
+              { value: "reviewed", label: "已复核" },
+              { value: "internal", label: "内部资料" },
             ]}
             style={{ minWidth: 180 }}
           />
@@ -258,17 +322,17 @@ export function DocsLibraryPage() {
               >
                 <div className="docs-card-header">
                   <span className="docs-card-icon"><BookOutlined /></span>
-                  <Tag color={document.status === "published" ? "green" : "default"}>{document.status}</Tag>
+                  <Tag color={document.status === "published" ? "green" : "default"}>{statusLabel(document.status)}</Tag>
                 </div>
                 <div className="docs-card-title">
-                  <Typography.Text strong>{document.title}</Typography.Text>
+                  <Typography.Text strong>{humanizeDocumentText(document.title)}</Typography.Text>
                   <Typography.Text type="secondary">{sourceName(sources, document)}</Typography.Text>
                 </div>
                 <Typography.Paragraph type="secondary">{documentSummary(document)}</Typography.Paragraph>
                 <Space wrap>
-                  <Tag color={trustColor(document.trustLevel)}>{t("docs.trust")}={document.trustLevel}</Tag>
-                  <Tag color={sensitivityColor(document.sensitivity)}>{t("docs.sensitivity")}={document.sensitivity}</Tag>
-                  <Tag>{t("docs.scope")}={scopeText(document)}</Tag>
+                  <Tag color={trustColor(document.trustLevel)}>{t("docs.trust")}：{trustLabel(document.trustLevel)}</Tag>
+                  <Tag color={sensitivityColor(document.sensitivity)}>{t("docs.sensitivity")}：{sensitivityLabel(document.sensitivity)}</Tag>
+                  <Tag>{t("docs.scope")}：{scopeText(document)}</Tag>
                 </Space>
                 <Button icon={<FileSearchOutlined />} onClick={() => navigate(`/app/docs/${document.id}`)}>阅读全文</Button>
               </article>
@@ -368,7 +432,7 @@ export function DocsDocumentPage() {
                 showIcon
                 type={document.sensitivity === "restricted" ? "warning" : "success"}
                 title={document.sensitivity === "restricted" ? "该资料需要人工复核后查看或引用" : "该资料可作为 RAG 候选引用"}
-                description="正式回答不会直接使用当前阅读视图，而是通过 RAG 检索、scope 校验和 citation 记录生成。"
+                description="正式回答不会直接使用当前阅读视图，而是通过 RAG 检索、可见范围校验和引用记录生成。"
               />
               <Descriptions column={1} size="small" bordered>
                 <Descriptions.Item label="文档 ID">{document.id}</Descriptions.Item>

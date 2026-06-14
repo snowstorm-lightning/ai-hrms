@@ -391,7 +391,7 @@ export function AttendancePage() {
                   </Space>
                 </div>
               ) : (
-                <Alert showIcon type="warning" title="尚未生成分析" description="点击按钮后会创建 Agent run 和只读工具预览，不会执行写操作。" />
+                <Alert showIcon type="warning" title="尚未生成分析" description="点击按钮后会创建智能体运行预览和只读工具预览，不会执行写操作。" />
               )}
             </Space>
           </aside>

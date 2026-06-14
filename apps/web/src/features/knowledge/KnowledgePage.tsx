@@ -58,6 +58,34 @@ function providerLabel(value: string | undefined) {
   return value;
 }
 
+function humanizeDocumentText(value: string) {
+  return value
+    .replaceAll("Agent Run", "智能体运行")
+    .replaceAll("Agent run", "智能体运行")
+    .replaceAll("toolPreview", "工具调用预览")
+    .replaceAll("riskLevel", "风险等级")
+    .replaceAll("requiredCapability", "所需权限")
+    .replaceAll("humanReviewRequired", "需要人工复核")
+    .replaceAll("auditStatus", "审计状态")
+    .replaceAll("status=published", "已发布")
+    .replaceAll("trust_level", "可信等级")
+    .replaceAll("sensitivity", "敏感级别")
+    .replaceAll("scope", "可见范围")
+    .replaceAll("chunk", "分块")
+    .replaceAll("embedding", "向量索引")
+    .replaceAll("retrieval log", "检索日志")
+    .replaceAll("audit", "审计");
+}
+
+function documentPreview(document: RAGDocument) {
+  const content = humanizeDocumentText(document.content ?? "该资料只展示治理元数据；真实内容会按可见范围返回。");
+  const firstLine = content
+    .split(/\r?\n+/)
+    .map((line) => line.replace(/^#+\s*/, "").trim())
+    .filter(Boolean)[0] ?? content;
+  return firstLine.length > 180 ? `${firstLine.slice(0, 180)}...` : firstLine;
+}
+
 function scopeText(document: RAGDocument) {
   const scopes = document.scopes ?? [];
   if (!scopes.length) return "全局可见";
@@ -238,8 +266,8 @@ export function KnowledgePage() {
               <span className="knowledge-card-icon"><DatabaseOutlined /></span>
               <Tag color={document.status === "published" ? "green" : "default"}>{statusLabel(document.status)}</Tag>
             </div>
-            <Typography.Text strong>{document.title}</Typography.Text>
-            <Typography.Paragraph type="secondary">{document.content ?? "该资料只展示治理元数据；真实内容会按可见范围返回。"}</Typography.Paragraph>
+            <Typography.Text strong>{humanizeDocumentText(document.title)}</Typography.Text>
+            <Typography.Paragraph type="secondary">{documentPreview(document)}</Typography.Paragraph>
             <Space wrap>
               <Tag color={trustColor(document.trustLevel)}>可信等级：{trustLabel(document.trustLevel)}</Tag>
               <Tag color={sensitivityColor(document.sensitivity)}>敏感级别：{sensitivityLabel(document.sensitivity)}</Tag>
