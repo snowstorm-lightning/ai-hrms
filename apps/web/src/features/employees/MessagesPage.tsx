@@ -1,4 +1,4 @@
-import { Button, Form, Input, Modal, Space, Table, Tag, Typography } from "antd";
+import { Button, Form, Input, Modal, Pagination, Space, Table, Tag, Typography } from "antd";
 import DOMPurify from "dompurify";
 import { useEffect, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
@@ -84,6 +84,9 @@ export function MessagesPage() {
             <Button size="small" type="primary" data-vc-action="message.comments.open" onClick={() => openComments(row)}>查看评论</Button>
           </article>
         ))}
+        {total > 10 ? (
+          <Pagination className="hr-mobile-pagination" size="small" current={page} pageSize={10} total={total} showSizeChanger={false} onChange={(nextPage) => reload(nextPage)} />
+        ) : null}
       </div>
       <Table
         className="hr-desktop-record-table"

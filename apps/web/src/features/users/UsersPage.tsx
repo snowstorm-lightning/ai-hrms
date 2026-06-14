@@ -1,4 +1,4 @@
-import { Button, Form, Input, Modal, Select, Space, Switch, Table, Tag } from "antd";
+import { Button, Form, Input, Modal, Pagination, Select, Space, Switch, Table, Tag } from "antd";
 import { useEffect, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
 import type { LegalEntity, OrgUnit, Role, RoleBinding, User } from "../../api/types";
@@ -110,6 +110,9 @@ export function UsersPage() {
             </Space>
           </article>
         ))}
+        {total > 10 ? (
+          <Pagination className="hr-mobile-pagination" size="small" current={page} pageSize={10} total={total} showSizeChanger={false} onChange={(nextPage) => reload(nextPage)} />
+        ) : null}
       </div>
       <Table
         className="hr-desktop-record-table"

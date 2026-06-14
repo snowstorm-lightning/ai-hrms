@@ -1,4 +1,4 @@
-import { Alert, Button, DatePicker, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Switch, Table, Tag } from "antd";
+import { Alert, Button, DatePicker, Descriptions, Drawer, Form, Input, InputNumber, Modal, Pagination, Select, Space, Switch, Table, Tag } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
@@ -149,6 +149,9 @@ export function EmployeesPage() {
             </Space>
           </article>
         ))}
+        {total > 10 ? (
+          <Pagination className="hr-mobile-pagination" size="small" current={page} pageSize={10} total={total} showSizeChanger={false} onChange={(nextPage) => reload(nextPage)} />
+        ) : null}
       </div>
       <Table
         className="hr-desktop-record-table"
