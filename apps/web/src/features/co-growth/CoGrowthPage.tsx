@@ -26,6 +26,7 @@ import {
   BulbOutlined,
   CheckCircleOutlined,
   ExperimentOutlined,
+  EyeOutlined,
   FieldTimeOutlined,
   FireOutlined,
   ForkOutlined,
@@ -349,7 +350,7 @@ export function CoGrowthPage() {
 
   const selectMission = (mission: LearningMission) => {
     setSelectedMissionId(mission.id);
-    message.info(`已选中 mission：${mission.title}`);
+    message.info(`已选中任务：${mission.title}`);
   };
 
   const revealMissionResult = () => {
@@ -388,7 +389,7 @@ export function CoGrowthPage() {
       },
     }));
     revealMissionResult();
-    message.success(`已开始 mission：${mission.title}，结果在下方「任务结果与复盘」查看`);
+    message.success(`已开始任务：${mission.title}，结果在下方「任务结果与复盘」查看`);
   };
 
   const generateReflection = (mission: LearningMission) => {
@@ -635,15 +636,6 @@ export function CoGrowthPage() {
                           data-vc-object-type="learning_mission"
                           data-vc-object-id={mission.id}
                           data-vc-label={mission.title}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => selectMission(mission)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              selectMission(mission);
-                            }
-                          }}
                         >
                           <div className="mission-card-header">
                             <Typography.Text strong>{mission.title}</Typography.Text>
@@ -662,10 +654,18 @@ export function CoGrowthPage() {
                           <div className="mission-actions">
                             <Button
                               size="small"
+                              icon={<EyeOutlined />}
+                              onClick={() => {
+                                selectMission(mission);
+                                revealMissionResult();
+                              }}
+                            >
+                              查看结果
+                            </Button>
+                            <Button
+                              size="small"
                               type="primary"
-                              onKeyDown={(event) => event.stopPropagation()}
-                              onClick={(event) => {
-                                event.stopPropagation();
+                              onClick={() => {
                                 startMission(mission);
                               }}
                             >
@@ -673,9 +673,7 @@ export function CoGrowthPage() {
                             </Button>
                             <Button
                               size="small"
-                              onKeyDown={(event) => event.stopPropagation()}
-                              onClick={(event) => {
-                                event.stopPropagation();
+                              onClick={() => {
                                 generateReflection(mission);
                               }}
                             >
