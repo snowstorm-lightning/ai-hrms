@@ -107,27 +107,6 @@ const sampleInputs: Record<string, HRRecordInput> = {
   appraisals: { title: "绩效评估提交", status: "submitted", riskLevel: "high", humanReviewRequired: true, payload: { finalDecision: "human_only" } },
 };
 
-const statusOptions = [
-  { value: "draft", label: "draft" },
-  { value: "submitted", label: "submitted" },
-  { value: "pending", label: "pending" },
-  { value: "waiting_human_review", label: "waiting_human_review" },
-  { value: "approved", label: "approved" },
-  { value: "rejected", label: "rejected" },
-  { value: "open", label: "open" },
-  { value: "active", label: "active" },
-  { value: "scheduled", label: "scheduled" },
-  { value: "planned", label: "planned" },
-  { value: "completed", label: "completed" },
-  { value: "closed", label: "closed" },
-];
-
-const riskOptions = [
-  { value: "low", label: "low" },
-  { value: "medium", label: "medium" },
-  { value: "high", label: "high" },
-];
-
 const payloadFieldsByResource: Record<string, PayloadField[]> = {
   "leave-applications": [
     { name: "leaveType", label: "请假类型", type: "select", options: [{ value: "annual", label: "annual" }, { value: "sick", label: "sick" }, { value: "personal", label: "personal" }, { value: "compensatory", label: "compensatory" }] },
@@ -776,6 +755,9 @@ function HRResourcePanel({
           ) : null}
           <Form.Item name="scopeType" hidden><Input /></Form.Item>
           <Form.Item name="scopeId" hidden><Input /></Form.Item>
+          <Form.Item name="status" hidden><Input /></Form.Item>
+          <Form.Item name="riskLevel" hidden><Input /></Form.Item>
+          <Form.Item name="humanReviewRequired" hidden valuePropName="checked"><Switch /></Form.Item>
           <Form.Item name="title" label="标题" rules={[{ required: true, message: "请输入标题" }]}>
             <Input data-vc-field={`hr.${resource}.title`} />
           </Form.Item>
@@ -791,23 +773,19 @@ function HRResourcePanel({
               </Form.Item>
             </Col>
           </Row>
-          <Row gutter={12}>
-            <Col xs={24} md={8}>
-              <Form.Item name="status" label="状态" rules={[{ required: true, message: "请选择状态" }]}>
-                <Select options={statusOptions} data-vc-field={`hr.${resource}.status`} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={8}>
-              <Form.Item name="riskLevel" label="风险" rules={[{ required: true, message: "请选择风险" }]}>
-                <Select options={riskOptions} data-vc-field={`hr.${resource}.risk`} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={8}>
-              <Form.Item name="humanReviewRequired" label="人工复核" valuePropName="checked">
-                <Switch data-vc-field={`hr.${resource}.human_review`} />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Alert
+            className="domain-alert"
+            showIcon
+            type={editing?.id ? "warning" : "success"}
+            title={editing?.id ? "流程状态由详情页的下一步处理推进" : "保存后进入审批流程"}
+            description={(
+              <Space wrap>
+                <Tag color={statusColor(editing?.status ?? "draft")}>状态：{editing?.status ?? "draft"}</Tag>
+                <Tag color={riskColor(editing?.riskLevel ?? "medium")}>风险：{editing?.riskLevel ?? "medium"}</Tag>
+                {editing?.humanReviewRequired ? <Tag color="red">需要人工复核</Tag> : <Tag color="green">低风险预览</Tag>}
+              </Space>
+            )}
+          />
           {payloadFields.length ? (
             <>
               <Typography.Title level={5}>业务字段</Typography.Title>
