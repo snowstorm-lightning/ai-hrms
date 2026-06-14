@@ -185,7 +185,7 @@ export function EmployeesPage() {
           },
         ]}
       />
-      <Drawer title="员工详情" open={!!selected} onClose={() => setSelected(null)} size="large" data-vc-kind="employee-drawer" data-vc-object-type={selected ? "employee" : undefined} data-vc-object-id={selected?.id} data-vc-label={selected?.name}>
+      <Drawer title="员工详情" open={!!selected} onClose={() => setSelected(null)} size="min(736px, 100vw)" data-vc-kind="employee-drawer" data-vc-object-type={selected ? "employee" : undefined} data-vc-object-id={selected?.id} data-vc-label={selected?.name}>
         {selected ? (
           <>
             <Descriptions column={{ xs: 1, md: 2 }} bordered>

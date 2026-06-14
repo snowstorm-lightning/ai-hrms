@@ -871,7 +871,7 @@ function HRResourcePanel({
           setSelected(null);
           onClearFocus?.();
         }}
-        size="large"
+        size="min(736px, 100vw)"
       >
         {selected ? (
           <Space orientation="vertical" size="middle" className="drawer-stack">
@@ -1361,7 +1361,7 @@ function RequestQueuePanel({ onOpenResource }: { onOpenResource: (resource: stri
         title={selected?.title}
         open={Boolean(selected)}
         onClose={() => setSelected(null)}
-        width={520}
+        size="min(520px, 100vw)"
       >
         {selected ? (
           <Space orientation="vertical" size="middle" className="drawer-stack">

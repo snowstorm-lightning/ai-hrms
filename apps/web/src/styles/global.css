@@ -802,6 +802,18 @@ button.hr-mobile-record-card:focus-visible {
   gap: 6px;
 }
 
+.hr-mobile-card-action {
+  align-self: flex-start;
+  min-height: 28px;
+  padding: 3px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #0958d9;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .employee-self-service,
 .employee-request-queue {
   display: grid;

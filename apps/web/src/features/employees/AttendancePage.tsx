@@ -337,6 +337,7 @@ export function AttendancePage() {
                       key={row.id}
                       onClick={() => openDetails(`${row.statusLabel}明细`, { type: "exception", exceptionType: row.exceptionType })}
                       aria-label={`查看${row.employeeName}${row.statusLabel}明细`}
+                      data-vc-action="attendance.detail"
                       data-vc-kind="attendance-exception-mobile-card"
                       data-vc-object-type="attendance"
                       data-vc-object-id={row.id}
@@ -348,6 +349,7 @@ export function AttendancePage() {
                         <Tag color={riskColor(row.severity)}>{row.statusLabel}</Tag>
                       </span>
                       <Typography.Text type="secondary">{row.reason || row.remarks || "-"}</Typography.Text>
+                      <span className="hr-mobile-card-action">查看明细</span>
                     </button>
                   ))}
                 </div>
@@ -409,7 +411,7 @@ export function AttendancePage() {
       <Drawer
         title={drawerTitle}
         open={drawerOpen}
-        size="large"
+        size="min(736px, 100vw)"
         onClose={() => setDrawerOpen(false)}
         destroyOnHidden
       >
