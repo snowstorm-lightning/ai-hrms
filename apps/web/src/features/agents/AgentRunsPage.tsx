@@ -92,7 +92,7 @@ export function AgentRunsPage() {
   return (
     <div className="agent-runs-page" data-vc-page="agents">
       <PageTitle
-        title="Human-Agent Run Center"
+        title="人机协作运行中心"
         description="人和智能体协作的运行控制台：每次 run 都有 delegated context、tool preview、human confirmation 和 audit status。"
       />
       <InlineError message={error} onRetry={reload} />
@@ -144,7 +144,7 @@ export function AgentRunsPage() {
                   { value: "high", label: "high：人工确认" },
                 ]} />
               </Form.Item>
-              <Form.Item name="prompt" label="Prompt summary">
+              <Form.Item name="prompt" label="任务摘要">
                 <Input placeholder="说明本次 Agent 任务" />
               </Form.Item>
               <Form.Item className="agent-submit-item">
@@ -163,7 +163,7 @@ export function AgentRunsPage() {
       </section>
 
       {preview ? (
-        <Card className="section-card" title="Tool Preview Result">
+        <Card className="section-card" title="工具预览结果">
           <Alert
             showIcon
             type={preview.accepted ? "success" : "warning"}
@@ -195,7 +195,7 @@ export function AgentRunsPage() {
               auditStatus={run.riskLevel === "high" ? "waiting_human_review" : "previewed"}
             />
             <div className="agent-context-box">
-              <Typography.Text strong>Delegated context</Typography.Text>
+              <Typography.Text strong>授权上下文</Typography.Text>
               <span>companyDataset=fictional_demo_company, personas=许安宁/林晨/周雨桐/顾明远, allowedTools=rag_search / learning_recommend / audit_read</span>
             </div>
             <Timeline

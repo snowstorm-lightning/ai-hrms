@@ -371,7 +371,7 @@ export function DashboardPage() {
             </Col>
           </Row>
 
-          <Card className="section-card" title="My Actions Required" data-vc-kind="my-actions-required">
+          <Card className="section-card" title={language === "en-US" ? "My Actions Required" : "我的待办"} data-vc-kind="my-actions-required">
             <Table
               className="hr-desktop-record-table"
               rowKey={(record) => `${record.resource}-${record.id}`}

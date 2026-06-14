@@ -108,7 +108,7 @@ export function KnowledgePage() {
   return (
     <div className="knowledge-page" data-vc-page="knowledge">
       <PageTitle
-        title="Governed Knowledge Hub"
+        title="治理型知识库"
         description="组织知识层不是普通文档表，而是 AI-HRMS 回答、计划、Agent run 和审计证据的受控来源。"
       />
       <InlineError message={error} onRetry={reload} />
@@ -160,9 +160,9 @@ export function KnowledgePage() {
           </Space>
         </Card>
         <div className="knowledge-stats">
-          <Card><Typography.Text type="secondary">Official sources</Typography.Text><Typography.Title level={3}>{governanceStats.official}</Typography.Title></Card>
-          <Card><Typography.Text type="secondary">AI usable</Typography.Text><Typography.Title level={3}>{governanceStats.usable}</Typography.Title></Card>
-          <Card><Typography.Text type="secondary">Restricted</Typography.Text><Typography.Title level={3}>{governanceStats.restricted}</Typography.Title></Card>
+          <Card><Typography.Text type="secondary">官方资料</Typography.Text><Typography.Title level={3}>{governanceStats.official}</Typography.Title></Card>
+          <Card><Typography.Text type="secondary">可被 AI 引用</Typography.Text><Typography.Title level={3}>{governanceStats.usable}</Typography.Title></Card>
+          <Card><Typography.Text type="secondary">受限资料</Typography.Text><Typography.Title level={3}>{governanceStats.restricted}</Typography.Title></Card>
         </div>
       </section>
 

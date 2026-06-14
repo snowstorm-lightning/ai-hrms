@@ -1525,7 +1525,7 @@ function routePageLabel(route: string) {
   if (route.includes("audit")) return "信任与审计";
   if (route.includes("settings")) return "设置";
   if (route.includes("agents")) return "Agent 运行控制";
-  if (route.includes("learning")) return "Learning Layer";
+  if (route.includes("learning")) return "学习层";
   if (route.includes("co-growth")) return "Co-Growth Engine";
   if (route.includes("ai-command")) return "AI 指挥中心";
   if (route.includes("dashboard")) return "指挥看板";

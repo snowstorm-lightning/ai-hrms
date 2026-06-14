@@ -37,7 +37,7 @@ export function LearningPage() {
 
   return (
     <div data-vc-page="learning">
-      <PageTitle title="Learning Layer" description="AI-HRMS 的学习层：入职计划、课程进度、AI 建议和 Co-Growth 成长证据共同服务于人机共生成长；当前数据为云衡互联网科技有限公司（虚构样本组织）。" />
+      <PageTitle title="学习层" description="AI-HRMS 的学习层：入职计划、课程进度、AI 建议和 Co-Growth 成长证据共同服务于人机共生成长；当前数据为云衡互联网科技有限公司（虚构样本组织）。" />
       <InlineError message={error} onRetry={reload} />
       <Card className="section-card learning-cogrowth-entry" data-vc-kind="co-growth-entry-card">
         <Row gutter={[16, 16]} align="middle">
