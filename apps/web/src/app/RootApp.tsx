@@ -15,7 +15,7 @@ export function RootApp() {
 function RootConfig() {
   const { settings } = useAppSettings();
   return (
-    <ConfigProvider locale={settings.language === "en-US" ? enUS : zhCN} componentSize={settings.density === "compact" ? "small" : "middle"}>
+    <ConfigProvider locale={settings.language === "en-US" ? enUS : zhCN} componentSize={settings.density === "compact" ? "small" : "medium"}>
       <AntApp>
         <AppRouter />
       </AntApp>

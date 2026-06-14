@@ -18,7 +18,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!getToken()) {
       if (import.meta.env.VITE_DEMO_MODE === "true") {
-        api.login({ mobile: "123", password: "password" })
+        api.login({ mobile: "12345678900", password: "12345678900" })
           .then((result) => {
             setToken(result.token);
             setUser(result.user);

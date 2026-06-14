@@ -58,7 +58,7 @@ export function LoginPage() {
         {error ? <Alert type="error" title={error} showIcon /> : null}
         <Form
           layout="vertical"
-          initialValues={demoMode ? { mobile: "123", password: "password" } : undefined}
+          initialValues={demoMode ? { mobile: "12345678900", password: "12345678900" } : undefined}
           onFinish={async (values) => {
             setError("");
             setSubmitting(true);
@@ -93,7 +93,7 @@ export function LoginPage() {
                   setError("");
                   setSubmitting(true);
                   try {
-                    await login({ mobile: "123", password: "password" });
+                    await login({ mobile: "12345678900", password: "12345678900" });
                     navigate(from);
                   } catch (err) {
                     setError(getErrorMessage(err, "Demo 登录失败"));

@@ -411,8 +411,11 @@ export function CoGrowthPage() {
           <span>AI-HRMS / Co-Growth OS</span>
         </button>
         <div className="co-growth-top-actions">
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/app/dashboard")}>
-            AI-HRMS Command Dashboard
+          <Button type="primary" icon={<ArrowLeftOutlined />} onClick={() => navigate("/app/growth-performance?tab=quick")}>
+            返回成长与绩效
+          </Button>
+          <Button onClick={() => navigate("/app/dashboard")}>
+            工作台
           </Button>
           <Button
             icon={<LogoutOutlined />}

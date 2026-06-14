@@ -46,12 +46,13 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import { useEffect, useMemo, useState, type HTMLAttributes, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, getErrorMessage } from "../../api/client";
 import type { AIProviderStatus, AuditEvent, Employee, EmployeeCheckin, HRRecord, HRRecordInput, HRWorkflow, HRWorkItem, LeaveBalance, OrgUnit, WorkflowAction, WorkbenchOverview } from "../../api/types";
 import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { PageTitle } from "../../components/PageTitle";
 import { AttendancePage } from "../employees/AttendancePage";
+import { employeeOpsTabForResource, growthTabForResource, recruitmentTabForResource } from "./hrNavigation";
 
 type HRRecordEditor = HRRecordInput & { id?: string };
 
@@ -420,9 +421,21 @@ function WorkflowActions({
   );
 }
 
-function HRRecordMobileCards({ records, onOpen }: { records: HRRecord[]; onOpen: (record: HRRecord) => void }) {
+function HRRecordMobileCards({
+  records,
+  loading,
+  emptyText,
+  onOpen,
+}: {
+  records: HRRecord[];
+  loading: boolean;
+  emptyText: string;
+  onOpen: (record: HRRecord) => void;
+}) {
   return (
     <div className="hr-mobile-record-list" data-vc-kind="hr-mobile-record-list">
+      {loading ? <Card loading className="hr-mobile-record-card" /> : null}
+      {!loading && !records.length ? <EmptyBlock description={emptyText} /> : null}
       {records.map((record) => (
         <button
           key={record.id}
@@ -448,9 +461,25 @@ function HRRecordMobileCards({ records, onOpen }: { records: HRRecord[]; onOpen:
   );
 }
 
-function HRResourcePanel({ resource, description }: { resource: string; description: string }) {
+function HRResourcePanel({
+  resource,
+  description,
+  focusId,
+  createMode,
+  defaultEmployeeId,
+  onClearFocus,
+}: {
+  resource: string;
+  description: string;
+  focusId?: string | null;
+  createMode?: boolean;
+  defaultEmployeeId?: string | null;
+  onClearFocus?: () => void;
+}) {
   const [items, setItems] = useState<HRRecord[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -466,11 +495,13 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
   const orgUnitOptions = useMemo(() => orgUnits.map((item) => ({ value: item.id, label: item.name })), [orgUnits]);
   const employeeOptions = useMemo(() => employees.map((item) => ({ value: item.id, label: `${item.name} / ${item.employeeNo}` })), [employees]);
 
-  const reload = async () => {
+  const reload = async (nextPage = page, nextPageSize = pageSize) => {
+    setPage(nextPage);
+    setPageSize(nextPageSize);
     setLoading(true);
     setError("");
     try {
-      const result = await api.hrRecords(resource, 1, 20);
+      const result = await api.hrRecords(resource, nextPage, nextPageSize);
       setItems(result.rows ?? []);
       setTotal(result.total);
     } catch (err) {
@@ -480,7 +511,15 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
     }
   };
 
-  useEffect(() => { void reload(); }, [resource]);
+  useEffect(() => { void reload(1, pageSize); }, [resource]);
+
+  useEffect(() => {
+    if (!focusId || loading) return;
+    const record = items.find((item) => item.id === focusId);
+    if (record && selected?.id !== record.id) {
+      setSelected(record);
+    }
+  }, [focusId, items, loading, selected?.id]);
 
   useEffect(() => {
     if (!selected) {
@@ -488,6 +527,7 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
       return;
     }
     let mounted = true;
+    setWorkflow(null);
     setWorkflowLoading(true);
     api.hrWorkflow(resource, selected.id)
       .then((result) => {
@@ -527,27 +567,45 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
     return () => { mounted = false; };
   }, [editing]);
 
-  const openEditor = (record?: HRRecord) => {
-    setEditing(record ? recordEditor(record) : newRecordEditor(resource));
+  const openEditor = (record?: HRRecord, defaults?: Partial<HRRecordEditor>) => {
+    if (record) {
+      setEditing(recordEditor(record));
+      return;
+    }
+    const next = newRecordEditor(resource);
+    setEditing({
+      ...next,
+      ...defaults,
+      payload: { ...(next.payload ?? {}), ...(defaults?.payload ?? {}) },
+    });
   };
 
   const closeEditor = () => {
     setEditing(null);
     form.resetFields();
+    if (createMode) onClearFocus?.();
   };
+
+  useEffect(() => {
+    if (!createMode) return;
+    setSelected(null);
+    setWorkflow(null);
+    openEditor(undefined, { employeeId: defaultEmployeeId || undefined });
+  }, [createMode, defaultEmployeeId, resource]);
 
   const saveRecord = async (values: HRRecordEditor) => {
     setSaving(true);
     setError("");
     try {
+      const editingId = editing?.id;
       const input = normalizeEditorValues(resource, values);
-      const saved = editing?.id
-        ? await api.updateHRRecord(resource, editing.id, input)
+      const saved = editingId
+        ? await api.updateHRRecord(resource, editingId, input)
         : await api.createHRRecord(resource, input);
-      if (editing?.id) setSelected(saved);
+      if (editingId) setSelected(saved);
       closeEditor();
-      await reload();
-      message.success(editing?.id ? "记录已更新" : "记录已创建");
+      await reload(editingId ? page : 1, pageSize);
+      message.success(editingId ? "记录已更新" : "记录已创建");
     } catch (err) {
       setError(getErrorMessage(err, "记录保存失败"));
     } finally {
@@ -562,7 +620,7 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
       const result = await api.applyHRWorkflowAction(resource, record.id, { action, comment });
       setSelected(result.record);
       setWorkflow(result.workflow);
-      await reload();
+      await reload(page, pageSize);
       message.success("审批动作已记录");
     } catch (err) {
       setError(getErrorMessage(err, "审批动作失败"));
@@ -577,7 +635,7 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
     try {
       await api.deleteHRRecord(resource, record.id);
       setSelected(null);
-      await reload();
+      await reload(page, pageSize);
       message.success("记录已删除");
     } catch (err) {
       setError(getErrorMessage(err, "删除记录失败"));
@@ -597,15 +655,22 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
           新增
         </Button>
       </div>
-      <InlineError message={error} onRetry={reload} />
-      <HRRecordMobileCards records={items} onOpen={setSelected} />
+      <InlineError message={error} onRetry={() => reload()} />
+      <HRRecordMobileCards records={items} loading={loading} emptyText={`暂无${resourceLabels[resource] ?? "记录"}`} onOpen={setSelected} />
       <Table
         className="hr-desktop-record-table"
         rowKey="id"
         size="middle"
         loading={loading}
         dataSource={items}
-        pagination={{ total, pageSize: 20, hideOnSinglePage: true }}
+        pagination={{
+          total,
+          current: page,
+          pageSize,
+          showSizeChanger: total > 20,
+          hideOnSinglePage: true,
+          onChange: (nextPage, nextPageSize) => void reload(nextPage, nextPageSize),
+        }}
         scroll={{ x: "max-content" }}
         locale={{ emptyText: <EmptyBlock description={`暂无${resourceLabels[resource] ?? "记录"}`} /> }}
         onRow={(record) => ({
@@ -627,7 +692,10 @@ function HRResourcePanel({ resource, description }: { resource: string; descript
       <Drawer
         title={selected?.title}
         open={Boolean(selected)}
-        onClose={() => setSelected(null)}
+        onClose={() => {
+          setSelected(null);
+          onClearFocus?.();
+        }}
         size="large"
       >
         {selected ? (
@@ -875,24 +943,7 @@ export function OrgPeoplePage() {
   );
 }
 
-function employeeOpsTabForResource(resource: string) {
-  switch (resource) {
-    case "leave-applications":
-      return "leave";
-    case "attendance-requests":
-      return "attendance-requests";
-    case "shift-assignments":
-      return "shifts";
-    case "expense-claims":
-      return "expenses";
-    case "salary-slips":
-      return "salary";
-    default:
-      return "approvals";
-  }
-}
-
-function EmployeeSelfServicePanel({ onOpenTab }: { onOpenTab: (key: string) => void }) {
+function EmployeeSelfServicePanel({ onCreateRequest }: { onCreateRequest: (resource: string, employeeId?: string) => void }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [balances, setBalances] = useState<LeaveBalance[]>([]);
@@ -988,9 +1039,9 @@ function EmployeeSelfServicePanel({ onOpenTab }: { onOpenTab: (key: string) => v
             <Typography.Text strong>快捷申请</Typography.Text>
             <Typography.Text type="secondary">申请提交后进入请求与审批队列。</Typography.Text>
             <Space wrap>
-              <Button icon={<PlusOutlined />} onClick={() => onOpenTab("leave")}>请假</Button>
-              <Button icon={<ClockCircleOutlined />} onClick={() => onOpenTab("attendance-requests")}>补卡/外勤</Button>
-              <Button icon={<FileDoneOutlined />} onClick={() => onOpenTab("expenses")}>报销</Button>
+              <Button icon={<PlusOutlined />} onClick={() => onCreateRequest("leave-applications", selectedEmployeeId)}>请假</Button>
+              <Button icon={<ClockCircleOutlined />} onClick={() => onCreateRequest("attendance-requests", selectedEmployeeId)}>补卡/外勤</Button>
+              <Button icon={<FileDoneOutlined />} onClick={() => onCreateRequest("expense-claims", selectedEmployeeId)}>报销</Button>
             </Space>
           </Space>
         </Card>
@@ -1020,6 +1071,7 @@ function EmployeeSelfServicePanel({ onOpenTab }: { onOpenTab: (key: string) => v
               ]}
             />
             <div className="hr-mobile-record-list">
+              {!loading && !balances.length ? <EmptyBlock description="暂无假勤余额" /> : null}
               {balances.map((balance) => (
                 <div className="hr-mobile-record-card" key={`${balance.employeeId}-${balance.leaveTypeCode}`}>
                   <span className="hr-mobile-card-title">{balance.leaveTypeName}</span>
@@ -1050,7 +1102,7 @@ function EmployeeSelfServicePanel({ onOpenTab }: { onOpenTab: (key: string) => v
   );
 }
 
-function RequestQueuePanel({ onOpenResource }: { onOpenResource: (resource: string) => void }) {
+function RequestQueuePanel({ onOpenResource }: { onOpenResource: (resource: string, id?: string) => void }) {
   const [items, setItems] = useState<HRWorkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1096,7 +1148,7 @@ function RequestQueuePanel({ onOpenResource }: { onOpenResource: (resource: stri
             </Space>
             <Space wrap>
               <Button size="small" onClick={() => setSelected(item)}>摘要</Button>
-              <Button size="small" type="primary" icon={<ArrowRightOutlined />} onClick={() => onOpenResource(item.resource)}>处理</Button>
+              <Button size="small" type="primary" icon={<ArrowRightOutlined />} onClick={() => onOpenResource(item.resource, item.id)}>处理</Button>
             </Space>
           </article>
         ))}
@@ -1119,7 +1171,7 @@ function RequestQueuePanel({ onOpenResource }: { onOpenResource: (resource: stri
             </Descriptions>
             <Alert showIcon type="info" title="处理入口" description="进入对应列表后，打开记录详情即可执行提交、复核、批准、驳回或取消动作。" />
             <Button type="primary" icon={<ArrowRightOutlined />} onClick={() => {
-              onOpenResource(selected.resource);
+              onOpenResource(selected.resource, selected.id);
               setSelected(null);
             }}>
               打开{resourceLabels[selected.resource] ?? selected.resource}
@@ -1132,8 +1184,60 @@ function RequestQueuePanel({ onOpenResource }: { onOpenResource: (resource: stri
 }
 
 export function EmployeeOpsPage() {
-  const [activeTab, setActiveTab] = useState("self");
-  const openResource = (resource: string) => setActiveTab(employeeOpsTabForResource(resource));
+  const [searchParams, setSearchParams] = useSearchParams();
+  const employeeTabs = ["self", "approvals", "attendance", "leave", "attendance-requests", "shifts", "expenses", "salary"];
+  const routeResource = searchParams.get("resource");
+  const createMode = searchParams.get("mode") === "create";
+  const defaultEmployeeId = searchParams.get("employeeId");
+  const tabFromURL = () => {
+    const tab = routeResource ? employeeOpsTabForResource(routeResource) : searchParams.get("tab") || "self";
+    return employeeTabs.includes(tab) ? tab : "self";
+  };
+  const [activeTab, setActiveTab] = useState(tabFromURL);
+  const focusId = searchParams.get("id");
+
+  useEffect(() => {
+    setActiveTab(tabFromURL());
+  }, [searchParams]);
+
+  const changeTab = (key: string) => {
+    setActiveTab(key);
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", key);
+    next.delete("resource");
+    next.delete("id");
+    next.delete("mode");
+    next.delete("employeeId");
+    setSearchParams(next, { replace: true });
+  };
+
+  const openResource = (resource: string, id?: string, options?: { mode?: "create"; employeeId?: string }) => {
+    const tab = employeeOpsTabForResource(resource);
+    setActiveTab(tab);
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", tab);
+    next.set("resource", resource);
+    if (id) next.set("id", id);
+    else next.delete("id");
+    if (options?.mode) next.set("mode", options.mode);
+    else next.delete("mode");
+    if (options?.employeeId) next.set("employeeId", options.employeeId);
+    else next.delete("employeeId");
+    setSearchParams(next, { replace: true });
+  };
+
+  const clearFocus = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("id");
+    next.delete("mode");
+    next.delete("employeeId");
+    setSearchParams(next, { replace: true });
+  };
+
+  const isCreateFor = (resource: string) => createMode && routeResource === resource;
+  const startCreateRequest = (resource: string, employeeId?: string) => {
+    openResource(resource, undefined, { mode: "create", employeeId });
+  };
 
   return (
     <DomainFrame
@@ -1151,16 +1255,16 @@ export function EmployeeOpsPage() {
       />
       <Tabs
         activeKey={activeTab}
-        onChange={setActiveTab}
+        onChange={changeTab}
         items={[
-          { key: "self", label: "个人考勤", children: <EmployeeSelfServicePanel onOpenTab={setActiveTab} /> },
+          { key: "self", label: "个人考勤", children: <EmployeeSelfServicePanel onCreateRequest={startCreateRequest} /> },
           { key: "approvals", label: "请求与审批", children: <RequestQueuePanel onOpenResource={openResource} /> },
           { key: "attendance", label: "HR 态势", children: <AttendancePage /> },
-          { key: "leave", label: "请假", children: <HRResourcePanel resource="leave-applications" description="请假申请、额度消耗和审批状态。" /> },
-          { key: "attendance-requests", label: "补卡/外勤", children: <HRResourcePanel resource="attendance-requests" description="补卡、外勤和异常考勤解释上下文。" /> },
-          { key: "shifts", label: "排班", children: <HRResourcePanel resource="shift-assignments" description="班次、排班范围和员工事务关联上下文。" /> },
-          { key: "expenses", label: "报销", children: <HRResourcePanel resource="expense-claims" description="报销申请、金额摘要和审批状态。" /> },
-          { key: "salary", label: "工资单", children: <HRResourcePanel resource="salary-slips" description="工资单草稿、风险边界和人工复核状态。" /> },
+          { key: "leave", label: "请假", children: <HRResourcePanel resource="leave-applications" description="请假申请、额度消耗和审批状态。" focusId={activeTab === "leave" ? focusId : null} createMode={isCreateFor("leave-applications")} defaultEmployeeId={defaultEmployeeId} onClearFocus={clearFocus} /> },
+          { key: "attendance-requests", label: "补卡/外勤", children: <HRResourcePanel resource="attendance-requests" description="补卡、外勤和异常考勤解释上下文。" focusId={activeTab === "attendance-requests" ? focusId : null} createMode={isCreateFor("attendance-requests")} defaultEmployeeId={defaultEmployeeId} onClearFocus={clearFocus} /> },
+          { key: "shifts", label: "排班", children: <HRResourcePanel resource="shift-assignments" description="班次、排班范围和员工事务关联上下文。" focusId={activeTab === "shifts" ? focusId : null} onClearFocus={clearFocus} /> },
+          { key: "expenses", label: "报销", children: <HRResourcePanel resource="expense-claims" description="报销申请、金额摘要和审批状态。" focusId={activeTab === "expenses" ? focusId : null} createMode={isCreateFor("expense-claims")} defaultEmployeeId={defaultEmployeeId} onClearFocus={clearFocus} /> },
+          { key: "salary", label: "工资单", children: <HRResourcePanel resource="salary-slips" description="工资单草稿、风险边界和人工复核状态。" focusId={activeTab === "salary" ? focusId : null} onClearFocus={clearFocus} /> },
         ]}
       />
     </DomainFrame>
@@ -1168,6 +1272,35 @@ export function EmployeeOpsPage() {
 }
 
 export function RecruitmentLifecyclePage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const recruitmentTabs = ["requisitions", "openings", "applicants", "interviews", "offers"];
+  const tabFromURL = () => {
+    const resource = searchParams.get("resource");
+    const tab = resource ? recruitmentTabForResource(resource) : searchParams.get("tab") || "requisitions";
+    return recruitmentTabs.includes(tab) ? tab : "requisitions";
+  };
+  const [activeTab, setActiveTab] = useState(tabFromURL);
+  const focusId = searchParams.get("id");
+
+  useEffect(() => {
+    setActiveTab(tabFromURL());
+  }, [searchParams]);
+
+  const changeTab = (key: string) => {
+    setActiveTab(key);
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", key);
+    next.delete("resource");
+    next.delete("id");
+    setSearchParams(next, { replace: true });
+  };
+
+  const clearFocus = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("id");
+    setSearchParams(next, { replace: true });
+  };
+
   return (
     <DomainFrame
       title="招聘与生命周期"
@@ -1185,12 +1318,14 @@ export function RecruitmentLifecyclePage() {
         ]}
       />
       <Tabs
+        activeKey={activeTab}
+        onChange={changeTab}
         items={[
-          { key: "requisitions", label: "招聘需求", children: <HRResourcePanel resource="job-requisitions" description="HC、预算、期望入职时间和审批状态。" /> },
-          { key: "openings", label: "职位", children: <HRResourcePanel resource="job-openings" description="职位发布、渠道、薪资范围和关闭日期。" /> },
-          { key: "applicants", label: "候选人", children: <HRResourcePanel resource="job-applicants" description="候选人阶段、来源和公平性审计边界。" /> },
-          { key: "interviews", label: "面试", children: <HRResourcePanel resource="interviews" description="面试安排、评分草稿和人工复核。" /> },
-          { key: "offers", label: "Offer", children: <HRResourcePanel resource="job-offers" description="Offer 草稿、薪酬确认和入职日期。" /> },
+          { key: "requisitions", label: "招聘需求", children: <HRResourcePanel resource="job-requisitions" description="HC、预算、期望入职时间和审批状态。" focusId={activeTab === "requisitions" ? focusId : null} onClearFocus={clearFocus} /> },
+          { key: "openings", label: "职位", children: <HRResourcePanel resource="job-openings" description="职位发布、渠道、薪资范围和关闭日期。" focusId={activeTab === "openings" ? focusId : null} onClearFocus={clearFocus} /> },
+          { key: "applicants", label: "候选人", children: <HRResourcePanel resource="job-applicants" description="候选人阶段、来源和公平性审计边界。" focusId={activeTab === "applicants" ? focusId : null} onClearFocus={clearFocus} /> },
+          { key: "interviews", label: "面试", children: <HRResourcePanel resource="interviews" description="面试安排、评分草稿和人工复核。" focusId={activeTab === "interviews" ? focusId : null} onClearFocus={clearFocus} /> },
+          { key: "offers", label: "Offer", children: <HRResourcePanel resource="job-offers" description="Offer 草稿、薪酬确认和入职日期。" focusId={activeTab === "offers" ? focusId : null} onClearFocus={clearFocus} /> },
         ]}
       />
     </DomainFrame>
@@ -1198,6 +1333,35 @@ export function RecruitmentLifecyclePage() {
 }
 
 export function GrowthPerformancePage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const growthTabs = ["quick", "training", "goals", "cycles", "appraisals"];
+  const tabFromURL = () => {
+    const resource = searchParams.get("resource");
+    const tab = resource ? growthTabForResource(resource) : searchParams.get("tab") || "quick";
+    return growthTabs.includes(tab) ? tab : "quick";
+  };
+  const [activeTab, setActiveTab] = useState(tabFromURL);
+  const focusId = searchParams.get("id");
+
+  useEffect(() => {
+    setActiveTab(tabFromURL());
+  }, [searchParams]);
+
+  const changeTab = (key: string) => {
+    setActiveTab(key);
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", key);
+    next.delete("resource");
+    next.delete("id");
+    setSearchParams(next, { replace: true });
+  };
+
+  const clearFocus = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("id");
+    setSearchParams(next, { replace: true });
+  };
+
   return (
     <DomainFrame
       title="成长与绩效"
@@ -1213,15 +1377,17 @@ export function GrowthPerformancePage() {
         ]}
       />
       <Tabs
+        activeKey={activeTab}
+        onChange={changeTab}
         items={[
           { key: "quick", label: "成长入口", children: <QuickLinkGrid items={[
             { icon: <BookOutlined />, title: "学习证据", description: "课程、学习任务和 RAG 资料绑定。", path: "/app/learning" },
             { icon: <SafetyCertificateOutlined />, title: "Co-Growth", description: "员工成长 mission 和证据复盘。", path: "/co-growth" },
           ]} /> },
-          { key: "training", label: "Training", children: <HRResourcePanel resource="training-events" description="培训活动、参与范围和结果证据。" /> },
-          { key: "goals", label: "目标", children: <HRResourcePanel resource="performance-goals" description="个人/团队目标、进度和证据要求。" /> },
-          { key: "cycles", label: "绩效周期", children: <HRResourcePanel resource="appraisal-cycles" description="绩效周期、公式说明和校准边界。" /> },
-          { key: "appraisals", label: "绩效评估", children: <HRResourcePanel resource="appraisals" description="自评、反馈和最终人工复核状态。" /> },
+          { key: "training", label: "Training", children: <HRResourcePanel resource="training-events" description="培训活动、参与范围和结果证据。" focusId={activeTab === "training" ? focusId : null} onClearFocus={clearFocus} /> },
+          { key: "goals", label: "目标", children: <HRResourcePanel resource="performance-goals" description="个人/团队目标、进度和证据要求。" focusId={activeTab === "goals" ? focusId : null} onClearFocus={clearFocus} /> },
+          { key: "cycles", label: "绩效周期", children: <HRResourcePanel resource="appraisal-cycles" description="绩效周期、公式说明和校准边界。" focusId={activeTab === "cycles" ? focusId : null} onClearFocus={clearFocus} /> },
+          { key: "appraisals", label: "绩效评估", children: <HRResourcePanel resource="appraisals" description="自评、反馈和最终人工复核状态。" focusId={activeTab === "appraisals" ? focusId : null} onClearFocus={clearFocus} /> },
         ]}
       />
     </DomainFrame>
@@ -1276,6 +1442,7 @@ export function TrustAuditPage() {
         <Col xs={24} lg={12}>
           <Card title="人工复核队列" extra={<Tag color="red">{highRiskCount}</Tag>} data-vc-kind="human-review-queue">
             <Table
+              className="hr-desktop-record-table"
               rowKey={(record) => `${record.resource}-${record.id}`}
               size="small"
               loading={loading}
@@ -1289,11 +1456,28 @@ export function TrustAuditPage() {
                 { title: "动作", dataIndex: "action" },
               ]}
             />
+            <div className="hr-mobile-record-list">
+              {loading ? <Card loading className="hr-mobile-record-card" /> : null}
+              {!loading && !workItems.length ? <EmptyBlock description="暂无待复核事项" /> : null}
+              {workItems.map((item) => (
+                <article className="hr-mobile-record-card" key={`${item.resource}-${item.id}`}>
+                  <span className="hr-mobile-card-title">{item.title}</span>
+                  <span className="hr-mobile-card-meta">{moduleLabels[item.module] ?? item.module} · {item.employeeName || item.orgUnitName || item.recordType}</span>
+                  <span className="hr-mobile-card-tags">
+                    <Tag color={statusColor(item.status)}>{item.status}</Tag>
+                    <Tag color={riskColor(item.riskLevel)}>{item.riskLevel}</Tag>
+                    {item.humanReviewRequired ? <Tag color="red">human review</Tag> : null}
+                  </span>
+                  <Typography.Text type="secondary">{item.action}</Typography.Text>
+                </article>
+              ))}
+            </div>
           </Card>
         </Col>
         <Col xs={24} lg={12}>
           <Card title="审计事件" data-vc-kind="audit-event-list">
             <Table
+              className="hr-desktop-record-table"
               rowKey="id"
               size="small"
               loading={loading}
@@ -1306,6 +1490,20 @@ export function TrustAuditPage() {
                 { title: "风险", dataIndex: "riskLevel", render: (risk: string) => <Tag color={riskColor(risk)}>{risk}</Tag> },
               ]}
             />
+            <div className="hr-mobile-record-list">
+              {loading ? <Card loading className="hr-mobile-record-card" /> : null}
+              {!loading && !events.length ? <EmptyBlock description="暂无审计事件" /> : null}
+              {events.map((event) => (
+                <article className="hr-mobile-record-card" key={event.id}>
+                  <span className="hr-mobile-card-title">{event.eventType}</span>
+                  <span className="hr-mobile-card-meta">{event.objectType}/{event.objectId}</span>
+                  <span className="hr-mobile-card-tags">
+                    <Tag color={riskColor(event.riskLevel)}>{event.riskLevel}</Tag>
+                    <Tag>{new Date(event.createdAt).toLocaleString()}</Tag>
+                  </span>
+                </article>
+              ))}
+            </div>
           </Card>
         </Col>
       </Row>

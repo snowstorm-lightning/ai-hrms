@@ -19,7 +19,7 @@ import {
   TeamOutlined,
   UserOutlined,
 } from "@ant-design/icons";
-import { Avatar, Badge, Button, Drawer, Dropdown, Input, Layout, List, Menu, Popover, Space, Tag, theme, Typography } from "antd";
+import { Avatar, Badge, Button, Drawer, Dropdown, Input, Layout, Menu, Popover, Space, Tag, theme, Typography } from "antd";
 import { Suspense, useEffect, useMemo, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
@@ -28,6 +28,7 @@ import { clampSidebarWidth, useAppSettings } from "../app/AppSettingsContext";
 import { useAuth } from "../app/AuthContext";
 import { useI18n } from "../i18n";
 import { PageLoading } from "./PageLoading";
+import { workItemRoute } from "../features/work-domains/hrNavigation";
 
 const { Header, Sider, Content } = Layout;
 
@@ -108,17 +109,15 @@ export function AppShell() {
     setMobileMenuOpen(false);
   };
 
+  const handleMobileAppClick = (key: string) => {
+    navigate(key);
+    setMobileMenuOpen(false);
+  };
+
   const handleSearch = (value: string) => {
     const query = value.trim();
     if (!query) return;
     navigate(`/app/ai-command?q=${encodeURIComponent(query)}`);
-  };
-
-  const workItemRoute = (item: HRWorkItem) => {
-    if (item.module === "employee_ops") return "/app/employee-ops";
-    if (item.module === "recruitment_lifecycle") return "/app/recruitment-lifecycle";
-    if (item.module === "growth_performance") return "/app/growth-performance";
-    return "/app/trust-audit";
   };
 
   const notificationContent = (
@@ -136,16 +135,20 @@ export function AppShell() {
           {t("shell.viewAll")}
         </Button>
       </div>
-      <List
-        size="small"
-        dataSource={workItems}
-        locale={{ emptyText: t("shell.noNotifications") }}
-        renderItem={(item) => (
-          <List.Item
-            className="notification-item"
-            actions={[
+      {workItems.length ? (
+        <ul className="notification-list" role="list">
+          {workItems.map((item) => (
+            <li className="notification-item" key={`${item.resource}-${item.id}`}>
+              <div className="notification-item-main">
+                <Space className="notification-item-title" size={6} wrap>
+                  <Typography.Text strong>{item.title}</Typography.Text>
+                  <Tag color={item.riskLevel === "high" ? "red" : item.riskLevel === "medium" ? "orange" : "green"}>{item.riskLevel}</Tag>
+                </Space>
+                <Typography.Text type="secondary">
+                  {item.employeeName || item.orgUnitName || item.recordType} · {item.action}
+                </Typography.Text>
+              </div>
               <Button
-                key="handle"
                 type="link"
                 size="small"
                 onClick={() => {
@@ -154,21 +157,13 @@ export function AppShell() {
                 }}
               >
                 {t("shell.handleNow")}
-              </Button>,
-            ]}
-          >
-            <List.Item.Meta
-              title={(
-                <Space size={6} wrap>
-                  <Typography.Text strong>{item.title}</Typography.Text>
-                  <Tag color={item.riskLevel === "high" ? "red" : item.riskLevel === "medium" ? "orange" : "green"}>{item.riskLevel}</Tag>
-                </Space>
-              )}
-              description={`${item.employeeName || item.orgUnitName || item.recordType} · ${item.action}`}
-            />
-          </List.Item>
-        )}
-      />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="notification-empty">{t("shell.noNotifications")}</div>
+      )}
     </div>
   );
 
@@ -303,6 +298,34 @@ export function AppShell() {
         onClose={() => setMobileMenuOpen(false)}
         size="default"
       >
+        <div className="mobile-drawer-tools">
+          <Input.Search
+            placeholder={t("shell.searchPlaceholder")}
+            allowClear
+            onSearch={(value) => {
+              handleSearch(value);
+              setMobileMenuOpen(false);
+            }}
+          />
+          <div className="mobile-app-shortcuts" data-vc-kind="mobile-app-shortcuts">
+            <Typography.Text type="secondary">{t("shell.appGrid")}</Typography.Text>
+            <div className="mobile-app-shortcut-grid">
+              {appGridItems.slice(0, 6).map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  className="mobile-app-shortcut"
+                  onClick={() => handleMobileAppClick(item.key)}
+                  data-vc-kind="mobile-app-shortcut"
+                  data-vc-label={String(item.label)}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
         <Menu
           mode="inline"
           selectedKeys={[selectedKey]}

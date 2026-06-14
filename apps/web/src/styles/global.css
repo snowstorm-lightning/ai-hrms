@@ -201,6 +201,51 @@ select {
   gap: 8px;
 }
 
+.mobile-drawer-tools {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.mobile-app-shortcuts {
+  display: grid;
+  gap: 8px;
+}
+
+.mobile-app-shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mobile-app-shortcut {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mobile-app-shortcut:hover,
+.mobile-app-shortcut:focus-visible {
+  border-color: #1677ff;
+  color: #0958d9;
+  outline: none;
+}
+
+.mobile-app-shortcut span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .app-content {
   padding: 28px 24px 24px;
 }
@@ -243,12 +288,40 @@ select {
   border-bottom: 1px solid #eef2f7;
 }
 
-.notification-item .ant-list-item-meta-title {
-  margin-bottom: 2px;
+.notification-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
-.notification-item .ant-list-item-action {
-  margin-inline-start: 8px;
+.notification-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.notification-item:last-child {
+  border-bottom: 0;
+}
+
+.notification-item-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.notification-item-title {
+  min-width: 0;
+}
+
+.notification-empty {
+  padding: 16px 0 8px;
+  color: #64748b;
 }
 
 .page-state {

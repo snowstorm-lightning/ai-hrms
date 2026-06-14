@@ -380,7 +380,7 @@ export function AttendancePage() {
         open={drawerOpen}
         size="large"
         onClose={() => setDrawerOpen(false)}
-        destroyOnClose
+        destroyOnHidden
       >
         <Space className="attendance-drawer-toolbar" wrap>
           <Select

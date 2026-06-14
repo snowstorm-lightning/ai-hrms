@@ -235,6 +235,7 @@ async function runSuite(context, suite) {
     visited,
     backendApiRequests: diagnostics.backendApiRequests,
     consoleErrors: diagnostics.consoleErrors.length,
+    consoleWarnings: diagnostics.consoleWarnings.length,
     requestFailures: diagnostics.requestFailures.length,
     httpFailures: diagnostics.httpFailures.length,
   });
@@ -286,6 +287,7 @@ async function runMobileEntrySuite(context, suite) {
     visited: ["/login", "/app/dashboard"],
     backendApiRequests: diagnostics.backendApiRequests,
     consoleErrors: diagnostics.consoleErrors.length,
+    consoleWarnings: diagnostics.consoleWarnings.length,
     requestFailures: diagnostics.requestFailures.length,
     httpFailures: diagnostics.httpFailures.length,
   });
@@ -338,15 +340,20 @@ async function checkMobileVisualCopilotPanel(page, panel, suite) {
 
 function attachDiagnostics(page, suite) {
   const consoleErrors = [];
+  const consoleWarnings = [];
   const requestFailures = [];
   const httpFailures = [];
   const visualPayloadFailures = [];
   let backendApiRequests = 0;
 
   page.on("console", (message) => {
-    if (message.type() !== "error") return;
+    if (message.type() !== "error" && message.type() !== "warning") return;
     const text = message.text();
-    if (isIgnorableConsoleError(text)) return;
+    if (isIgnorableConsoleMessage(text)) return;
+    if (message.type() === "warning") {
+      consoleWarnings.push(text);
+      return;
+    }
     consoleErrors.push(text);
   });
 
@@ -401,6 +408,7 @@ function attachDiagnostics(page, suite) {
 
   return {
     consoleErrors,
+    consoleWarnings,
     requestFailures,
     httpFailures,
     get backendApiRequests() {
@@ -409,6 +417,7 @@ function attachDiagnostics(page, suite) {
     assertClean() {
       const failures = [];
       if (consoleErrors.length) failures.push(`console/page errors: ${consoleErrors.slice(0, 5).join(" | ")}`);
+      if (consoleWarnings.length) failures.push(`console warnings: ${consoleWarnings.slice(0, 5).join(" | ")}`);
       if (requestFailures.length) failures.push(`request failures: ${requestFailures.slice(0, 5).join(" | ")}`);
       if (httpFailures.length) failures.push(`HTTP failures: ${httpFailures.slice(0, 5).join(" | ")}`);
       if (visualPayloadFailures.length) failures.push(`visual payload failures: ${visualPayloadFailures.slice(0, 5).join(" | ")}`);
@@ -470,7 +479,7 @@ async function checkVisualCopilot(page, suite, path, options = {}) {
   await assertVisualCaptureKeyboardContained(page, suite, path);
   let expectedBusinessRef = null;
   if (options.requireBusinessRef) {
-    const target = page.locator("[data-vc-object-type][data-vc-object-id]").first();
+    const target = page.locator("[data-vc-object-type][data-vc-object-id]:visible").first();
     expectedBusinessRef = {
       type: await target.getAttribute("data-vc-object-type", { timeout: timeoutMs }),
       id: await target.getAttribute("data-vc-object-id", { timeout: timeoutMs }),
@@ -537,7 +546,7 @@ async function checkEmployeeMultiRowSelection(page, suite) {
   await panel.getByRole("button", { name: "开始圈选" }).click({ timeout: timeoutMs });
   await page.locator("[data-vc-kind='visual-copilot-rail']").waitFor({ state: "visible", timeout: timeoutMs });
 
-  const rows = page.locator("[data-vc-object-type='employee'][data-vc-object-id]");
+  const rows = page.locator("[data-vc-object-type='employee'][data-vc-object-id]:visible");
   await rows.first().waitFor({ state: "visible", timeout: timeoutMs });
   const firstBox = await rows.nth(0).boundingBox({ timeout: timeoutMs });
   const secondBox = await rows.nth(1).boundingBox({ timeout: timeoutMs });
@@ -678,7 +687,7 @@ function unionBoxes(boxes) {
 }
 
 async function assertVisualRegionTracksBusinessObjectAfterScroll(page, suite, path) {
-  const target = page.locator("[data-vc-object-type][data-vc-object-id]").first();
+  const target = page.locator("[data-vc-object-type][data-vc-object-id]:visible").first();
   const region = page.locator(".visual-region:not(.draft)").first();
   await region.waitFor({ state: "visible", timeout: timeoutMs });
   const before = await region.boundingBox({ timeout: timeoutMs });
@@ -855,7 +864,7 @@ function isBackendRequest(rawURL) {
   }
 }
 
-function isIgnorableConsoleError(text) {
+function isIgnorableConsoleMessage(text) {
   return text.includes("ResizeObserver loop completed with undelivered notifications");
 }
 

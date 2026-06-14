@@ -22,9 +22,10 @@ import { api } from "../../api/client";
 import type { AgentRun, AuditEvent, Employee, HRWorkItem, LegalEntity, LearningRecommendation, OrgUnit, RAGDocument } from "../../api/types";
 import { CollaborationRubric, CollaborationWorkflow, RiskTag, TrustMetaBar } from "../../components/AiTrust";
 import { PageLoading } from "../../components/PageLoading";
-import { InlineError } from "../../components/AsyncState";
+import { EmptyBlock, InlineError } from "../../components/AsyncState";
 import { TaskPath } from "../../components/TaskFlow";
 import { useI18n } from "../../i18n";
+import { workItemRoute } from "../work-domains/hrNavigation";
 
 type Persona = "hr" | "employee" | "mentor" | "manager";
 
@@ -199,13 +200,6 @@ export function DashboardPage() {
     { title: "审计事件", value: auditEvents.length, suffix: "条", icon: <AuditOutlined />, tone: "orange" },
   ];
 
-  const workItemRoute = (item: HRWorkItem) => {
-    if (item.module === "employee_ops") return "/app/employee-ops";
-    if (item.module === "recruitment_lifecycle") return "/app/recruitment-lifecycle";
-    if (item.module === "growth_performance") return "/app/growth-performance";
-    return "/app/trust-audit";
-  };
-
   const operatingSignalChart = useMemo(() => ({
     data: [
       { type: "Knowledge", value: ragDocuments.length },
@@ -379,6 +373,7 @@ export function DashboardPage() {
 
           <Card className="section-card" title="My Actions Required" data-vc-kind="my-actions-required">
             <Table
+              className="hr-desktop-record-table"
               rowKey={(record) => `${record.resource}-${record.id}`}
               size="middle"
               dataSource={workItems}
@@ -394,6 +389,25 @@ export function DashboardPage() {
                 { title: "操作", render: (_: unknown, item: HRWorkItem) => <Button size="small" onClick={() => navigate(workItemRoute(item))}>处理</Button> },
               ]}
             />
+            <div className="hr-mobile-record-list" data-vc-kind="dashboard-action-mobile-list">
+              {!workItems.length ? <EmptyBlock description="暂无待处理事项" /> : null}
+              {workItems.map((item) => (
+                <article className="hr-mobile-record-card" key={`${item.resource}-${item.id}`} data-vc-kind="dashboard-action-card" data-vc-object-type={item.recordType} data-vc-object-id={item.id}>
+                  <span className="hr-mobile-card-title">{item.title}</span>
+                  <span className="hr-mobile-card-meta">
+                    {item.module === "employee_ops" ? "员工事务" : item.module === "recruitment_lifecycle" ? "招聘与生命周期" : item.module === "growth_performance" ? "成长与绩效" : item.module}
+                    {" · "}
+                    {item.employeeName || item.orgUnitName || item.recordType}
+                  </span>
+                  <span className="hr-mobile-card-tags">
+                    <Tag>{item.status}</Tag>
+                    <RiskTag risk={item.riskLevel} />
+                    {item.humanReviewRequired ? <Tag color="red">human review</Tag> : null}
+                  </span>
+                  <Button size="small" type="primary" onClick={() => navigate(workItemRoute(item))}>处理</Button>
+                </article>
+              ))}
+            </div>
           </Card>
 
           <Row gutter={[16, 16]} className="section-card">

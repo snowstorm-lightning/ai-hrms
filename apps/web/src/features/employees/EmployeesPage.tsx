@@ -132,7 +132,26 @@ export function EmployeesPage() {
           导出 CSV
         </Button>
       </Space>
+      <div className="hr-mobile-record-list" data-vc-kind="employee-mobile-list">
+        {loading ? <div className="hr-mobile-record-card">加载中...</div> : null}
+        {!loading && !items.length ? <EmptyBlock description="暂无员工" /> : null}
+        {items.map((row) => (
+          <article className="hr-mobile-record-card" key={row.id} data-vc-kind="employee-mobile-card" data-vc-object-type="employee" data-vc-object-id={row.id} data-vc-label={row.name}>
+            <span className="hr-mobile-card-title">{row.name}</span>
+            <span className="hr-mobile-card-meta">{row.employeeNo} · {row.mobile || "未填写手机号"}</span>
+            <span className="hr-mobile-card-meta">{row.primaryAssignment?.legalEntityName ?? "未分配法人"} · {row.primaryAssignment?.orgUnitName ?? "未分配组织"}</span>
+            <span className="hr-mobile-card-tags">
+              <Tag color="green">{row.status}</Tag>
+            </span>
+            <Space wrap>
+              <Button size="small" data-vc-action="employee.detail" onClick={() => setSelected(row)}>详情</Button>
+              <Button size="small" data-vc-action="employee.edit" onClick={() => openEditor(row)}>编辑</Button>
+            </Space>
+          </article>
+        ))}
+      </div>
       <Table
+        className="hr-desktop-record-table"
         data-vc-kind="employee-table"
         rowKey="id"
         loading={loading}
@@ -166,7 +185,7 @@ export function EmployeesPage() {
       <Drawer title="员工详情" open={!!selected} onClose={() => setSelected(null)} size="large" data-vc-kind="employee-drawer" data-vc-object-type={selected ? "employee" : undefined} data-vc-object-id={selected?.id} data-vc-label={selected?.name}>
         {selected ? (
           <>
-            <Descriptions column={2} bordered>
+            <Descriptions column={{ xs: 1, md: 2 }} bordered>
               <Descriptions.Item label="姓名">{selected.name}</Descriptions.Item>
               <Descriptions.Item label="手机号">{selected.mobile}</Descriptions.Item>
               <Descriptions.Item label="主任职法人">{selected.primaryAssignment?.legalEntityName ?? "-"}</Descriptions.Item>
@@ -196,6 +215,7 @@ export function EmployeesPage() {
               </Button>
             </Space>
             <Table
+              className="hr-desktop-record-table"
               data-vc-kind="employee-assignment-table"
               rowKey="id"
               pagination={false}
@@ -209,6 +229,20 @@ export function EmployeesPage() {
                 { title: "状态", render: (_, row) => row.endDate ? <Tag>历史</Tag> : <Tag color="blue">在任</Tag> },
               ]}
             />
+            <div className="hr-mobile-record-list" data-vc-kind="employee-assignment-mobile-list">
+              {!assignments.length ? <EmptyBlock description="暂无任职记录" /> : null}
+              {assignments.map((row) => (
+                <article className="hr-mobile-record-card" key={row.id}>
+                  <span className="hr-mobile-card-title">{row.positionTitle || "未填写岗位"}</span>
+                  <span className="hr-mobile-card-meta">{row.legalEntityName} · {row.orgUnitName}</span>
+                  <span className="hr-mobile-card-tags">
+                    {row.isPrimary ? <Tag color="green">主岗</Tag> : <Tag>兼岗</Tag>}
+                    <Tag>{row.allocationRatio ? `${row.allocationRatio}%` : "-"}</Tag>
+                    {row.endDate ? <Tag>历史</Tag> : <Tag color="blue">在任</Tag>}
+                  </span>
+                </article>
+              ))}
+            </div>
           </>
         ) : null}
       </Drawer>
