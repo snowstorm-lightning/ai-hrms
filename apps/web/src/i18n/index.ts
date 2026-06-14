@@ -30,6 +30,11 @@ const zhCN: Dictionary = {
     noNotifications: "暂无待处理通知",
     handleNow: "处理",
     appGrid: "应用入口",
+    mobileShortcutGroups: {
+      aiKnowledge: "智能与知识",
+      orgOps: "组织与事务",
+      growthSupport: "成长与支持",
+    },
     groups: {
       operating: "AI-HRMS 操作系统",
       knowledge: "知识与证据",
@@ -161,6 +166,11 @@ const enUS: Dictionary = {
     noNotifications: "No pending notifications",
     handleNow: "Handle",
     appGrid: "App launcher",
+    mobileShortcutGroups: {
+      aiKnowledge: "AI & Knowledge",
+      orgOps: "Org & Ops",
+      growthSupport: "Growth & Support",
+    },
     groups: {
       operating: "AI-HRMS Operating System",
       knowledge: "Knowledge & Evidence",

@@ -87,6 +87,23 @@ export function AppShell() {
     { key: "/app/learning", icon: <BookOutlined />, label: t("shell.nav.learning") },
     { key: "/app/help", icon: <QuestionCircleOutlined />, label: t("shell.nav.help") },
   ];
+  const shortcutGroups = [
+    {
+      title: t("shell.mobileShortcutGroups.aiKnowledge"),
+      itemKeys: ["/app/ai-command", "/app/knowledge", "/app/docs", "/app/agents", "/app/audit"],
+    },
+    {
+      title: t("shell.mobileShortcutGroups.orgOps"),
+      itemKeys: ["/app/legal-entities", "/app/org-units", "/app/employees", "/app/attendance"],
+    },
+    {
+      title: t("shell.mobileShortcutGroups.growthSupport"),
+      itemKeys: ["/app/learning", "/app/help"],
+    },
+  ].map((group) => ({
+    ...group,
+    items: appGridItems.filter((item) => group.itemKeys.includes(item.key)),
+  }));
 
   useEffect(() => {
     let mounted = true;
@@ -327,21 +344,31 @@ export function AppShell() {
           />
           <div className="mobile-app-shortcuts" data-vc-kind="mobile-app-shortcuts">
             <Typography.Text type="secondary">{t("shell.appGrid")}</Typography.Text>
-            <div className="mobile-app-shortcut-grid">
-              {appGridItems.slice(0, 6).map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  className="mobile-app-shortcut"
-                  onClick={() => handleMobileAppClick(item.key)}
-                  data-vc-kind="mobile-app-shortcut"
-                  data-vc-label={String(item.label)}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </div>
+            {shortcutGroups.map((group) => (
+              <div key={group.title} className="mobile-app-shortcut-section">
+                <span className="mobile-app-shortcut-heading">{group.title}</span>
+                <div className="mobile-app-shortcut-grid">
+                  {group.items.map((item) => {
+                    const isActive = location.pathname.startsWith(item.key);
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        className={`mobile-app-shortcut${isActive ? " is-active" : ""}`}
+                        onClick={() => handleMobileAppClick(item.key)}
+                        data-vc-kind="mobile-app-shortcut"
+                        data-vc-label={String(item.label)}
+                        data-vc-state={isActive ? "active" : "idle"}
+                        aria-current={isActive ? "page" : undefined}
+                      >
+                        {item.icon}
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
         <Menu

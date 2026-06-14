@@ -209,7 +209,18 @@ select {
 
 .mobile-app-shortcuts {
   display: grid;
+  gap: 12px;
+}
+
+.mobile-app-shortcut-section {
+  display: grid;
   gap: 8px;
+}
+
+.mobile-app-shortcut-heading {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
 }
 
 .mobile-app-shortcut-grid {
@@ -237,6 +248,13 @@ select {
   border-color: #1677ff;
   color: #0958d9;
   outline: none;
+}
+
+.mobile-app-shortcut.is-active {
+  border-color: #1677ff;
+  background: #eff6ff;
+  color: #0958d9;
+  box-shadow: inset 3px 0 0 #1677ff;
 }
 
 .mobile-app-shortcut span:last-child {
