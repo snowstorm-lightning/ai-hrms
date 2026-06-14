@@ -30,10 +30,10 @@ Real-mode seeded local login, only when `AI_HRMS_ENABLE_DEMO_SEED=true`:
 
 ```text
 mobile: 123
-password: password
+password: 12345678900
 
 mobile: demo
-password: password
+password: 12345678900
 ```
 
 When `AI_HRMS_ENABLE_DEMO_SEED=false`, create the first production admin with

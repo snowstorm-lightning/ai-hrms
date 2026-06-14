@@ -51,7 +51,7 @@ if ($health.data.status -ne "ok") {
   throw "Health check failed"
 }
 
-$loginBody = @{ mobile = "123"; password = "password" } | ConvertTo-Json
+$loginBody = @{ mobile = "123"; password = "12345678900" } | ConvertTo-Json
 $login = Invoke-ApiJson -Method Post -Path "/auth/login" -Body $loginBody
 $token = $login.data.token
 if (-not $token) {
@@ -106,7 +106,7 @@ if ($attendanceAnalysis.data.trustPacket.humanReviewRequired -ne $true) {
   throw "Attendance agent analysis should require human review"
 }
 
-$entityLoginBody = @{ mobile = "100112"; password = "password" } | ConvertTo-Json
+$entityLoginBody = @{ mobile = "100112"; password = "12345678900" } | ConvertTo-Json
 $entityLogin = Invoke-ApiJson -Method Post -Path "/auth/login" -Body $entityLoginBody
 $entityHeaders = @{ Authorization = "Bearer $($entityLogin.data.token)" }
 

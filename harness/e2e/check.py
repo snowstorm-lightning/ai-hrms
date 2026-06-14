@@ -38,7 +38,7 @@ def data(payload: dict[str, object]) -> object:
 
 
 def main() -> None:
-    admin_login = api_json("/auth/login", method="POST", body={"mobile": "123", "password": "password"})
+    admin_login = api_json("/auth/login", method="POST", body={"mobile": "123", "password": "12345678900"})
     token = data(admin_login)["token"]  # type: ignore[index]
     admin_headers = {"Authorization": f"Bearer {token}"}
 

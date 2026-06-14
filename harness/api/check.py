@@ -86,7 +86,7 @@ def assert_success(payload: dict[str, object], path: str) -> None:
         raise AssertionError(f"API smoke failed for {path}")
 
 
-def auth_headers(mobile: str, password: str = "password") -> dict[str, str]:
+def auth_headers(mobile: str, password: str = "12345678900") -> dict[str, str]:
     login = api_json("/auth/login", method="POST", body={"mobile": mobile, "password": password})
     token = login.get("data", {}).get("token") if isinstance(login.get("data"), dict) else None
     if not token:

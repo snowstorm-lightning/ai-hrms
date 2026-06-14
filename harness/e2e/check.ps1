@@ -25,7 +25,7 @@ function Invoke-E2EJson {
   Invoke-RestMethod @params
 }
 
-$adminLogin = Invoke-E2EJson -Method Post -Path "/auth/login" -Body (@{ mobile = "123"; password = "password" } | ConvertTo-Json)
+$adminLogin = Invoke-E2EJson -Method Post -Path "/auth/login" -Body (@{ mobile = "123"; password = "12345678900" } | ConvertTo-Json)
 $adminHeaders = @{ Authorization = "Bearer $($adminLogin.data.token)" }
 
 $profile = Invoke-E2EJson -Path "/profile" -Headers $adminHeaders
