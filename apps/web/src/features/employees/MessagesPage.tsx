@@ -60,7 +60,23 @@ export function MessagesPage() {
       <Space className="toolbar">
         <Button type="primary" data-vc-action="message.create" onClick={() => setPosting(true)}>发帖</Button>
       </Space>
+      <div className="hr-mobile-record-list" data-vc-kind="message-mobile-list">
+        {loading ? <div className="hr-mobile-record-card">加载中...</div> : null}
+        {!loading && !items.length ? <EmptyBlock description="暂无消息" /> : null}
+        {items.map((row) => (
+          <article className="hr-mobile-record-card" key={row.id} data-vc-kind="message-mobile-card" data-vc-object-type="message" data-vc-object-id={row.id} data-vc-label={row.title}>
+            <span className="hr-mobile-card-title">{row.title}</span>
+            <span className="hr-mobile-card-meta">{row.author || "匿名"} · 浏览 {row.view}</span>
+            <span className="hr-mobile-card-tags">
+              <Tag>{row.category}</Tag>
+            </span>
+            <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(row.content) }} />
+            <Button size="small" type="primary" data-vc-action="message.comments.open" onClick={() => openComments(row)}>查看评论</Button>
+          </article>
+        ))}
+      </div>
       <Table
+        className="hr-desktop-record-table"
         data-vc-kind="message-table"
         rowKey="id"
         loading={loading}

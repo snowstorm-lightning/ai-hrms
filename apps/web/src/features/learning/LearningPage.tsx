@@ -64,8 +64,22 @@ export function LearningPage() {
         <Col xs={24} md={8}><Card><Statistic title="分配" value={enrollments.length} /></Card></Col>
         <Col xs={24} md={8}><Card><Statistic title="AI 建议" value={recommendations.length} /></Card></Col>
       </Row>
+      <div className="section-card hr-mobile-record-list" data-vc-kind="learning-course-mobile-list">
+        {loading ? <Card loading className="hr-mobile-record-card" /> : null}
+        {!loading && !courses.length ? <EmptyBlock description="暂无课程" /> : null}
+        {courses.map((course) => (
+          <article className="hr-mobile-record-card" key={course.id} data-vc-kind="learning-course-mobile-card" data-vc-object-type="learning" data-vc-object-id={course.id} data-vc-label={course.title}>
+            <span className="hr-mobile-card-title">{course.title}</span>
+            <span className="hr-mobile-card-meta">{course.description}</span>
+            <span className="hr-mobile-card-tags">
+              <Tag>{course.lessonCount} 课时</Tag>
+              <Tag color="green">{course.status}</Tag>
+            </span>
+          </article>
+        ))}
+      </div>
       <Table
-        className="section-card"
+        className="section-card hr-desktop-record-table"
         rowKey="id"
         loading={loading}
         dataSource={courses}

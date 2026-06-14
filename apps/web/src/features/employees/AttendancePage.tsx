@@ -301,6 +301,7 @@ export function AttendancePage() {
 
               <Card title="异常队列" className="attendance-section" extra={<Tag color={riskColor(overview.summary.riskLevel)}>{overview.summary.riskLevel}</Tag>} data-vc-kind="attendance-exception-queue">
                 <Table
+                  className="hr-desktop-record-table"
                   size="small"
                   rowKey="id"
                   dataSource={overview.exceptions.slice(0, 8)}
@@ -320,6 +321,28 @@ export function AttendancePage() {
                     { title: "原因", dataIndex: "reason", ellipsis: true },
                   ]}
                 />
+                <div className="hr-mobile-record-list">
+                  {!overview.exceptions.length ? <EmptyBlock description="暂无异常信号" /> : null}
+                  {overview.exceptions.slice(0, 8).map((row) => (
+                    <button
+                      type="button"
+                      className="hr-mobile-record-card"
+                      key={row.id}
+                      onClick={() => openDetails(`${row.statusLabel}明细`, { type: "exception", exceptionType: row.exceptionType })}
+                      data-vc-kind="attendance-exception-mobile-card"
+                      data-vc-object-type="attendance"
+                      data-vc-object-id={row.id}
+                      data-vc-label={`${row.employeeName} ${row.statusLabel}`}
+                    >
+                      <span className="hr-mobile-card-title">{row.employeeName}</span>
+                      <span className="hr-mobile-card-meta">{row.orgUnitName}</span>
+                      <span className="hr-mobile-card-tags">
+                        <Tag color={riskColor(row.severity)}>{row.statusLabel}</Tag>
+                      </span>
+                      <Typography.Text type="secondary">{row.reason || row.remarks || "-"}</Typography.Text>
+                    </button>
+                  ))}
+                </div>
                 {overview.exceptions.length > 8 ? (
                   <Button type="link" onClick={() => openDetails("全部异常信号", { type: "exception" })}>
                     查看全部 {overview.exceptions.length} 条异常
@@ -432,6 +455,7 @@ export function AttendancePage() {
           </Button>
         </Space>
         <Table
+          className="hr-desktop-record-table"
           data-vc-kind="attendance-detail-table"
           rowKey="key"
           dataSource={detailRows}
@@ -471,6 +495,43 @@ export function AttendancePage() {
             ) },
           ]}
         />
+        <div className="hr-mobile-record-list" data-vc-kind="attendance-detail-mobile-list">
+          {!detailRows.length ? <EmptyBlock description="暂无明细记录" /> : null}
+          {detailRows.map((row) => (
+            <article className="hr-mobile-record-card" key={row.key} data-vc-kind="attendance-detail-mobile-card" data-vc-object-type="attendance" data-vc-object-id={row.id} data-vc-label={`${row.employeeName} ${row.statusLabel}`}>
+              <span className="hr-mobile-card-title">{row.employeeName}</span>
+              <span className="hr-mobile-card-meta">{row.mobile} · {row.orgUnitName}</span>
+              <span className="hr-mobile-card-tags">
+                <Tag color={riskColor(row.severity ?? statusRisk(row.attendanceStatus))}>{row.statusLabel}</Tag>
+                <Tag>{row.day}</Tag>
+              </span>
+              <Typography.Text type="secondary">签到：{row.attendanceInTime ? dayjs(row.attendanceInTime).format("HH:mm") : "-"}</Typography.Text>
+              <Typography.Text type="secondary">签退：{row.attendanceOutTime ? dayjs(row.attendanceOutTime).format("HH:mm") : "-"}</Typography.Text>
+              <Typography.Text type="secondary">{row.reason || row.remarks || "-"}</Typography.Text>
+              <Button
+                size="small"
+                data-vc-action="attendance.checkout"
+                disabled={row.source !== "record" || !row.attendanceInTime || !!row.attendanceOutTime}
+                loading={checkoutId === row.id}
+                onClick={async () => {
+                  setCheckoutId(row.id);
+                  setError("");
+                  try {
+                    await api.checkout(row.id);
+                    await reload(selectedDay);
+                    message.success("签退已记录，考勤态势已刷新");
+                  } catch (err) {
+                    setError(getErrorMessage(err, "签退失败"));
+                  } finally {
+                    setCheckoutId("");
+                  }
+                }}
+              >
+                签退
+              </Button>
+            </article>
+          ))}
+        </div>
       </Drawer>
     </main>
   );

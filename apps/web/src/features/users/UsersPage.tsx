@@ -93,7 +93,26 @@ export function UsersPage() {
       <Space className="toolbar">
         <Button type="primary" data-vc-action="user.create" onClick={() => openEditor()}>新增用户</Button>
       </Space>
+      <div className="hr-mobile-record-list" data-vc-kind="user-mobile-list">
+        {loading ? <div className="hr-mobile-record-card">加载中...</div> : null}
+        {!loading && !items.length ? <EmptyBlock description="暂无用户" /> : null}
+        {items.map((row) => (
+          <article className="hr-mobile-record-card" key={row.id} data-vc-kind="user-mobile-card" data-vc-object-type="user" data-vc-object-id={row.id} data-vc-label={row.username}>
+            <span className="hr-mobile-card-title">{row.username}</span>
+            <span className="hr-mobile-card-meta">{row.mobile || "未填写手机号"}</span>
+            <span className="hr-mobile-card-tags">
+              {(row.roles ?? []).map((role) => <Tag key={role}>{role}</Tag>)}
+              <Tag color={row.enableState === 1 ? "green" : "red"}>{row.enableState === 1 ? "启用" : "禁用"}</Tag>
+            </span>
+            <Space wrap>
+              <Button size="small" data-vc-action="user.edit" onClick={() => openEditor(row)}>编辑</Button>
+              <Button size="small" data-vc-action="user.role_bindings.edit" onClick={() => openRoleEditor(row)}>权限</Button>
+            </Space>
+          </article>
+        ))}
+      </div>
       <Table
+        className="hr-desktop-record-table"
         data-vc-kind="user-table"
         rowKey="id"
         loading={loading}

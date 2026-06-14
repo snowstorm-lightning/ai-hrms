@@ -303,7 +303,7 @@ export function AgentRunsPage() {
       </section>
 
       <Table
-        className="section-card"
+        className="section-card hr-desktop-record-table"
         rowKey="id"
         loading={loading}
         dataSource={items}

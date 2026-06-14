@@ -141,7 +141,7 @@ export function AuditPage() {
       </Row>
 
       <Table
-        className="section-card audit-event-table"
+        className="section-card audit-event-table hr-desktop-record-table"
         rowKey="id"
         loading={loading}
         dataSource={items}
@@ -163,6 +163,23 @@ export function AuditPage() {
           { title: "时间", dataIndex: "createdAt", width: 220 },
         ]}
       />
+      <div className="section-card hr-mobile-record-list" data-vc-kind="audit-event-mobile-list">
+        {loading ? <Card loading className="hr-mobile-record-card" /> : null}
+        {!loading && !items.length ? <EmptyBlock description="暂无审计事件" /> : null}
+        {items.map((item) => (
+          <article className="hr-mobile-record-card" key={item.id} data-vc-kind="audit-event-mobile-card" data-vc-object-type="audit_event" data-vc-object-id={item.id} data-vc-label={item.eventType}>
+            <span className="hr-mobile-card-title">{eventLabel(item.eventType)}</span>
+            <span className="hr-mobile-card-meta">{item.eventType}</span>
+            <span className="hr-mobile-card-meta">{item.objectType}/{item.objectId}</span>
+            <span className="hr-mobile-card-tags">
+              <Tag color={riskColor(item.riskLevel)}>{item.riskLevel}</Tag>
+              <Tag>{item.source}</Tag>
+              <Tag>{new Date(item.createdAt).toLocaleString()}</Tag>
+            </span>
+            <Typography.Text type="secondary">{auditSummary(item.newValueSummary)}</Typography.Text>
+          </article>
+        ))}
+      </div>
     </div>
   );
 }
