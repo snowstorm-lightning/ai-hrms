@@ -17,7 +17,7 @@ const dailyPath = [
   { title: "看 Dashboard", content: "先确认组织、知识、Agent、审计和高风险待确认状态。" },
   { title: "问 AI Command", content: "让系统生成解释、计划或工具预览；高风险只进入人工确认。" },
   { title: "查 Knowledge", content: "打开引用来源、trustLevel、sensitivity 和 scope。" },
-  { title: "跑 Agent", content: "查看 runType、toolPreview、humanReviewRequired 与 auditStatus。" },
+  { title: "跑 Agent", content: "查看任务类型、工具预览、人工复核状态与审计状态。" },
   { title: "留 Evidence", content: "在 Audit & Evidence 复盘建议、人工确认和证据链。" },
 ];
 
@@ -56,7 +56,7 @@ export function HelpPage() {
           <Space wrap>
             <Tag color="blue">program-first</Tag>
             <Tag color="purple">LLM when flexible</Tag>
-            <Tag color="red">human-in-the-loop</Tag>
+            <Tag color="red">人工确认</Tag>
             <Tag color="green">audit evidence</Tag>
           </Space>
         </div>

@@ -31,7 +31,7 @@ export function riskColor(risk: TrustRiskLevel) {
 }
 
 export function RiskTag({ risk }: { risk: TrustRiskLevel }) {
-  return <Tag color={riskColor(risk)}>riskLevel={riskLabel(risk)}</Tag>;
+  return <Tag color={riskColor(risk)}>{riskLabel(risk)}</Tag>;
 }
 
 export function TrustMetaBar({
@@ -52,13 +52,13 @@ export function TrustMetaBar({
   return (
     <Space wrap className="trust-meta-bar">
       <RiskTag risk={riskLevel} />
-      {typeof confidence === "number" ? <Tag>confidence={confidence}%</Tag> : null}
-      {typeof evidenceCount === "number" ? <Tag icon={<FileSearchOutlined />}>evidence={evidenceCount}</Tag> : null}
-      {typeof toolPreview === "boolean" ? <Tag color={toolPreview ? "purple" : "default"}>toolPreview={String(toolPreview)}</Tag> : null}
+      {typeof confidence === "number" ? <Tag>置信度 {confidence}%</Tag> : null}
+      {typeof evidenceCount === "number" ? <Tag icon={<FileSearchOutlined />}>证据 {evidenceCount}</Tag> : null}
+      {typeof toolPreview === "boolean" ? <Tag color={toolPreview ? "purple" : "default"}>{toolPreview ? "工具预览" : "无工具预览"}</Tag> : null}
       <Tag color={humanReviewRequired ? "red" : "green"}>
-        humanReviewRequired={String(Boolean(humanReviewRequired))}
+        {humanReviewRequired ? "需要人工复核" : "无需人工复核"}
       </Tag>
-      {auditStatus ? <Tag icon={<AuditOutlined />}>auditStatus={auditStatus}</Tag> : null}
+      {auditStatus ? <Tag icon={<AuditOutlined />}>审计：{auditStatus}</Tag> : null}
     </Space>
   );
 }

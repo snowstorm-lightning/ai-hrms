@@ -276,7 +276,7 @@ export function AgentRunsPage() {
                   <Tag>mode={workflowPreview.result.execution_mode ?? "preview_only"}</Tag>
                   <Tag>audit={workflowStatusLabel(workflowPreview.result.audit_status)}</Tag>
                   <Tag color={workflowPreview.result.human_review_required ? "orange" : "green"}>
-                    humanReviewRequired={String(workflowPreview.result.human_review_required)}
+                    {workflowPreview.result.human_review_required ? "需要人工复核" : "无需人工复核"}
                   </Tag>
                 </div>
                 <div className="workflow-preview-steps">
@@ -294,7 +294,7 @@ export function AgentRunsPage() {
                   showIcon
                   type="info"
                   title="预览边界"
-                  description={workflowPreview.result.boundary ?? "Preview-only workflow. Human review is required before execution."}
+                  description={workflowPreview.result.boundary ?? "当前只是流程预览；真正执行前需要经过权限、审计和人工确认。"}
                 />
               </div>
             ) : null}

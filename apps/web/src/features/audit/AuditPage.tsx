@@ -19,7 +19,7 @@ function eventLabel(eventType: string) {
   if (type.includes("citation")) return "Knowledge citation";
   if (type.includes("visual_copilot")) return "Visual Copilot evidence";
   if (type.includes("tool") || type.includes("preview")) return "Agent tool preview";
-  if (type.includes("human.review") || type.endsWith(".reviewed") || type.includes("review.requested")) return "Human review";
+  if (type.includes("human.review") || type.endsWith(".reviewed") || type.includes("review.requested")) return "人工复核";
   if (type.includes("co_growth")) return "Co-Growth evidence";
   if (type.includes("command")) return "AI suggestion";
   return "Audit event";
@@ -93,7 +93,7 @@ export function AuditPage() {
             <Alert
               showIcon
               type="warning"
-              title="高风险动作必须 human-in-the-loop"
+              title="高风险动作必须人工确认"
               description="审计层记录的不只是执行结果，也记录 AI 预览、人工确认请求、阻断原因和可补偿标记。"
             />
           </Space>
@@ -117,7 +117,7 @@ export function AuditPage() {
             <div className="audit-explain-grid">
               <div><FileSearchOutlined /><span>Knowledge citation：回答使用了哪些资料、片段和范围。</span></div>
               <div><AuditOutlined /><span>Agent tool preview：执行前展示工具、参数和风险。</span></div>
-              <div><SafetyCertificateOutlined /><span>Human review：高风险建议等待人工确认。</span></div>
+              <div><SafetyCertificateOutlined /><span>人工复核：高风险建议等待人工确认。</span></div>
               <div><CloseCircleOutlined /><span>Blocked event：系统明确阻断自动化人事裁决。</span></div>
               <div><CheckCircleOutlined /><span>Reversible marker：低中风险动作保留回滚或补偿说明。</span></div>
             </div>

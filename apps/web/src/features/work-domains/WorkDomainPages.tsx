@@ -192,11 +192,38 @@ function riskColor(risk: string) {
   return "green";
 }
 
+function riskLabel(risk: string) {
+  if (risk === "high") return "高风险";
+  if (risk === "medium") return "中风险";
+  if (risk === "low") return "低风险";
+  return risk;
+}
+
 function statusColor(status: string) {
   if (["approved", "completed", "closed"].includes(status)) return "green";
   if (["draft", "planned", "scheduled"].includes(status)) return "blue";
   if (["rejected", "blocked"].includes(status)) return "red";
   return "gold";
+}
+
+function statusLabel(status: string) {
+  const labels: Record<string, string> = {
+    active: "进行中",
+    approved: "已批准",
+    cancelled: "已取消",
+    closed: "已关闭",
+    completed: "已完成",
+    draft: "草稿",
+    in_review: "复核中",
+    open: "已开放",
+    pending: "待处理",
+    planned: "已计划",
+    rejected: "已驳回",
+    scheduled: "已安排",
+    submitted: "已提交",
+    waiting_human_review: "待人工复核",
+  };
+  return labels[status] ?? status;
 }
 
 function DomainStats({ overview, module }: { overview?: WorkbenchOverview | null; module?: string }) {
@@ -355,6 +382,16 @@ function WorkflowActions({
           </Button>
         ))}
       </Space>
+      {actions.length ? (
+        <div className="workflow-action-reasons">
+          {actions.map((action) => (
+            <div className="workflow-action-reason" key={`${action.action}-reason`}>
+              <Tag color={action.enabled ? "blue" : "default"}>{action.label}{" -> "}{statusLabel(action.nextStatus)}</Tag>
+              <Typography.Text type="secondary">{action.reason || "系统会写入 workflow event 和审计事件。"}</Typography.Text>
+            </div>
+          ))}
+        </div>
+      ) : null}
       {openTasks.length ? (
         <div className="workflow-task-strip">
           {openTasks.map((task) => (
@@ -429,9 +466,9 @@ function HRRecordMobileCards({
           <span className="hr-mobile-card-title">{record.title}</span>
           <span className="hr-mobile-card-meta">{record.employeeName || record.orgUnitName || "global"}</span>
           <span className="hr-mobile-card-tags">
-            <Tag color={statusColor(record.status)}>{record.status}</Tag>
-            <Tag color={riskColor(record.riskLevel)}>{record.riskLevel}</Tag>
-            {record.humanReviewRequired ? <Tag color="red">human review</Tag> : null}
+            <Tag color={statusColor(record.status)}>{statusLabel(record.status)}</Tag>
+            <Tag color={riskColor(record.riskLevel)}>{riskLabel(record.riskLevel)}</Tag>
+            {record.humanReviewRequired ? <Tag color="red">人工复核</Tag> : null}
           </span>
           <Typography.Text type="secondary">{payloadPreview(record)}</Typography.Text>
         </button>
@@ -661,8 +698,8 @@ function HRResourcePanel({
         columns={[
           { title: "标题", dataIndex: "title", render: (text: string, record: HRRecord) => <Button type="link" onClick={() => setSelected(record)}>{text}</Button> },
           { title: "人员/组织", render: (_: unknown, record: HRRecord) => record.employeeName || record.orgUnitName || "global" },
-          { title: "状态", dataIndex: "status", render: (status: string) => <Tag color={statusColor(status)}>{status}</Tag> },
-          { title: "风险", dataIndex: "riskLevel", render: (risk: string, record: HRRecord) => <Space><Tag color={riskColor(risk)}>{risk}</Tag>{record.humanReviewRequired ? <Tag color="red">human review</Tag> : null}</Space> },
+          { title: "状态", dataIndex: "status", render: (status: string) => <Tag color={statusColor(status)}>{statusLabel(status)}</Tag> },
+          { title: "风险", dataIndex: "riskLevel", render: (risk: string, record: HRRecord) => <Space><Tag color={riskColor(risk)}>{riskLabel(risk)}</Tag>{record.humanReviewRequired ? <Tag color="red">人工复核</Tag> : null}</Space> },
           { title: "摘要", render: (_: unknown, record: HRRecord) => <Typography.Text type="secondary">{payloadPreview(record)}</Typography.Text> },
           { title: "更新时间", dataIndex: "updatedAt", render: (value: string) => new Date(value).toLocaleString() },
           { title: "操作", render: (_: unknown, record: HRRecord) => <Button size="small" icon={<EditOutlined />} onClick={() => openEditor(record)} data-vc-action={`hr.${resource}.edit`}>编辑</Button> },
@@ -683,7 +720,7 @@ function HRResourcePanel({
               <Alert
                 showIcon
                 type="warning"
-                title="Human review boundary"
+                title="人工复核边界"
                 description="该记录只支持预览、状态更新和审计留痕；招聘、绩效、薪资等人事影响结果必须由 HR 人工确认。"
               />
             ) : null}
@@ -692,8 +729,8 @@ function HRResourcePanel({
               <Descriptions.Item label="模块">{moduleLabels[selected.module] ?? selected.module}</Descriptions.Item>
               <Descriptions.Item label="员工">{selected.employeeName || "-"}</Descriptions.Item>
               <Descriptions.Item label="组织">{selected.orgUnitName || "-"}</Descriptions.Item>
-              <Descriptions.Item label="状态"><Tag color={statusColor(selected.status)}>{selected.status}</Tag></Descriptions.Item>
-              <Descriptions.Item label="风险"><Tag color={riskColor(selected.riskLevel)}>{selected.riskLevel}</Tag></Descriptions.Item>
+              <Descriptions.Item label="状态"><Tag color={statusColor(selected.status)}>{statusLabel(selected.status)}</Tag></Descriptions.Item>
+              <Descriptions.Item label="风险"><Tag color={riskColor(selected.riskLevel)}>{riskLabel(selected.riskLevel)}</Tag></Descriptions.Item>
               <Descriptions.Item label="Scope">{selected.scopeType}{selected.scopeId ? `/${selected.scopeId}` : ""}</Descriptions.Item>
             </Descriptions>
             <WorkflowActions
@@ -780,8 +817,8 @@ function HRResourcePanel({
             title={editing?.id ? "流程状态由详情页的下一步处理推进" : "保存后进入审批流程"}
             description={(
               <Space wrap>
-                <Tag color={statusColor(editing?.status ?? "draft")}>状态：{editing?.status ?? "draft"}</Tag>
-                <Tag color={riskColor(editing?.riskLevel ?? "medium")}>风险：{editing?.riskLevel ?? "medium"}</Tag>
+                <Tag color={statusColor(editing?.status ?? "draft")}>状态：{statusLabel(editing?.status ?? "draft")}</Tag>
+                <Tag color={riskColor(editing?.riskLevel ?? "medium")}>风险：{riskLabel(editing?.riskLevel ?? "medium")}</Tag>
                 {editing?.humanReviewRequired ? <Tag color="red">需要人工复核</Tag> : <Tag color="green">低风险预览</Tag>}
               </Space>
             )}
@@ -854,7 +891,7 @@ function LifecycleStrip({ steps }: { steps: Array<{ title: string; description: 
           <span className="domain-lifecycle-index">{index + 1}</span>
           <Typography.Text strong>{step.title}</Typography.Text>
           <Typography.Text type="secondary">{step.description}</Typography.Text>
-          <Tag color={riskColor(step.risk)}>{step.risk}</Tag>
+          <Tag color={riskColor(step.risk)}>{riskLabel(step.risk)}</Tag>
         </article>
       ))}
     </div>
@@ -1120,9 +1157,9 @@ function RequestQueuePanel({ onOpenResource }: { onOpenResource: (resource: stri
               <Typography.Paragraph type="secondary">{resourceLabels[item.resource] ?? item.resource} · {item.employeeName || item.orgUnitName || "global"}</Typography.Paragraph>
             </div>
             <Space wrap>
-              <Tag color={statusColor(item.status)}>{item.status}</Tag>
-              <Tag color={riskColor(item.riskLevel)}>{item.riskLevel}</Tag>
-              {item.humanReviewRequired ? <Tag color="red">human review</Tag> : null}
+              <Tag color={statusColor(item.status)}>{statusLabel(item.status)}</Tag>
+              <Tag color={riskColor(item.riskLevel)}>{riskLabel(item.riskLevel)}</Tag>
+              {item.humanReviewRequired ? <Tag color="red">人工复核</Tag> : null}
             </Space>
             <Space wrap>
               <Button size="small" onClick={() => setSelected(item)}>摘要</Button>
@@ -1143,8 +1180,8 @@ function RequestQueuePanel({ onOpenResource }: { onOpenResource: (resource: stri
             <Descriptions column={1} bordered size="small">
               <Descriptions.Item label="资源">{resourceLabels[selected.resource] ?? selected.resource}</Descriptions.Item>
               <Descriptions.Item label="人员/组织">{selected.employeeName || selected.orgUnitName || "global"}</Descriptions.Item>
-              <Descriptions.Item label="状态"><Tag color={statusColor(selected.status)}>{selected.status}</Tag></Descriptions.Item>
-              <Descriptions.Item label="风险"><Tag color={riskColor(selected.riskLevel)}>{selected.riskLevel}</Tag></Descriptions.Item>
+              <Descriptions.Item label="状态"><Tag color={statusColor(selected.status)}>{statusLabel(selected.status)}</Tag></Descriptions.Item>
+              <Descriptions.Item label="风险"><Tag color={riskColor(selected.riskLevel)}>{riskLabel(selected.riskLevel)}</Tag></Descriptions.Item>
               <Descriptions.Item label="建议动作">{selected.action}</Descriptions.Item>
             </Descriptions>
             <Alert showIcon type="info" title="处理入口" description="进入对应列表后，打开记录详情即可执行提交、复核、批准、驳回或取消动作。" />
@@ -1386,6 +1423,7 @@ export function KnowledgeAgentPage() {
 }
 
 export function TrustAuditPage() {
+  const navigate = useNavigate();
   const [workItems, setWorkItems] = useState<HRWorkItem[]>([]);
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1430,7 +1468,7 @@ export function TrustAuditPage() {
               columns={[
                 { title: "事项", dataIndex: "title" },
                 { title: "模块", dataIndex: "module", render: (module: string) => moduleLabels[module] ?? module },
-                { title: "风险", dataIndex: "riskLevel", render: (risk: string) => <Tag color={riskColor(risk)}>{risk}</Tag> },
+                { title: "风险", dataIndex: "riskLevel", render: (risk: string) => <Tag color={riskColor(risk)}>{riskLabel(risk)}</Tag> },
                 { title: "动作", dataIndex: "action" },
               ]}
             />
@@ -1442,9 +1480,9 @@ export function TrustAuditPage() {
                   <span className="hr-mobile-card-title">{item.title}</span>
                   <span className="hr-mobile-card-meta">{moduleLabels[item.module] ?? item.module} · {item.employeeName || item.orgUnitName || item.recordType}</span>
                   <span className="hr-mobile-card-tags">
-                    <Tag color={statusColor(item.status)}>{item.status}</Tag>
-                    <Tag color={riskColor(item.riskLevel)}>{item.riskLevel}</Tag>
-                    {item.humanReviewRequired ? <Tag color="red">human review</Tag> : null}
+                    <Tag color={statusColor(item.status)}>{statusLabel(item.status)}</Tag>
+                    <Tag color={riskColor(item.riskLevel)}>{riskLabel(item.riskLevel)}</Tag>
+                    {item.humanReviewRequired ? <Tag color="red">人工复核</Tag> : null}
                   </span>
                   <Typography.Text type="secondary">{item.action}</Typography.Text>
                 </article>
@@ -1465,7 +1503,7 @@ export function TrustAuditPage() {
               columns={[
                 { title: "事件", dataIndex: "eventType" },
                 { title: "对象", render: (_: unknown, event: AuditEvent) => `${event.objectType}/${event.objectId}` },
-                { title: "风险", dataIndex: "riskLevel", render: (risk: string) => <Tag color={riskColor(risk)}>{risk}</Tag> },
+                { title: "风险", dataIndex: "riskLevel", render: (risk: string) => <Tag color={riskColor(risk)}>{riskLabel(risk)}</Tag> },
               ]}
             />
             <div className="hr-mobile-record-list">
@@ -1476,7 +1514,7 @@ export function TrustAuditPage() {
                   <span className="hr-mobile-card-title">{event.eventType}</span>
                   <span className="hr-mobile-card-meta">{event.objectType}/{event.objectId}</span>
                   <span className="hr-mobile-card-tags">
-                    <Tag color={riskColor(event.riskLevel)}>{event.riskLevel}</Tag>
+                    <Tag color={riskColor(event.riskLevel)}>{riskLabel(event.riskLevel)}</Tag>
                     <Tag>{new Date(event.createdAt).toLocaleString()}</Tag>
                   </span>
                 </article>
@@ -1486,7 +1524,7 @@ export function TrustAuditPage() {
         </Col>
       </Row>
       <Space className="toolbar">
-        <Button icon={<AuditOutlined />} onClick={() => window.location.assign("/app/audit")}>打开完整审计页</Button>
+        <Button icon={<AuditOutlined />} onClick={() => navigate("/app/audit")}>打开完整审计页</Button>
         <Button icon={<SearchOutlined />} onClick={reload}>刷新</Button>
       </Space>
     </DomainFrame>

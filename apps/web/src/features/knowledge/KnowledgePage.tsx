@@ -49,6 +49,7 @@ export function KnowledgePage() {
   const [form] = Form.useForm();
   const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
   const [ingestForm] = Form.useForm();
+  const [modal, modalContextHolder] = Modal.useModal();
 
   const reload = async () => {
     setLoading(true);
@@ -107,6 +108,7 @@ export function KnowledgePage() {
 
   return (
     <div className="knowledge-page" data-vc-page="knowledge">
+      {modalContextHolder}
       <PageTitle
         title="治理型知识库"
         description="组织知识层不是普通文档表，而是 AI-HRMS 回答、计划、Agent run 和审计证据的受控来源。"
@@ -247,7 +249,7 @@ export function KnowledgePage() {
                 icon={<SyncOutlined />}
                 loading={rebuildingId === document.id}
                 onClick={() => {
-                  Modal.confirm({
+                  modal.confirm({
                     title: "重建该资料的 chunk 与 embedding？",
                     content: "该操作会替换旧 chunk/embedding，并写入 ingest job 与审计事件。不会修改原文、scope 或发布时间。",
                     okText: "重建",

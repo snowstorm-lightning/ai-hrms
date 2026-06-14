@@ -475,12 +475,12 @@ export function CoGrowthPage() {
             description={coachResult.summary}
           />
           <div className="coach-facts">
-            <Tag color={riskColor[coachResult.riskLevel]}>riskLevel={coachResult.riskLevel}</Tag>
-            <Tag>confidence={coachResult.confidence}%</Tag>
+            <Tag color={riskColor[coachResult.riskLevel]}>风险：{coachResult.riskLevel}</Tag>
+            <Tag>置信度 {coachResult.confidence}%</Tag>
             <Tag>{coachResult.estimatedMinutes} 分钟</Tag>
-            <Tag>impact={coachResult.impactOnWork}</Tag>
+            <Tag>工作影响：{coachResult.impactOnWork}</Tag>
             <Tag color={coachResult.humanReviewRequired ? "red" : "green"}>
-              humanReviewRequired={String(coachResult.humanReviewRequired)}
+              {coachResult.humanReviewRequired ? "需要人工确认" : "无需人工确认"}
             </Tag>
           </div>
           <div className="coach-compact-list">
@@ -923,7 +923,7 @@ export function CoGrowthPage() {
                             <Space wrap><SafetyCertificateOutlined />{scenario.title}<Tag color="red">{scenario.riskType}</Tag></Space>
                             <p>风险信号：{scenario.warningSignal}</p>
                             <p>健康回应：{scenario.healthyResponse}</p>
-                            <Tag color="orange">humanReviewRequired=true</Tag>
+                            <Tag color="orange">需要人工确认</Tag>
                           </article>
                         ))}
                       </div>

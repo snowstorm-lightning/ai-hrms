@@ -385,7 +385,7 @@ export function DashboardPage() {
                 { title: "模块", dataIndex: "module", render: (module: string) => module === "employee_ops" ? "员工事务" : module === "recruitment_lifecycle" ? "招聘与生命周期" : module === "growth_performance" ? "成长与绩效" : module },
                 { title: "对象", render: (_: unknown, item: HRWorkItem) => item.employeeName || item.orgUnitName || item.recordType },
                 { title: "状态", dataIndex: "status", render: (status: string) => <Tag>{status}</Tag> },
-                { title: "风险", render: (_: unknown, item: HRWorkItem) => <Space><RiskTag risk={item.riskLevel} />{item.humanReviewRequired ? <Tag color="red">human review</Tag> : null}</Space> },
+                { title: "风险", render: (_: unknown, item: HRWorkItem) => <Space><RiskTag risk={item.riskLevel} />{item.humanReviewRequired ? <Tag color="red">人工复核</Tag> : null}</Space> },
                 { title: "操作", render: (_: unknown, item: HRWorkItem) => <Button size="small" onClick={() => navigate(workItemRoute(item))}>处理</Button> },
               ]}
             />
@@ -402,7 +402,7 @@ export function DashboardPage() {
                   <span className="hr-mobile-card-tags">
                     <Tag>{item.status}</Tag>
                     <RiskTag risk={item.riskLevel} />
-                    {item.humanReviewRequired ? <Tag color="red">human review</Tag> : null}
+                    {item.humanReviewRequired ? <Tag color="red">人工复核</Tag> : null}
                   </span>
                   <Button size="small" type="primary" onClick={() => navigate(workItemRoute(item))}>处理</Button>
                 </article>
@@ -509,7 +509,7 @@ export function DashboardPage() {
               </Card>
             </Col>
             <Col xs={24} md={8}>
-              <Card title="Human-in-the-loop 边界">
+              <Card title="人工确认边界">
                 <Alert
                   showIcon
                   type="warning"
