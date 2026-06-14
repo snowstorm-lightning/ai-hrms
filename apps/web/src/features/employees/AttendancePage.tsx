@@ -312,13 +312,20 @@ export function AttendancePage() {
                     "data-vc-object-type": "attendance",
                     "data-vc-object-id": row.id,
                     "data-vc-label": `${row.employeeName} ${row.statusLabel}`,
-                    onClick: () => openDetails(`${row.statusLabel}明细`, { type: "exception", exceptionType: row.exceptionType }),
                   } as HTMLAttributes<HTMLElement>)}
                   columns={[
                     { title: "员工", dataIndex: "employeeName" },
                     { title: "组织", dataIndex: "orgUnitName" },
                     { title: "信号", dataIndex: "statusLabel", render: (_, row: AttendanceException) => <Tag color={riskColor(row.severity)}>{row.statusLabel}</Tag> },
                     { title: "原因", dataIndex: "reason", ellipsis: true },
+                    {
+                      title: "操作",
+                      render: (_, row: AttendanceException) => (
+                        <Button size="small" type="link" aria-label={`查看${row.employeeName}${row.statusLabel}明细`} onClick={() => openDetails(`${row.statusLabel}明细`, { type: "exception", exceptionType: row.exceptionType })}>
+                          查看明细
+                        </Button>
+                      ),
+                    },
                   ]}
                 />
                 <div className="hr-mobile-record-list">
@@ -329,6 +336,7 @@ export function AttendancePage() {
                       className="hr-mobile-record-card"
                       key={row.id}
                       onClick={() => openDetails(`${row.statusLabel}明细`, { type: "exception", exceptionType: row.exceptionType })}
+                      aria-label={`查看${row.employeeName}${row.statusLabel}明细`}
                       data-vc-kind="attendance-exception-mobile-card"
                       data-vc-object-type="attendance"
                       data-vc-object-id={row.id}
