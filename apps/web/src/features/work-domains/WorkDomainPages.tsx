@@ -662,17 +662,36 @@ function HRResourcePanel({
 
   useEffect(() => {
     if (!focusId || loading) return;
+    if (selected?.id === focusId) return;
     const record = items.find((item) => item.id === focusId);
     if (record && selected?.id !== record.id) {
       setSelected(record);
+      return;
     }
-  }, [focusId, items, loading, selected?.id]);
+    let mounted = true;
+    setWorkflowLoading(true);
+    setError("");
+    api.hrWorkflow(resource, focusId)
+      .then((result) => {
+        if (!mounted) return;
+        setWorkflow(result);
+        setSelected(result.record);
+      })
+      .catch((err) => {
+        if (mounted) setError(getErrorMessage(err, "目标记录不在当前可见范围，或已经被删除"));
+      })
+      .finally(() => {
+        if (mounted) setWorkflowLoading(false);
+      });
+    return () => { mounted = false; };
+  }, [focusId, items, loading, resource, selected?.id]);
 
   useEffect(() => {
     if (!selected) {
       setWorkflow(null);
       return;
     }
+    if (workflow?.record.id === selected.id && workflow.record.resource === resource) return;
     let mounted = true;
     setWorkflow(null);
     setWorkflowLoading(true);
