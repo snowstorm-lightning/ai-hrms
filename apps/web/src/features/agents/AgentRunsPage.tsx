@@ -22,6 +22,51 @@ const runTypes = [
   "audit_risk_scanner",
 ];
 
+const runTypeLabels: Record<string, string> = {
+  onboarding_companion: "新人陪跑",
+  knowledge_iteration: "知识迭代",
+  data_quality: "数据质量检查",
+  visual_copilot: "圈选助手",
+  co_growth_coach: "共生成长教练",
+  ai_literacy_path: "AI 素养路径",
+  work_learning_balance: "工作学习平衡",
+  agent_workflow_lab: "执行链路实验",
+  knowledge_governance: "知识治理",
+  onboarding_planner: "新人计划生成",
+  audit_risk_scanner: "审计风险扫描",
+};
+
+function runTypeLabel(type: string) {
+  return runTypeLabels[type] ?? type;
+}
+
+function riskLabel(risk: string) {
+  const labels: Record<string, string> = {
+    high: "高风险",
+    medium: "中风险",
+    low: "低风险",
+  };
+  return labels[risk] ?? risk;
+}
+
+function executionModeLabel(mode: unknown) {
+  const value = typeof mode === "string" ? mode : undefined;
+  const labels: Record<string, string> = {
+    deterministic: "确定性预览",
+    preview_only: "仅预览",
+    human_review: "等待人工确认",
+  };
+  return labels[value ?? "deterministic"] ?? value ?? "确定性预览";
+}
+
+function workflowBoundaryText(boundary: string | undefined) {
+  if (!boundary) return "当前只是流程预览；真正执行前需要经过权限、审计和人工确认。";
+  if (boundary.includes("LangGraph demo only")) {
+    return "这是执行链路演示：当前不会写入 HR 数据，也不会真正调用工具；任何真实工作流都必须先经过权限、审计和人工确认。";
+  }
+  return boundary;
+}
+
 function statusColor(status: string) {
   if (status.includes("waiting")) return "orange";
   if (status.includes("completed")) return "green";
@@ -46,6 +91,10 @@ const workflowStepLabels: Record<string, string> = {
 function workflowStatusLabel(status: string) {
   const labels: Record<string, string> = {
     received: "已接收",
+    created: "已创建",
+    previewed: "已预览",
+    waiting_human_review: "等待人工确认",
+    completed: "已完成",
     high: "高风险",
     medium: "中风险",
     low: "低风险",
@@ -93,7 +142,7 @@ export function AgentRunsPage() {
     <div className="agent-runs-page" data-vc-page="agents">
       <PageTitle
         title="人机协作运行中心"
-        description="人和智能体协作的运行控制台：每次 run 都有 delegated context、tool preview、human confirmation 和 audit status。"
+        description="每次运行都记录授权上下文、工具预览、人工确认和审计状态；用户能看到当前卡在哪一步。"
       />
       <InlineError message={error} onRetry={reload} />
       <TaskPath
@@ -111,7 +160,7 @@ export function AgentRunsPage() {
           <Alert
             showIcon
             type="info"
-            title="Agent run 默认先进入预览"
+            title="智能体运行默认先进入预览"
             description="读操作可预览；写操作和高风险人事影响必须请求人工确认，真实执行由 Go 重新校验权限和 scope。"
           />
           <Form
@@ -125,7 +174,7 @@ export function AgentRunsPage() {
                 await api.createAgentRun(values);
                 form.resetFields(["prompt"]);
                 await reload();
-                message.success("已创建 Demo Agent run 预览。");
+                message.success("已创建智能体运行预览。");
               } catch (err) {
                 setError(getErrorMessage(err, "创建 Agent 运行失败"));
               } finally {
@@ -134,14 +183,14 @@ export function AgentRunsPage() {
             }}
           >
             <div className="agent-form-grid">
-              <Form.Item name="runType" label="Agent 类型">
-                <Select options={runTypes.map((value) => ({ value, label: value }))} />
+              <Form.Item name="runType" label="智能体类型">
+                <Select options={runTypes.map((value) => ({ value, label: runTypeLabel(value) }))} />
               </Form.Item>
               <Form.Item name="riskLevel" label="风险等级">
                 <Select options={[
-                  { value: "low", label: "low：只读解释" },
-                  { value: "medium", label: "medium：行动计划预览" },
-                  { value: "high", label: "high：人工确认" },
+                  { value: "low", label: "低风险：只读解释" },
+                  { value: "medium", label: "中风险：行动计划预览" },
+                  { value: "high", label: "高风险：必须人工确认" },
                 ]} />
               </Form.Item>
               <Form.Item name="prompt" label="任务摘要">
@@ -156,7 +205,7 @@ export function AgentRunsPage() {
           </Form>
         </Card>
         <div className="agent-stat-grid">
-          <Card><Typography.Text type="secondary">高风险 run</Typography.Text><Typography.Title level={3}>{stats.high}</Typography.Title></Card>
+          <Card><Typography.Text type="secondary">高风险运行</Typography.Text><Typography.Title level={3}>{stats.high}</Typography.Title></Card>
           <Card><Typography.Text type="secondary">等待确认</Typography.Text><Typography.Title level={3}>{stats.waiting}</Typography.Title></Card>
           <Card><Typography.Text type="secondary">工具预览</Typography.Text><Typography.Title level={3}>{stats.previewed}</Typography.Title></Card>
         </div>
@@ -168,7 +217,7 @@ export function AgentRunsPage() {
             showIcon
             type={preview.accepted ? "success" : "warning"}
             title={preview.message}
-            description={`requiredRisk=${preview.requiredRisk} · executionMode=${String(preview.resultPreview.executionMode ?? "deterministic")}`}
+            description={`要求风险：${riskLabel(preview.requiredRisk)} · 执行方式：${executionModeLabel(preview.resultPreview.executionMode)}`}
           />
           <TrustPacketBar packet={preview.trustPacket} />
           <ExecutionDecisionPanel decision={preview.executionDecision} />
@@ -181,9 +230,9 @@ export function AgentRunsPage() {
             <div className="agent-run-top">
               <Space>
                 <RobotOutlined />
-                <Typography.Text strong>{run.runType}</Typography.Text>
+                <Typography.Text strong>{runTypeLabel(run.runType)}</Typography.Text>
               </Space>
-              <Tag color={statusColor(run.status)}>{run.status}</Tag>
+              <Tag color={statusColor(run.status)}>{workflowStatusLabel(run.status)}</Tag>
             </div>
             <Typography.Paragraph type="secondary">{run.summary}</Typography.Paragraph>
             <TrustMetaBar
@@ -196,14 +245,14 @@ export function AgentRunsPage() {
             />
             <div className="agent-context-box">
               <Typography.Text strong>授权上下文</Typography.Text>
-              <span>companyDataset=fictional_demo_company, personas=许安宁/林晨/周雨桐/顾明远, allowedTools=rag_search / learning_recommend / audit_read</span>
+              <span>样本数据集：虚构演示组织；可用人员：许安宁、林晨、周雨桐、顾明远；允许工具：知识检索、学习推荐、审计读取。</span>
             </div>
             <Timeline
               items={[
-                { icon: <ClockCircleOutlined />, content: "Goal captured" },
-                { icon: <ApiOutlined />, content: "Tool preview generated" },
+                { icon: <ClockCircleOutlined />, content: "已接收任务目标" },
+                { icon: <ApiOutlined />, content: "已生成工具调用预览" },
                 { icon: <SafetyCertificateOutlined />, content: confirmationStatus(run) },
-                { icon: <AuditOutlined />, content: "Audit event prepared" },
+                { icon: <AuditOutlined />, content: "已准备审计记录" },
               ]}
             />
             <HumanReviewBanner
@@ -248,7 +297,7 @@ export function AgentRunsPage() {
                   setActionLoading(`${run.id}:workflow`);
                   setError("");
                   try {
-                    const result = await api.langGraphWorkflowDemo({ goal: run.summary, context: [`runType=${run.runType}`, `riskLevel=${run.riskLevel}`] });
+                    const result = await api.langGraphWorkflowDemo({ goal: run.summary, context: [`运行类型：${runTypeLabel(run.runType)}`, `风险等级：${riskLabel(run.riskLevel)}`] });
                     setWorkflowPreview({ runId: run.id, result });
                     message.success("已生成执行链路预览；这一步没有执行工具或写入 HR 数据。");
                   } catch (err) {
@@ -266,15 +315,15 @@ export function AgentRunsPage() {
                 <div className="workflow-preview-header">
                   <div>
                     <Typography.Text strong>执行链路预览</Typography.Text>
-                    <p>只展示这个 run 如果继续推进会经过哪些校验和记录；当前不会执行工具，也不会写入 HR 数据。</p>
+                    <p>只展示这次运行如果继续推进会经过哪些校验和记录；当前不会执行工具，也不会写入 HR 数据。</p>
                   </div>
                   <Tag color={workflowPreview.result.risk_level === "high" ? "red" : "orange"}>
                     {workflowStatusLabel(workflowPreview.result.risk_level)}
                   </Tag>
                 </div>
                 <div className="workflow-preview-meta">
-                  <Tag>mode={workflowPreview.result.execution_mode ?? "preview_only"}</Tag>
-                  <Tag>audit={workflowStatusLabel(workflowPreview.result.audit_status)}</Tag>
+                  <Tag>模式：{executionModeLabel(workflowPreview.result.execution_mode)}</Tag>
+                  <Tag>审计：{workflowStatusLabel(workflowPreview.result.audit_status)}</Tag>
                   <Tag color={workflowPreview.result.human_review_required ? "orange" : "green"}>
                     {workflowPreview.result.human_review_required ? "需要人工复核" : "无需人工复核"}
                   </Tag>
@@ -294,7 +343,7 @@ export function AgentRunsPage() {
                   showIcon
                   type="info"
                   title="预览边界"
-                  description={workflowPreview.result.boundary ?? "当前只是流程预览；真正执行前需要经过权限、审计和人工确认。"}
+                  description={workflowBoundaryText(workflowPreview.result.boundary)}
                 />
               </div>
             ) : null}
@@ -316,10 +365,10 @@ export function AgentRunsPage() {
           "data-vc-label": row.runType,
         } as HTMLAttributes<HTMLElement>)}
         columns={[
-          { title: "类型", dataIndex: "runType", width: 210 },
-          { title: "状态", dataIndex: "status", width: 180, render: (status) => <Tag color={statusColor(status)}>{status}</Tag> },
-          { title: "风险", dataIndex: "riskLevel", width: 100, render: (risk) => <Tag color={risk === "high" ? "red" : risk === "medium" ? "orange" : "blue"}>{risk}</Tag> },
-          { title: "Provider", width: 220, render: (_, row) => row.provider === "fake" ? "Demo deterministic adapter" : `${row.provider} / ${row.model}` },
+          { title: "类型", dataIndex: "runType", width: 210, render: (type) => runTypeLabel(type) },
+          { title: "状态", dataIndex: "status", width: 180, render: (status) => <Tag color={statusColor(status)}>{workflowStatusLabel(status)}</Tag> },
+          { title: "风险", dataIndex: "riskLevel", width: 100, render: (risk) => <Tag color={risk === "high" ? "red" : risk === "medium" ? "orange" : "blue"}>{riskLabel(risk)}</Tag> },
+          { title: "运行适配器", width: 220, render: (_, row) => row.provider === "fake" ? "演示适配器" : `${row.provider} / ${row.model}` },
           { title: "人工确认", width: 220, render: (_, row) => confirmationStatus(row) },
           { title: "时间", dataIndex: "createdAt", width: 220 },
         ]}

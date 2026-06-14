@@ -78,7 +78,7 @@ const resourceLabels: Record<string, string> = {
   "job-applicants": "候选人",
   interviews: "面试",
   "job-offers": "Offer",
-  "training-events": "Training",
+  "training-events": "培训",
   "performance-goals": "目标",
   "appraisal-cycles": "绩效周期",
   appraisals: "绩效评估",
@@ -1418,17 +1418,17 @@ export function GrowthPerformancePage() {
   };
 
   return (
-    <DomainFrame
-      title="成长与绩效"
-      description="Training、Co-Growth、目标、绩效周期和反馈合并为成长绩效大页，用证据和人工复核承载人事影响边界。"
+      <DomainFrame
+        title="成长与绩效"
+      description="培训、共生成长、目标、绩效周期和反馈合并为成长绩效大页，用证据和人工复核承载人事影响边界。"
       module="growth_performance"
       alert={<Alert className="domain-alert" showIcon type="info" title="绩效只做证据化预览" description="绩效评分、校准和最终结论不得由 AI 自动裁决；系统保留目标、反馈、引用和审计轨迹。" />}
     >
       <WorkbenchCueStrip
         items={[
-          { icon: <BookOutlined />, title: "Training", description: "培训活动与制度资料、学习结果和参与范围绑定。", tag: "learning evidence" },
-          { icon: <SafetyCertificateOutlined />, title: "Co-Growth", description: "AI literacy、mission、work journal 和成长证据沉淀。", tag: "human-agent growth" },
-          { icon: <CheckCircleOutlined />, title: "Goals & Appraisals", description: "目标、反馈和绩效材料只做证据化预览。", tag: "human decision" },
+          { icon: <BookOutlined />, title: "培训证据", description: "培训活动与制度资料、学习结果和参与范围绑定。", tag: "学习证据" },
+          { icon: <SafetyCertificateOutlined />, title: "共生成长", description: "AI 素养、任务、工作日志和成长证据沉淀。", tag: "人机协作" },
+          { icon: <CheckCircleOutlined />, title: "目标与评估", description: "目标、反馈和绩效材料只做证据化预览。", tag: "人工判断" },
         ]}
       />
       <Tabs
@@ -1437,9 +1437,9 @@ export function GrowthPerformancePage() {
         items={[
           { key: "quick", label: "成长入口", children: <QuickLinkGrid items={[
             { icon: <BookOutlined />, title: "学习证据", description: "课程、学习任务和 RAG 资料绑定。", path: "/app/learning" },
-            { icon: <SafetyCertificateOutlined />, title: "Co-Growth", description: "员工成长 mission 和证据复盘。", path: "/co-growth" },
+            { icon: <SafetyCertificateOutlined />, title: "共生成长", description: "员工成长任务和证据复盘。", path: "/co-growth" },
           ]} /> },
-          { key: "training", label: "Training", children: <HRResourcePanel resource="training-events" description="培训活动、参与范围和结果证据。" focusId={activeTab === "training" ? focusId : null} onClearFocus={clearFocus} /> },
+          { key: "training", label: "培训", children: <HRResourcePanel resource="training-events" description="培训活动、参与范围和结果证据。" focusId={activeTab === "training" ? focusId : null} onClearFocus={clearFocus} /> },
           { key: "goals", label: "目标", children: <HRResourcePanel resource="performance-goals" description="个人/团队目标、进度和证据要求。" focusId={activeTab === "goals" ? focusId : null} onClearFocus={clearFocus} /> },
           { key: "cycles", label: "绩效周期", children: <HRResourcePanel resource="appraisal-cycles" description="绩效周期、公式说明和校准边界。" focusId={activeTab === "cycles" ? focusId : null} onClearFocus={clearFocus} /> },
           { key: "appraisals", label: "绩效评估", children: <HRResourcePanel resource="appraisals" description="自评、反馈和最终人工复核状态。" focusId={activeTab === "appraisals" ? focusId : null} onClearFocus={clearFocus} /> },
@@ -1451,12 +1451,12 @@ export function GrowthPerformancePage() {
 
 export function KnowledgeAgentPage() {
   return (
-    <DomainFrame title="知识与 Agent" description="AI 指挥、知识治理、文档库、Agent 运行和 Visual Copilot 统一作为知识与执行预览大页。">
+    <DomainFrame title="知识与智能体" description="AI 指挥、知识治理、文档库、智能体运行和圈选助手统一作为知识与执行预览大页。">
       <QuickLinkGrid items={[
         { icon: <RobotOutlined />, title: "AI 指挥中心", description: "程序化查询、RAG 和 Agent 预览入口。", path: "/app/ai-command" },
         { icon: <DatabaseOutlined />, title: "知识治理", description: "资料来源、可信等级和敏感范围。", path: "/app/knowledge" },
         { icon: <FileSearchOutlined />, title: "文档库", description: "阅读文档正文、引用边界和 RAG 问答。", path: "/app/docs" },
-        { icon: <TeamOutlined />, title: "Agent 运行控制", description: "Agent run、工具预览和人工确认。", path: "/app/agents" },
+        { icon: <TeamOutlined />, title: "智能体运行控制", description: "运行预览、工具调用和人工确认。", path: "/app/agents" },
       ]} />
     </DomainFrame>
   );

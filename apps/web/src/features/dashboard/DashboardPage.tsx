@@ -107,8 +107,8 @@ export function DashboardPage() {
     { title: "指挥看板", path: "/app/dashboard", summary: "统一入口：组织数据、AI 指挥、知识、成长、Agent 和审计。" },
     { title: "AI 指挥中心", path: "/app/ai-command", summary: "生成结构化 HR 建议，展示风险、置信度和证据。" },
     { title: "文档库", path: "/app/docs", summary: "阅读受治理资料，并用 RAG 生成精准引用回答。" },
-    { title: "共生成长引擎", path: "/co-growth", summary: "员工学习 AI 原理，把模拟工作转成 mission 并复盘。" },
-    { title: "Agent 运行中心", path: "/app/agents", summary: "预览 Agent run、工具调用和人工确认状态。" },
+    { title: "共生成长引擎", path: "/co-growth", summary: "把模拟工作转成可复盘的学习任务和成长证据。" },
+    { title: "智能体运行中心", path: "/app/agents", summary: "预览运行过程、工具调用和人工确认状态。" },
     { title: "信任与审计", path: "/app/audit", summary: "追踪 AI 建议、人工确认、证据和高风险阻断。" },
   ], [language]);
 
@@ -121,7 +121,7 @@ export function DashboardPage() {
     { title: "新人 30 天成长计划", path: "/app/ai-command", tag: "AI 指挥", text: "生成带引用、风险、工具预览和人工复核的治理型建议。" },
     { title: "考勤异常复核", path: "/app/attendance", tag: "Agent 预览", text: "下钻考勤信号，运行只读 Agent 分析，不做人事裁决。" },
     { title: "RAG 引用问答", path: "/app/docs", tag: "知识治理", text: "查看 scope、可信等级、敏感级别、citation 和资料详情。" },
-    { title: "Agent 运行审计", path: "/app/agents", tag: "审计闭环", text: "预览工具调用、请求人工确认，并追踪审计状态。" },
+    { title: "智能体运行审计", path: "/app/agents", tag: "审计闭环", text: "预览工具调用、请求人工确认，并追踪审计状态。" },
   ], [language]);
 
   const evidenceChain = useMemo(() => language === "en-US" ? [
@@ -149,7 +149,7 @@ export function DashboardPage() {
   ] : [
     { icon: <ApartmentOutlined />, title: "组织数据层", text: "员工、组织、法人、角色、考勤和消息。", risk: "low" },
     { icon: <DatabaseOutlined />, title: "知识与学习层", text: "受控知识库、RAG 引用、课程和共生成长。", risk: "medium" },
-    { icon: <RobotOutlined />, title: "智能体协作层", text: "AI 指挥中心、Agent 运行、Visual Copilot 和工作流预览。", risk: "medium" },
+    { icon: <RobotOutlined />, title: "智能体协作层", text: "AI 指挥中心、运行预览、圈选助手和工作流预览。", risk: "medium" },
     { icon: <SafetyCertificateOutlined />, title: "治理与信任层", text: "风险、置信度、证据、引用、人工复核和审计。", risk: "high" },
     { icon: <ThunderboltOutlined />, title: "人机共进层", text: "人提出目标，AI 生成建议，Agent 预览动作，人确认并复盘。", risk: "low" },
   ], [language]);
@@ -165,9 +165,9 @@ export function DashboardPage() {
     { title: "AI 指挥中心", path: "/app/ai-command", icon: <RobotOutlined />, text: "问组织、查知识、生成计划、预览动作。" },
     { title: "文档库", path: "/app/docs", icon: <FileSearchOutlined />, text: "阅读资料，并用 RAG 精准回答引用问题。" },
     { title: "共生成长引擎", path: "/co-growth", icon: <ExperimentOutlined />, text: "AI-HRMS 的人机共生成长引擎。" },
-    { title: "Agent 运行中心", path: "/app/agents", icon: <TeamOutlined />, text: "Agent 运行、工具预览、人工确认和审计状态。" },
+    { title: "智能体运行中心", path: "/app/agents", icon: <TeamOutlined />, text: "运行预览、工具调用、人工确认和审计状态。" },
     { title: "信任与审计层", path: "/app/audit", icon: <AuditOutlined />, text: "把建议、工具调用、人工确认和证据串起来。" },
-    { title: "Visual Copilot", path: "/app/docs", icon: <EyeOutlined />, text: "text-only：普通问答走 RAG，圈选只携带 layout hints，不上传截图。" },
+    { title: "圈选助手", path: "/app/docs", icon: <EyeOutlined />, text: "普通问答走 RAG，圈选只携带页面线索，不上传截图。" },
   ], [language]);
 
   const personaValue = useMemo<Record<Persona, string[]>>(() => language === "en-US" ? ({
@@ -177,9 +177,9 @@ export function DashboardPage() {
     manager: ["Review team capability trends, not personal ranking", "Understand agent scope and risk", "Confirm whether collaboration can become workflow"],
   }) : ({
     hr: ["查看组织趋势和高风险待确认事项", "用证据支持制度解释与学习计划", "把 AI 建议写入审计而不是直接执行"],
-    employee: ["获得与模拟工作绑定的 AI 学习 mission", "记录 prompt、AI 输出、人工修改和验证", "把成长证据沉淀到 portfolio"],
+    employee: ["获得与模拟工作绑定的学习任务", "记录提问、AI 输出、人工修改和验证", "把成长证据沉淀到个人档案"],
     mentor: ["复核员工复盘和高风险学习建议", "给出人工确认与纠偏意见", "把带教动作纳入证据链"],
-    manager: ["查看团队能力趋势而不是个人排名", "理解 Agent 运行的范围和风险", "确认 AI 协作过程是否可复用为 workflow"],
+    manager: ["查看团队能力趋势而不是个人排名", "理解智能体运行的范围和风险", "确认 AI 协作过程是否可复用为工作流"],
   }), [language]);
 
   const personaOptions = language === "en-US"
@@ -490,22 +490,22 @@ export function DashboardPage() {
             <Col xs={24} md={8}>
               <Card title="组织趋势">
                 <Progress percent={74} aria-label="组织趋势覆盖率" />
-                <Typography.Text type="secondary">AI 建议覆盖 onboarding、知识治理和成长 mission，未进入人事裁决。</Typography.Text>
+                <Typography.Text type="secondary">AI 建议覆盖入职、知识治理和成长任务，未进入人事裁决。</Typography.Text>
               </Card>
             </Col>
             <Col xs={24} md={8}>
-              <Card title="AI-HRMS Operating Signals">
+              <Card title="AI-HRMS 运行信号">
                 <Suspense fallback={<div className="dashboard-chart-loading" />}>
                   <SignalColumn {...operatingSignalChart} />
                 </Suspense>
               </Card>
             </Col>
             <Col xs={24} md={8}>
-              <Card title="Visual Copilot Showcase">
+              <Card title="圈选助手演示">
                 <Typography.Paragraph type="secondary">
-                  点击右下角靶心按钮，圈选任意知识资料、Agent run 或审计事件，Demo 会生成本地解释和动作预览。
+                  点击右下角靶心按钮，圈选任意知识资料、运行记录或审计事件，系统会生成本地解释和动作预览。
                 </Typography.Paragraph>
-                <Tag color="purple">selection → context → preview → audit</Tag>
+                <Tag color="purple">圈选 → 上下文 → 预览 → 审计</Tag>
               </Card>
             </Col>
             <Col xs={24} md={8}>
