@@ -1,7 +1,7 @@
 import { AuditOutlined, FileSearchOutlined, RobotOutlined, SafetyCertificateOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, Col, Divider, Input, Select, Space, Tag, Typography, message } from "antd";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, getErrorMessage } from "../../api/client";
 import type { AgentRun, AIChatResponse, ContextPacket, HarnessDecision, RAGCitation, TrustPacket } from "../../api/types";
 import { CitationList, ContextPacketPanel, ExecutionDecisionPanel, HumanReviewBanner, TrustMetaBar, TrustPacketBar } from "../../components/AiTrust";
@@ -33,6 +33,8 @@ const promptLibrary = [
   { label: "预览学习推荐运行", value: "预览一次学习推荐运行，展示工具调用和审计状态。", riskLevel: "medium" },
   { label: "总结审计风险模式", value: "总结最近审计事件中的高风险模式，不输出任何人事裁决。", riskLevel: "high" },
 ];
+
+const defaultCommandPrompt = "为云衡互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习任务。";
 
 function riskLabel(risk: string) {
   const labels: Record<string, string> = {
@@ -106,11 +108,20 @@ function buildResult(chat: AIChatResponse, run: AgentRun, fallbackRiskLevel: str
 
 export function AiCommandCenterPage() {
   const navigate = useNavigate();
-  const [prompt, setPrompt] = useState("为云衡互联网科技有限公司（虚构样本组织）的平台研发新人林晨生成新人 30 天成长计划，包含导师周雨桐复盘和 AI 学习任务。");
+  const [searchParams] = useSearchParams();
+  const queryPrompt = searchParams.get("q")?.trim() ?? "";
+  const [prompt, setPrompt] = useState(queryPrompt || defaultCommandPrompt);
   const [riskLevel, setRiskLevel] = useState("medium");
   const [result, setResult] = useState<CommandResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const hasAgentRun = Boolean(result && result.run.status !== "not_created" && result.run.id !== "program-flow");
+
+  useEffect(() => {
+    if (!queryPrompt) return;
+    setPrompt(queryPrompt);
+    setResult(null);
+  }, [queryPrompt]);
 
   const execute = async () => {
     setLoading(true);
@@ -159,6 +170,14 @@ export function AiCommandCenterPage() {
       <section className="command-layout">
         <Card className="command-panel" data-vc-kind="ai-command-panel">
           <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+            {queryPrompt ? (
+              <Alert
+                showIcon
+                type="success"
+                title="已带入刚才的问题"
+                description="检查或补充下面的内容后，点击“生成治理型建议”查看结果。"
+              />
+            ) : null}
             <Alert
               showIcon
               type="info"
@@ -230,11 +249,17 @@ export function AiCommandCenterPage() {
           <ContextPacketPanel packet={result.contextPacket} />
           <ActionResultGuide
             title={result.humanReviewRequired ? "建议已停在人工确认前" : "建议已生成，可继续核验证据"}
-            description={result.humanReviewRequired ? "下一步不要把它当成已执行结果，先让 HR/导师查看证据和审计链。" : "低风险或中风险内容仍建议检查引用和动作草稿，再决定是否沉淀为运行预览。"}
-            actions={[
-              { label: "查看智能任务运行", onClick: () => navigate("/app/agents"), type: "primary", icon: <RobotOutlined /> },
-              { label: "查看审计记录", onClick: () => navigate("/app/audit"), icon: <AuditOutlined /> },
-            ]}
+            description={hasAgentRun
+              ? (result.humanReviewRequired ? "下一步不要把它当成已执行结果，先让 HR/导师查看证据和审计链。" : "低风险或中风险内容仍建议检查引用和动作草稿，再决定是否沉淀为运行预览。")
+              : "这次请求由受控查询或知识检索完成，没有创建新的智能任务记录；请直接核验证据与审计说明。"}
+            actions={hasAgentRun
+              ? [
+                { label: "查看本次任务记录", onClick: () => navigate("/app/agents"), type: "primary", icon: <RobotOutlined /> },
+                { label: "查看审计记录", onClick: () => navigate("/app/audit"), icon: <AuditOutlined /> },
+              ]
+              : [
+                { label: "查看审计记录", onClick: () => navigate("/app/audit"), type: "primary", icon: <AuditOutlined /> },
+              ]}
           />
           <Divider />
           <HumanReviewBanner riskLevel={result.riskLevel} humanReviewRequired={result.humanReviewRequired} />

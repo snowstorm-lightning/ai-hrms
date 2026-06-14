@@ -210,6 +210,19 @@ function providerLabel(provider: string | undefined) {
   return provider;
 }
 
+function checkinLogTypeLabel(logType: string) {
+  if (logType === "IN") return "上班签到";
+  if (logType === "OUT") return "下班签退";
+  return logType || "打卡";
+}
+
+function checkinSourceLabel(source?: string) {
+  if (source === "web") return "网页打卡";
+  if (source === "mobile") return "移动端打卡";
+  if (source === "device") return "考勤机";
+  return source || "未标注来源";
+}
+
 function workActionLabel(action: string) {
   const labels: Record<string, string> = {
     human_review: "人工复核",
@@ -670,7 +683,7 @@ function HRResourcePanel({
         setSelected(result.record);
       })
       .catch((err) => {
-        if (mounted) setError(getErrorMessage(err, "workflow 加载失败"));
+        if (mounted) setError(getErrorMessage(err, "审批流程加载失败"));
       })
       .finally(() => {
         if (mounted) setWorkflowLoading(false);
@@ -1181,7 +1194,7 @@ function EmployeeSelfServicePanel({ onCreateRequest }: { onCreateRequest: (resou
         <Card className="employee-action-card" loading={loading}>
           <Space orientation="vertical" size="middle">
             <Typography.Text strong>今日打卡</Typography.Text>
-            <Typography.Text type="secondary">{latestCheckin ? `${latestCheckin.logType} · ${new Date(latestCheckin.logTime).toLocaleString()}` : "今日暂无打卡日志"}</Typography.Text>
+            <Typography.Text type="secondary">{latestCheckin ? `${checkinLogTypeLabel(latestCheckin.logType)} · ${new Date(latestCheckin.logTime).toLocaleString()}` : "今日暂无打卡日志"}</Typography.Text>
             <Space wrap>
               <Button type="primary" icon={<LoginOutlined />} loading={saving} onClick={() => void createCheckin("IN")}>上班签到</Button>
               <Button icon={<LogoutOutlined />} loading={saving} onClick={() => void createCheckin("OUT")}>下班签退</Button>
@@ -1242,9 +1255,9 @@ function EmployeeSelfServicePanel({ onCreateRequest }: { onCreateRequest: (resou
             <div className="employee-checkin-list">
               {checkins.map((checkin) => (
                 <article className="employee-checkin-row" key={checkin.id}>
-                  <Tag color={checkin.logType === "IN" ? "blue" : "purple"}>{checkin.logType}</Tag>
+                  <Tag color={checkin.logType === "IN" ? "blue" : "purple"}>{checkinLogTypeLabel(checkin.logType)}</Tag>
                   <span>{new Date(checkin.logTime).toLocaleString()}</span>
-                  <Typography.Text type="secondary">{checkin.source}</Typography.Text>
+                  <Typography.Text type="secondary">{checkinSourceLabel(checkin.source)}</Typography.Text>
                 </article>
               ))}
               {!checkins.length ? <EmptyBlock description="暂无打卡日志" /> : null}

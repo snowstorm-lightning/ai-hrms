@@ -240,7 +240,8 @@ export function DashboardPage() {
     if (commandLoading) return;
     if (!demoMode) {
       setCommandPreview(t("dashboard.realModePreview"));
-      navigate("/app/ai-command");
+      const query = command.trim();
+      navigate(query ? `/app/ai-command?q=${encodeURIComponent(query)}` : "/app/ai-command");
       return;
     }
     if (/统计|数量|状态|列表|查|查询|引用|资料/.test(command) && !/计划|workflow|Agent|智能任务|调度|生成/.test(command)) {
