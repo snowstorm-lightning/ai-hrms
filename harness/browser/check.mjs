@@ -26,7 +26,7 @@ const pageChecks = [
   ["/app/docs", ["文档库", "按资料回答"]],
   ["/co-growth", ["AI-HRMS 共生成长引擎", "AI 能力画像"]],
   ["/app/learning", ["学习层", "进入共生成长"]],
-  ["/app/agents", ["人机协作运行中心", "智能体运行"]],
+  ["/app/agents", ["智能任务运行中心", "智能任务运行"]],
   ["/app/audit", ["信任、审计与证据层", "审计链路"]],
   ["/app/help", ["新手使用指南", "Visual Copilot 怎么用"]],
   ["/app/profile", ["个人简历", "履历摘要"]],

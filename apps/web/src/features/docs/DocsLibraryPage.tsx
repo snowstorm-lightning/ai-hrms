@@ -286,7 +286,7 @@ export function DocsLibraryPage() {
             <Tag icon={<FileSearchOutlined />} color="purple">必须带引用</Tag>
             <Tag icon={<DatabaseOutlined />} color="cyan">检索写入审计</Tag>
             <Typography.Paragraph type="secondary">
-              文档库目录用于筛选资料和查看简介；详情页用于完整阅读，资料发布、敏感级别、可见范围和向量重建仍在知识治理页完成。
+              文档库目录用于筛选资料和查看简介；详情页用于完整阅读，资料发布、敏感级别、可见范围和检索索引更新仍在知识治理页完成。
             </Typography.Paragraph>
           </Space>
         </Card>
@@ -399,7 +399,7 @@ export function DocsDocumentPage() {
             <Space className="docs-detail-actions" wrap>
               <Button icon={<MenuOutlined />} onClick={() => setTocOpen(true)}>目录</Button>
               <Button icon={<SafetyCertificateOutlined />} onClick={() => setGovernanceOpen(true)}>引用与治理</Button>
-              <Button icon={<FileSearchOutlined />} onClick={() => navigate(`/app/docs?query=${encodeURIComponent(document.title)}`)}>回目录提问</Button>
+              <Button icon={<FileSearchOutlined />} onClick={() => navigate(`/app/docs?query=${encodeURIComponent(document.title)}`)}>带本文返回提问</Button>
             </Space>
           </section>
 
@@ -439,7 +439,7 @@ export function DocsDocumentPage() {
                 description="正式回答不会直接使用当前阅读视图，而是通过知识库检索、可见范围校验和引用记录生成。"
               />
               <Descriptions column={1} size="small" bordered>
-                <Descriptions.Item label="文档 ID">{document.id}</Descriptions.Item>
+                <Descriptions.Item label="资料编号">{document.id}</Descriptions.Item>
                 <Descriptions.Item label="来源">{sourceName(sources, document)}</Descriptions.Item>
                 <Descriptions.Item label="版本">{document.version}</Descriptions.Item>
                 <Descriptions.Item label="发布时间">{document.publishedAt ? new Date(document.publishedAt).toLocaleString("zh-CN") : "未发布"}</Descriptions.Item>
@@ -448,7 +448,7 @@ export function DocsDocumentPage() {
                 <Descriptions.Item label="正文状态">{document.content ? "已返回完整正文" : "缺少正文"}</Descriptions.Item>
               </Descriptions>
               <Button block icon={<FileSearchOutlined />} onClick={() => navigate(`/app/docs?query=${encodeURIComponent(document.title)}`)}>
-                回目录提问
+                带本文返回提问
               </Button>
             </Space>
           </Drawer>

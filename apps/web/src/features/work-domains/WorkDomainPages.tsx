@@ -1649,7 +1649,7 @@ export function KnowledgeAgentPage() {
         { icon: <RobotOutlined />, title: "AI 指挥中心", description: "组织查询、知识引用和智能任务预览入口。", path: "/app/ai-command" },
         { icon: <DatabaseOutlined />, title: "知识治理", description: "资料来源、可信等级和敏感范围。", path: "/app/knowledge" },
         { icon: <FileSearchOutlined />, title: "文档库", description: "阅读文档正文、引用边界和资料问答。", path: "/app/docs" },
-        { icon: <TeamOutlined />, title: "智能体运行控制", description: "运行预览、动作草稿和人工确认。", path: "/app/agents" },
+        { icon: <TeamOutlined />, title: "智能任务运行中心", description: "运行预览、动作草稿和人工确认。", path: "/app/agents" },
       ]} />
     </DomainFrame>
   );

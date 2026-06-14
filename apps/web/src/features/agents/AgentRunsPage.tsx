@@ -151,7 +151,7 @@ export function AgentRunsPage() {
   return (
     <div className="agent-runs-page" data-vc-page="agents">
       <PageTitle
-        title="人机协作运行中心"
+        title="智能任务运行中心"
         description="每次运行都记录授权上下文、动作草稿、人工确认和审计状态；用户能看到当前卡在哪一步。"
       />
       <InlineError message={error} onRetry={reload} />
