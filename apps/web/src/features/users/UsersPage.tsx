@@ -171,7 +171,7 @@ export function UsersPage() {
         >
           <Form.Item name="username" label="用户名" rules={[{ required: true }]}><Input data-vc-field="user.username" /></Form.Item>
           <Form.Item name="mobile" label="手机号" rules={[{ required: true }]}><Input data-vc-field="user.mobile" disabled={!!editing?.id} /></Form.Item>
-          {!editing?.id ? <Form.Item name="password" label="初始密码"><Input.Password data-vc-field="user.initial_password" placeholder="默认 password" /></Form.Item> : null}
+          {!editing?.id ? <Form.Item name="password" label="初始密码"><Input.Password data-vc-field="user.initial_password" placeholder="留空使用系统默认密码" /></Form.Item> : null}
           <Form.Item name="enableState" label="启用" valuePropName="checked" getValueProps={(value) => ({ checked: value === 1 })} normalize={(value) => value ? 1 : 0}>
             <Switch />
           </Form.Item>
