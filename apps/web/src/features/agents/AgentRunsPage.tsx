@@ -84,7 +84,7 @@ const workflowStepLabels: Record<string, string> = {
   goal: "接收任务目标",
   risk_classification: "判断风险等级",
   context_collection: "收集授权上下文",
-  tool_preview: "生成工具调用预览",
+  tool_preview: "生成动作草稿",
   human_review: "等待人工确认或记录复核",
 };
 
@@ -98,7 +98,7 @@ function workflowStatusLabel(status: string) {
     high: "高风险",
     medium: "中风险",
     low: "低风险",
-    scoped: "已按 scope 限定",
+    scoped: "已按可见范围限定",
     preview_only: "仅预览",
     preview_logged: "已记录预览",
     blocked_pending_human_review: "已阻断，等待人工确认",
@@ -124,7 +124,7 @@ export function AgentRunsPage() {
       const result = await api.agentRuns(1, 20);
       setItems(result.rows ?? []);
     } catch (err) {
-      setError(getErrorMessage(err, "Agent 运行加载失败"));
+      setError(getErrorMessage(err, "智能任务加载失败"));
     } finally {
       setLoading(false);
     }
@@ -142,14 +142,14 @@ export function AgentRunsPage() {
     <div className="agent-runs-page" data-vc-page="agents">
       <PageTitle
         title="人机协作运行中心"
-        description="每次运行都记录授权上下文、工具预览、人工确认和审计状态；用户能看到当前卡在哪一步。"
+        description="每次运行都记录授权上下文、动作草稿、人工确认和审计状态；用户能看到当前卡在哪一步。"
       />
       <InlineError message={error} onRetry={reload} />
       <TaskPath
-        title="Agent 运行闭环"
+        title="智能任务运行闭环"
         steps={[
-          { title: "创建运行预览", detail: "先把目标、风险和 prompt 固定下来", status: items.length ? "done" : "current" },
-          { title: "预览工具调用", detail: "检查工具名、参数、是否允许", status: preview ? "done" : "current" },
+          { title: "生成任务预览", detail: "先把目标、风险和任务说明固定下来", status: items.length ? "done" : "current" },
+          { title: "查看动作草稿", detail: "检查动作、参数和是否需要人工确认", status: preview ? "done" : "current" },
           { title: "查看执行链路", detail: "确认目标、风险、上下文、人工确认和审计", status: workflowPreview ? "done" : "next" },
           { title: "人工确认/审计", detail: "高风险只停在确认前，不直接写业务数据", status: stats.waiting ? "blocked" : "next" },
         ]}
@@ -161,7 +161,7 @@ export function AgentRunsPage() {
             showIcon
             type="info"
             title="智能体运行默认先进入预览"
-            description="读操作可预览；写操作和高风险人事影响必须请求人工确认，真实执行由 Go 重新校验权限和 scope。"
+            description="读操作可预览；写操作和高风险人事影响必须请求人工确认，提交前系统会重新校验权限和可见范围。"
           />
           <Form
             form={form}
@@ -174,9 +174,9 @@ export function AgentRunsPage() {
                 await api.createAgentRun(values);
                 form.resetFields(["prompt"]);
                 await reload();
-                message.success("已创建智能体运行预览。");
+                message.success("已生成智能任务预览。");
               } catch (err) {
-                setError(getErrorMessage(err, "创建 Agent 运行失败"));
+                setError(getErrorMessage(err, "智能任务预览生成失败"));
               } finally {
                 setCreating(false);
               }
@@ -194,11 +194,11 @@ export function AgentRunsPage() {
                 ]} />
               </Form.Item>
               <Form.Item name="prompt" label="任务摘要">
-                <Input placeholder="说明本次 Agent 任务" />
+                <Input placeholder="说明本次智能任务" />
               </Form.Item>
               <Form.Item className="agent-submit-item">
                 <Button data-vc-action="agent.run.create" type="primary" htmlType="submit" loading={creating} icon={<RobotOutlined />}>
-                  创建运行预览
+                  生成任务预览
                 </Button>
               </Form.Item>
             </div>
@@ -207,12 +207,12 @@ export function AgentRunsPage() {
         <div className="agent-stat-grid">
           <Card><Typography.Text type="secondary">高风险运行</Typography.Text><Typography.Title level={3}>{stats.high}</Typography.Title></Card>
           <Card><Typography.Text type="secondary">等待确认</Typography.Text><Typography.Title level={3}>{stats.waiting}</Typography.Title></Card>
-          <Card><Typography.Text type="secondary">工具预览</Typography.Text><Typography.Title level={3}>{stats.previewed}</Typography.Title></Card>
+          <Card><Typography.Text type="secondary">动作草稿</Typography.Text><Typography.Title level={3}>{stats.previewed}</Typography.Title></Card>
         </div>
       </section>
 
       {preview ? (
-        <Card className="section-card" title="工具预览结果">
+        <Card className="section-card" title="动作草稿结果">
           <Alert
             showIcon
             type={preview.accepted ? "success" : "warning"}
@@ -250,7 +250,7 @@ export function AgentRunsPage() {
             <Timeline
               items={[
                 { icon: <ClockCircleOutlined />, content: "已接收任务目标" },
-                { icon: <ApiOutlined />, content: "已生成工具调用预览" },
+                { icon: <ApiOutlined />, content: "已生成动作草稿" },
                 { icon: <SafetyCertificateOutlined />, content: confirmationStatus(run) },
                 { icon: <AuditOutlined />, content: "已准备审计记录" },
               ]}
@@ -258,11 +258,11 @@ export function AgentRunsPage() {
             <HumanReviewBanner
               riskLevel={run.riskLevel}
               humanReviewRequired={run.riskLevel === "high"}
-              text={run.riskLevel === "high" ? "该 run 涉及公平性或人员影响，只能等待 HR 人工确认。" : "该 run 可以作为预览继续演示；执行前仍需权限和审计校验。"}
+              text={run.riskLevel === "high" ? "该任务涉及公平性或人员影响，只能等待 HR 人工确认。" : "该任务可以作为预览继续演示；执行前仍需权限和审计校验。"}
             />
             <div className="agent-action-help">
-              <span>预览工具调用：看工具名、参数和是否允许。</span>
-              <span>查看执行链路：看目标、风险、上下文、工具预览、人工确认和审计怎样串起来。</span>
+              <span>查看动作草稿：看动作、参数和是否允许。</span>
+              <span>查看执行链路：看目标、风险、上下文、动作草稿、人工确认和审计怎样串起来。</span>
             </div>
             <Space wrap>
               <Button
@@ -274,18 +274,18 @@ export function AgentRunsPage() {
                   try {
                     setPreview(await api.previewAgentTool({ runId: run.id, toolName: run.riskLevel === "high" ? "people_decision_execute" : "learning_recommend", arguments: { runType: run.runType } }));
                   } catch (err) {
-                    setError(getErrorMessage(err, "工具调用预览失败"));
+                    setError(getErrorMessage(err, "动作草稿生成失败"));
                   } finally {
                     setActionLoading(null);
                   }
                 }}
               >
-                预览工具调用
+                查看动作草稿
               </Button>
               <Button
                 size="small"
                 icon={<CheckCircleOutlined />}
-                onClick={() => message.info(demoMode ? "Demo：已生成人工确认请求提示，未执行业务写入。" : "已生成人工确认请求提示，需审批后才能继续执行。")}
+                onClick={() => message.info(demoMode ? "已生成人工确认请求提示，未执行业务写入。" : "已生成人工确认请求提示，需审批后才能继续执行。")}
               >
                 请求人工确认
               </Button>
@@ -357,7 +357,7 @@ export function AgentRunsPage() {
         loading={loading}
         dataSource={items}
         scroll={{ x: "max-content" }}
-        locale={{ emptyText: <EmptyBlock description="暂无 Agent 运行" /> }}
+        locale={{ emptyText: <EmptyBlock description="暂无智能任务运行" /> }}
         onRow={(row) => ({
           "data-vc-kind": "agent-run-row",
           "data-vc-object-type": "agent_run",

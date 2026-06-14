@@ -113,9 +113,9 @@ export function SettingsPage() {
             <Descriptions.Item label={t("settings.roles")}>{user?.roles?.join(", ") || "-"}</Descriptions.Item>
             <Descriptions.Item label={t("settings.providerStatus")}>
               <Space wrap>
-                <Tag color={providerStatus?.chatProvider === "deepseek" ? "geekblue" : "default"}>AI：{providerLabel(providerStatus?.chatProvider)}</Tag>
-                <Tag>RAG：{providerLabel(providerStatus?.embeddingProvider)}</Tag>
-                <Tag>向量维度：{providerStatus?.embeddingDimensions ?? "未返回"}</Tag>
+                <Tag color={providerStatus?.chatProvider === "deepseek" ? "geekblue" : "default"}>智能服务：{providerLabel(providerStatus?.chatProvider)}</Tag>
+                <Tag>知识检索：{providerLabel(providerStatus?.embeddingProvider)}</Tag>
+                <Tag>知识索引：{providerStatus?.embeddingDimensions ? "已配置" : "未返回"}</Tag>
               </Space>
             </Descriptions.Item>
           </Descriptions>

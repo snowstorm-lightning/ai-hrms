@@ -105,7 +105,7 @@ export function AuditPage() {
     <div className="audit-page" data-vc-page="audit">
       <PageTitle
         title="信任、审计与证据层"
-        description="审计中心是 AI-HRMS 的可信底座：AI 建议、Agent 工具调用、知识引用、人工确认、阻断事件和成长证据都可回溯。"
+        description="审计中心是 AI-HRMS 的可信底座：AI 建议、智能任务动作、知识引用、人工确认、阻断事件和成长证据都可回溯。"
       />
       <InlineError message={error} onRetry={reload} />
 

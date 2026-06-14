@@ -64,6 +64,21 @@ function booleanLabel(value: boolean) {
   return value ? "使用" : "未使用";
 }
 
+function sourceLabel(value: string) {
+  const labels: Record<string, string> = {
+    selected_region: "选区",
+    visible_business_refs: "页面业务对象",
+    page_route: "当前页面",
+    rag_document: "知识资料",
+    audit_event: "审计事件",
+    agent_run: "智能体运行",
+    hr_record: "HR 记录",
+    program: "系统规则",
+    routing: "系统路由",
+  };
+  return labels[value] ?? value;
+}
+
 export function RiskTag({ risk }: { risk: TrustRiskLevel }) {
   return <Tag color={riskColor(risk)}>{riskLabel(risk)}</Tag>;
 }
@@ -88,7 +103,7 @@ export function TrustMetaBar({
       <RiskTag risk={riskLevel} />
       {typeof confidence === "number" ? <Tag>置信度 {confidence}%</Tag> : null}
       {typeof evidenceCount === "number" ? <Tag icon={<FileSearchOutlined />}>证据 {evidenceCount}</Tag> : null}
-      {typeof toolPreview === "boolean" ? <Tag color={toolPreview ? "purple" : "default"}>{toolPreview ? "工具预览" : "无工具预览"}</Tag> : null}
+      {typeof toolPreview === "boolean" ? <Tag color={toolPreview ? "purple" : "default"}>{toolPreview ? "动作草稿" : "无动作草稿"}</Tag> : null}
       <Tag color={humanReviewRequired ? "red" : "green"}>
         {humanReviewRequired ? "需要人工复核" : "无需人工复核"}
       </Tag>
@@ -158,7 +173,7 @@ export function ContextPacketPanel({ packet }: { packet?: ContextPacket | null }
           <div className="context-packet-panel" data-vc-kind="context-packet">
             <Typography.Paragraph type="secondary">{packet.boundary}</Typography.Paragraph>
             <Space wrap>
-              {Object.entries(packet.sourceCount).map(([key, value]) => <Tag key={key}>{key}：{value}</Tag>)}
+              {Object.entries(packet.sourceCount).map(([key, value]) => <Tag key={key}>{sourceLabel(key)}：{value}</Tag>)}
               <Tag>新鲜度：{packet.staleness}</Tag>
             </Space>
             <div className="context-item-list">
@@ -167,9 +182,9 @@ export function ContextPacketPanel({ packet }: { packet?: ContextPacket | null }
                   <Typography.Text strong>{item.label}</Typography.Text>
                   <Typography.Text type="secondary">{item.summary}</Typography.Text>
                   <Space wrap>
-                    <Tag>{item.type}</Tag>
+                    <Tag>{sourceLabel(item.type)}</Tag>
                     {item.riskLevel ? <Tag color={riskColor(item.riskLevel)}>{riskLabel(item.riskLevel)}</Tag> : null}
-                    <Tag>{item.source}</Tag>
+                    <Tag>{sourceLabel(item.source)}</Tag>
                   </Space>
                 </article>
               ))}
@@ -235,12 +250,12 @@ export function CitationList({ citations }: { citations: RAGCitation[] }) {
 
 export function CollaborationWorkflow() {
   const steps = [
-    "Goal",
-    "Context",
-    "Agent Plan",
-    "Tool Preview",
-    "Human Review",
-    "Audit",
+    "提出目标",
+    "补充上下文",
+    "形成方案",
+    "生成动作草稿",
+    "人工确认",
+    "进入审计",
   ];
 
   return (

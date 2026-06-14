@@ -29,6 +29,26 @@ import { workItemRoute } from "../work-domains/hrNavigation";
 
 type Persona = "hr" | "employee" | "mentor" | "manager";
 
+function dashboardStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    active: "进行中",
+    approved: "已批准",
+    cancelled: "已取消",
+    closed: "已关闭",
+    completed: "已完成",
+    draft: "草稿",
+    in_review: "复核中",
+    open: "已开放",
+    pending: "待处理",
+    planned: "已计划",
+    rejected: "已驳回",
+    scheduled: "已安排",
+    submitted: "已提交",
+    waiting_human_review: "待人工复核",
+  };
+  return labels[status] ?? status;
+}
+
 const SignalColumn = lazy(async () => {
   const module = await import("@ant-design/charts");
   return { default: module.Column as ComponentType<Record<string, unknown>> };
@@ -101,12 +121,12 @@ export function DashboardPage() {
     { title: "AI Command Center", path: "/app/ai-command", summary: "Generate structured HR suggestions with risk, confidence, and evidence." },
     { title: "Document Library", path: "/app/docs", summary: "Read governed references and run precise RAG citation answers." },
     { title: "Co-Growth Engine", path: "/co-growth", summary: "Turn simulated work into AI learning missions and reflection evidence." },
-    { title: "Agent Run Center", path: "/app/agents", summary: "Preview agent runs, tool calls, and human confirmation states." },
+    { title: "Agent Task Center", path: "/app/agents", summary: "Preview agent tasks, action drafts, and human confirmation states." },
     { title: "Trust & Audit", path: "/app/audit", summary: "Trace suggestions, confirmations, evidence, and high-risk blocks." },
   ] : [
-    { title: "指挥看板", path: "/app/dashboard", summary: "统一入口：组织数据、AI 指挥、知识、成长、Agent 和审计。" },
+    { title: "指挥看板", path: "/app/dashboard", summary: "统一入口：组织数据、AI 指挥、知识、成长、智能任务和审计。" },
     { title: "AI 指挥中心", path: "/app/ai-command", summary: "生成结构化 HR 建议，展示风险、置信度和证据。" },
-    { title: "文档库", path: "/app/docs", summary: "阅读受治理资料，并用 RAG 生成精准引用回答。" },
+    { title: "文档库", path: "/app/docs", summary: "阅读受治理资料，并用资料来源生成可核对回答。" },
     { title: "共生成长引擎", path: "/co-growth", summary: "把模拟工作转成可复盘的学习任务和成长证据。" },
     { title: "智能体运行中心", path: "/app/agents", summary: "预览运行过程、工具调用和人工确认状态。" },
     { title: "信任与审计", path: "/app/audit", summary: "追踪 AI 建议、人工确认、证据和高风险阻断。" },
@@ -116,12 +136,12 @@ export function DashboardPage() {
     { title: "30-day onboarding plan", path: "/app/ai-command", tag: "AI Command", text: "Generate a plan with citations, risk, tool preview, and human review." },
     { title: "Attendance exception review", path: "/app/attendance", tag: "Agent Preview", text: "Drill into attendance signals and run read-only Agent analysis." },
     { title: "RAG citation answer", path: "/app/docs", tag: "Knowledge", text: "Ask a policy question and inspect scope, trust, sensitivity, and citations." },
-    { title: "Agent run audit trail", path: "/app/agents", tag: "Audit", text: "Preview tool calls, request human confirmation, and trace audit status." },
+    { title: "Agent task audit trail", path: "/app/agents", tag: "Audit", text: "Preview action drafts, request human confirmation, and trace audit status." },
   ] : [
-    { title: "新人 30 天成长计划", path: "/app/ai-command", tag: "AI 指挥", text: "生成带引用、风险、工具预览和人工复核的治理型建议。" },
-    { title: "考勤异常复核", path: "/app/attendance", tag: "Agent 预览", text: "下钻考勤信号，运行只读 Agent 分析，不做人事裁决。" },
-    { title: "RAG 引用问答", path: "/app/docs", tag: "知识治理", text: "查看 scope、可信等级、敏感级别、citation 和资料详情。" },
-    { title: "智能体运行审计", path: "/app/agents", tag: "审计闭环", text: "预览工具调用、请求人工确认，并追踪审计状态。" },
+    { title: "新人 30 天成长计划", path: "/app/ai-command", tag: "AI 指挥", text: "生成带资料引用、风险说明和人工复核点的治理型建议。" },
+    { title: "考勤异常复核", path: "/app/attendance", tag: "智能体预览", text: "下钻考勤信号，运行只读分析，不做人事裁决。" },
+    { title: "资料引用问答", path: "/app/docs", tag: "知识治理", text: "查看可见范围、可信等级、敏感级别和资料详情。" },
+    { title: "智能体运行审计", path: "/app/agents", tag: "审计闭环", text: "查看动作草稿、请求人工确认，并追踪审计状态。" },
   ], [language]);
 
   const evidenceChain = useMemo(() => language === "en-US" ? [
@@ -133,9 +153,9 @@ export function DashboardPage() {
     "audit event",
   ] : [
     "治理资料",
-    "RAG 引用",
+    "资料引用",
     "AI 建议",
-    "工具预览",
+    "动作草稿",
     "人工复核",
     "审计事件",
   ], [language]);
@@ -148,26 +168,26 @@ export function DashboardPage() {
     { icon: <ThunderboltOutlined />, title: "Human-AI Co-evolution Layer", text: "People set goals, AI drafts, agents preview actions, people confirm and reflect.", risk: "low" },
   ] : [
     { icon: <ApartmentOutlined />, title: "组织数据层", text: "员工、组织、法人、角色、考勤和消息。", risk: "low" },
-    { icon: <DatabaseOutlined />, title: "知识与学习层", text: "受控知识库、RAG 引用、课程和共生成长。", risk: "medium" },
-    { icon: <RobotOutlined />, title: "智能体协作层", text: "AI 指挥中心、运行预览、圈选助手和工作流预览。", risk: "medium" },
+    { icon: <DatabaseOutlined />, title: "知识与学习层", text: "受控知识库、资料引用、课程和共生成长。", risk: "medium" },
+    { icon: <RobotOutlined />, title: "智能体协作层", text: "AI 指挥中心、运行预览、圈选助手和流程草稿。", risk: "medium" },
     { icon: <SafetyCertificateOutlined />, title: "治理与信任层", text: "风险、置信度、证据、引用、人工复核和审计。", risk: "high" },
-    { icon: <ThunderboltOutlined />, title: "人机共进层", text: "人提出目标，AI 生成建议，Agent 预览动作，人确认并复盘。", risk: "low" },
+    { icon: <ThunderboltOutlined />, title: "人机共进层", text: "人提出目标，AI 生成建议，智能任务预览动作，人确认并复盘。", risk: "low" },
   ], [language]);
 
   const highlightEntries = useMemo(() => language === "en-US" ? [
     { title: "AI Command Center", path: "/app/ai-command", icon: <RobotOutlined />, text: "Ask, search, generate plans, and preview actions." },
     { title: "Document Library", path: "/app/docs", icon: <FileSearchOutlined />, text: "Read references and ask citation-backed questions." },
     { title: "Co-Growth Engine", path: "/co-growth", icon: <ExperimentOutlined />, text: "AI-HRMS growth engine for human-agent learning." },
-    { title: "Agent Run Center", path: "/app/agents", icon: <TeamOutlined />, text: "Agent runs, tool previews, confirmation, and audit status." },
+    { title: "Agent Task Center", path: "/app/agents", icon: <TeamOutlined />, text: "Agent tasks, action drafts, confirmation, and audit status." },
     { title: "Trust & Audit Layer", path: "/app/audit", icon: <AuditOutlined />, text: "Connect suggestions, tool calls, review, and evidence." },
     { title: "Visual Copilot", path: "/app/docs", icon: <EyeOutlined />, text: "Text-only: chat or selected page business objects, no screenshots." },
   ] : [
     { title: "AI 指挥中心", path: "/app/ai-command", icon: <RobotOutlined />, text: "问组织、查知识、生成计划、预览动作。" },
-    { title: "文档库", path: "/app/docs", icon: <FileSearchOutlined />, text: "阅读资料，并用 RAG 精准回答引用问题。" },
+    { title: "文档库", path: "/app/docs", icon: <FileSearchOutlined />, text: "阅读资料，并生成带来源的回答。" },
     { title: "共生成长引擎", path: "/co-growth", icon: <ExperimentOutlined />, text: "AI-HRMS 的人机共生成长引擎。" },
-    { title: "智能体运行中心", path: "/app/agents", icon: <TeamOutlined />, text: "运行预览、工具调用、人工确认和审计状态。" },
+    { title: "智能体运行中心", path: "/app/agents", icon: <TeamOutlined />, text: "任务预览、动作草稿、人工确认和审计状态。" },
     { title: "信任与审计层", path: "/app/audit", icon: <AuditOutlined />, text: "把建议、工具调用、人工确认和证据串起来。" },
-    { title: "圈选助手", path: "/app/docs", icon: <EyeOutlined />, text: "普通问答走 RAG，圈选只携带页面线索，不上传截图。" },
+    { title: "圈选助手", path: "/app/docs", icon: <EyeOutlined />, text: "普通问答走知识库，圈选只携带页面线索，不上传截图。" },
   ], [language]);
 
   const personaValue = useMemo<Record<Persona, string[]>>(() => language === "en-US" ? ({
@@ -195,7 +215,7 @@ export function DashboardPage() {
     { title: "员工与组织", value: employees.length + orgUnits.length + legalEntities.length, suffix: "项", icon: <ApartmentOutlined />, tone: "blue" },
     { title: "知识库与引用", value: ragDocuments.length, suffix: "份", icon: <DatabaseOutlined />, tone: "purple" },
     { title: "学习成长", value: recommendations.length, suffix: "条建议", icon: <BookOutlined />, tone: "green" },
-    { title: "Agent 运行", value: agentRuns.length, suffix: "次", icon: <RobotOutlined />, tone: "cyan" },
+    { title: "智能任务运行", value: agentRuns.length, suffix: "次", icon: <RobotOutlined />, tone: "cyan" },
     { title: "高风险待确认", value: highRiskCount, suffix: "项", icon: <SafetyCertificateOutlined />, tone: "red" },
     { title: "审计事件", value: auditEvents.length, suffix: "条", icon: <AuditOutlined />, tone: "orange" },
   ];
@@ -204,7 +224,7 @@ export function DashboardPage() {
     data: [
       { type: "Knowledge", value: ragDocuments.length },
       { type: "Learning", value: recommendations.length },
-      { type: "Agent", value: agentRuns.length },
+      { type: "智能任务", value: agentRuns.length },
       { type: "Audit", value: auditEvents.length },
     ],
     xField: "type",
@@ -223,7 +243,7 @@ export function DashboardPage() {
       navigate("/app/ai-command");
       return;
     }
-    if (/统计|数量|状态|列表|查|查询|引用|资料/.test(command) && !/计划|workflow|Agent|调度|生成/.test(command)) {
+    if (/统计|数量|状态|列表|查|查询|引用|资料/.test(command) && !/计划|workflow|Agent|智能任务|调度|生成/.test(command)) {
       setCommandPreview(t("dashboard.programPreview"));
       return;
     }
@@ -290,17 +310,17 @@ export function DashboardPage() {
             steps={[
               {
                 title: language === "en-US" ? "Pick a scenario" : "选择业务场景",
-                detail: language === "en-US" ? "Start from command, knowledge, Co-Growth, Agent, or audit." : "从指挥、知识、成长、Agent 或审计进入。",
+                detail: language === "en-US" ? "Start from command, knowledge, Co-Growth, Agent, or audit." : "从指挥、知识、成长、智能任务或审计进入。",
                 status: "current",
               },
               {
                 title: language === "en-US" ? "Generate preview" : "生成预览",
-                detail: language === "en-US" ? "AI produces suggestions, citations, or tool previews." : "AI 只产出建议、引用或工具预览。",
+                detail: language === "en-US" ? "AI produces suggestions, citations, or tool previews." : "AI 只产出建议、引用或动作草稿。",
                 status: "next",
               },
               {
                 title: language === "en-US" ? "Check evidence" : "核验证据",
-                detail: language === "en-US" ? "Review citations, risk, scope, and audit trail." : "看引用、风险、scope 和审计链。",
+                detail: language === "en-US" ? "Review citations, risk, scope, and audit trail." : "看引用、风险、可见范围和审计链。",
                 status: "next",
               },
               {
@@ -384,7 +404,7 @@ export function DashboardPage() {
                 { title: "事项", dataIndex: "title" },
                 { title: "模块", dataIndex: "module", render: (module: string) => module === "employee_ops" ? "员工事务" : module === "recruitment_lifecycle" ? "招聘与生命周期" : module === "growth_performance" ? "成长与绩效" : module },
                 { title: "对象", render: (_: unknown, item: HRWorkItem) => item.employeeName || item.orgUnitName || item.recordType },
-                { title: "状态", dataIndex: "status", render: (status: string) => <Tag>{status}</Tag> },
+                { title: "状态", dataIndex: "status", render: (status: string) => <Tag>{dashboardStatusLabel(status)}</Tag> },
                 { title: "风险", render: (_: unknown, item: HRWorkItem) => <Space><RiskTag risk={item.riskLevel} />{item.humanReviewRequired ? <Tag color="red">人工复核</Tag> : null}</Space> },
                 { title: "操作", render: (_: unknown, item: HRWorkItem) => <Button size="small" onClick={() => navigate(workItemRoute(item))}>处理</Button> },
               ]}
@@ -400,7 +420,7 @@ export function DashboardPage() {
                     {item.employeeName || item.orgUnitName || item.recordType}
                   </span>
                   <span className="hr-mobile-card-tags">
-                    <Tag>{item.status}</Tag>
+                    <Tag>{dashboardStatusLabel(item.status)}</Tag>
                     <RiskTag risk={item.riskLevel} />
                     {item.humanReviewRequired ? <Tag color="red">人工复核</Tag> : null}
                   </span>
@@ -503,9 +523,9 @@ export function DashboardPage() {
             <Col xs={24} md={8}>
               <Card title="圈选助手演示">
                 <Typography.Paragraph type="secondary">
-                  点击右下角靶心按钮，圈选任意知识资料、运行记录或审计事件，系统会生成本地解释和动作预览。
+                  点击右下角靶心按钮，圈选任意知识资料、运行记录或审计事件，系统会生成解释和下一步建议。
                 </Typography.Paragraph>
-                <Tag color="purple">圈选 → 上下文 → 预览 → 审计</Tag>
+                <Tag color="purple">圈选 → 上下文 → 建议 → 审计</Tag>
               </Card>
             </Col>
             <Col xs={24} md={8}>

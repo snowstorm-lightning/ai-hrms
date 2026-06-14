@@ -109,7 +109,7 @@ export function EmployeesPage() {
 
   return (
     <main data-vc-page="employee-data-layer" data-vc-kind="employees-page">
-      <PageTitle title="员工数据层" description="维护员工档案、任职和组织关系，为 AI 建议、scope 控制、Agent 预览和审计证据提供可信数据。" />
+      <PageTitle title="员工数据层" description="维护员工档案、任职和组织关系，为 AI 建议、可见范围控制、智能任务预览和审计证据提供可信数据。" />
       <Alert className="section-card" type="info" showIcon title="当前员工档案为合成样本，用于演示权限、组织关系和审计流程；不是任何真实员工数据。" />
       <InlineError message={error} onRetry={() => reload()} />
       <Space className="toolbar">

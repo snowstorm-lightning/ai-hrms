@@ -143,16 +143,16 @@ export function AiCommandCenterPage() {
     <div className="ai-command-page" data-vc-page="ai-command">
       <PageTitle
         title="AI 指挥中心"
-        description="这是 HR 的任务操作台：检索、解释、生成计划、预览工具调用，并把人工确认写入审计。"
+        description="这是 HR 的任务操作台：检索、解释、生成计划、形成动作草稿，并把人工确认写入审计。"
       />
       <InlineError message={error} />
       <TaskPath
         title="AI 指挥闭环"
         steps={[
           { title: "选业务场景", detail: "用样例任务或直接输入需求", status: result ? "done" : "current" },
-          { title: "生成治理型建议", detail: "得到计划、风险、引用和工具预览", status: result ? "done" : "next" },
+          { title: "生成治理型建议", detail: "得到计划、风险、引用和动作草稿", status: result ? "done" : "next" },
           { title: "人工判断", detail: "高风险只进入确认，不自动执行", status: result?.humanReviewRequired ? "blocked" : result ? "current" : "next" },
-          { title: "追踪证据", detail: "去 Agent 或审计页继续看链路", status: result ? "next" : "next" },
+          { title: "追踪证据", detail: "去智能任务或审计页继续看链路", status: result ? "next" : "next" },
         ]}
       />
 
@@ -163,7 +163,7 @@ export function AiCommandCenterPage() {
               showIcon
               type="info"
               title="统一风险策略"
-              description="低风险只读解释；中风险生成计划和工具预览，写操作前需要复核；高风险阻断执行，等待明确人工确认。"
+              description="低风险只读解释；中风险生成计划和动作草稿，写操作前需要复核；高风险阻断执行，等待明确人工确认。"
             />
             <div className="prompt-library" data-vc-kind="ai-command-prompt-library">
               {promptLibrary.map((item) => (
@@ -230,9 +230,9 @@ export function AiCommandCenterPage() {
           <ContextPacketPanel packet={result.contextPacket} />
           <ActionResultGuide
             title={result.humanReviewRequired ? "建议已停在人工确认前" : "建议已生成，可继续核验证据"}
-            description={result.humanReviewRequired ? "下一步不要把它当成已执行结果，先让 HR/导师查看证据和审计链。" : "低风险或中风险内容仍建议检查引用和工具预览，再决定是否沉淀为运行预览。"}
+            description={result.humanReviewRequired ? "下一步不要把它当成已执行结果，先让 HR/导师查看证据和审计链。" : "低风险或中风险内容仍建议检查引用和动作草稿，再决定是否沉淀为运行预览。"}
             actions={[
-              { label: "查看智能体运行", onClick: () => navigate("/app/agents"), type: "primary", icon: <RobotOutlined /> },
+              { label: "查看智能任务运行", onClick: () => navigate("/app/agents"), type: "primary", icon: <RobotOutlined /> },
               { label: "查看审计记录", onClick: () => navigate("/app/audit"), icon: <AuditOutlined /> },
             ]}
           />
@@ -252,7 +252,7 @@ export function AiCommandCenterPage() {
             <article>
               <Typography.Title level={4}>人工判断点</Typography.Title>
               <Typography.Paragraph type="secondary">
-                这一步不是让 AI 做最终裁决，而是把计划、证据、工具预览和审计草案交给 HR/导师确认。
+                这一步不是让 AI 做最终裁决，而是把计划、证据、动作草稿和审计草案交给 HR/导师确认。
               </Typography.Paragraph>
               <Typography.Title level={4}>建议下一步</Typography.Title>
               <Space wrap>
@@ -271,7 +271,7 @@ export function AiCommandCenterPage() {
           <Typography.Title level={4}>证据与引用</Typography.Title>
           <CitationList citations={result.citations} />
           <Divider />
-          <Typography.Title level={4}>工具调用预览</Typography.Title>
+          <Typography.Title level={4}>动作草稿</Typography.Title>
           <div className="tool-preview-grid">
             {result.toolPreview.map((tool) => (
               <div className={tool.status === "blocked" ? "tool-preview-card blocked" : "tool-preview-card"} key={tool.tool}>

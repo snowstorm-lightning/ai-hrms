@@ -88,7 +88,7 @@ export function UsersPage() {
 
   return (
     <main data-vc-page="accounts-and-roles" data-vc-kind="accounts-role-page">
-      <PageTitle title="账号与角色治理" description="维护登录账号、角色绑定和 scope，是 Agent tool preview、RAG 检索和审计授权的权限底座。" />
+      <PageTitle title="账号与角色治理" description="维护登录账号、角色绑定和可见范围，是智能任务预览、知识库引用和审计授权的权限底座。" />
       <InlineError message={error} onRetry={() => reload()} />
       <Space className="toolbar">
         <Button type="primary" data-vc-action="user.create" onClick={() => openEditor()}>新增用户</Button>
@@ -217,7 +217,7 @@ export function UsersPage() {
                     <Form.Item name={[field.name, "roleCode"]} label="角色" rules={[{ required: true }]}>
                       <Select options={roles.map((role) => ({ value: role.code, label: `${role.name} (${role.code})` }))} />
                     </Form.Item>
-                    <Form.Item name={[field.name, "scopeType"]} label="作用域" rules={[{ required: true }]}>
+                    <Form.Item name={[field.name, "scopeType"]} label="可见范围" rules={[{ required: true }]}>
                       <Select
                         options={[
                           { value: "global", label: "全集团" },

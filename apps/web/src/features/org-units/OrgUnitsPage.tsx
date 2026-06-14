@@ -121,7 +121,7 @@ export function OrgUnitsPage() {
 
   return (
     <div className="org-units-page" data-vc-page="org-units">
-      <PageTitle title="组织 scope 图谱" description="维护部门、共享中心、分支和跨法人项目组；这些层级决定 RAG 可见性、Agent 授权和审计范围。" />
+      <PageTitle title="组织边界图谱" description="维护部门、共享中心、分支和跨法人项目组；这些层级决定知识可见性、智能任务授权和审计范围。" />
       <InlineError message={error} onRetry={reload} />
       <Space className="toolbar" data-vc-kind="org-units-toolbar">
         <Button data-vc-action="org_unit.create" type="primary" onClick={() => openEditor()}>新增组织单元</Button>
@@ -149,7 +149,7 @@ export function OrgUnitsPage() {
                   <Button data-vc-action="org_unit.edit" onClick={() => openEditor(item)}>编辑</Button>
                   <Popconfirm
                     title="删除组织单元"
-                    description="仅未被子组织、员工任职、角色 scope、RAG scope 或消息引用的组织单元可以删除。"
+                    description="仅未被子组织、员工任职、角色可见范围、知识库资料或消息引用的组织单元可以删除。"
                     okText="删除"
                     cancelText="取消"
                     okButtonProps={{ danger: true, loading: saving }}
@@ -177,7 +177,7 @@ export function OrgUnitsPage() {
             {editing?.id ? (
               <Popconfirm
                 title="删除组织单元"
-                description="系统会先检查引用；如已被员工、角色或 RAG 使用，请改为 inactive 或迁移引用。"
+                description="系统会先检查引用；如已被员工、角色或知识库使用，请改为停用或迁移引用。"
                 okText="删除"
                 cancelText="取消"
                 okButtonProps={{ danger: true, loading: saving }}

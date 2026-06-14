@@ -58,7 +58,7 @@ export function LegalEntitiesPage() {
 
   return (
     <div className="legal-entities-page" data-vc-page="legal-entities">
-      <PageTitle title="法人 scope 底座" description="维护总公司和具有独立法人属性的子公司；法人边界用于权限、资料范围、Agent 工具预览和审计责任归属。" />
+      <PageTitle title="法人边界底座" description="维护总公司和具有独立法人属性的子公司；法人边界用于权限、资料范围、智能任务预览和审计责任归属。" />
       <Alert className="section-card" type="info" showIcon title="当前公司与法人字段为虚构样本数据，不代表任何真实企业。" />
       <InlineError message={error} onRetry={reload} />
       <Space className="toolbar" data-vc-kind="legal-entities-toolbar">

@@ -333,7 +333,7 @@ function buildDemoAttendanceAgentAnalysis(values: { day?: string; focus?: string
       useAgent: true,
       useMultiAgent: false,
       humanReviewRequired: true,
-      reason: "考勤态势分析使用 scoped 聚合快照和只读工具预览生成，不自动形成旷工、绩效或处分结论。",
+      reason: "考勤态势分析使用当前可见范围的聚合快照和只读动作草稿生成，不自动形成旷工、绩效或处分结论。",
       routedBy: ["attendance.overview", "tool.registry", "agent.preview_first", "human_review.required"],
     },
     trustPacket: {
@@ -428,7 +428,7 @@ function demoDetailedDocumentContent(title: string, summary: string): string {
   const domain = shortTitle.includes("考勤")
     ? "考勤、人事运营和异常复核"
     : shortTitle.includes("Agent")
-      ? "Agent 运行、工具预览和人工确认"
+      ? "智能任务运行、动作草稿和人工确认"
       : shortTitle.includes("RAG") || shortTitle.includes("文档") || shortTitle.includes("Citation")
         ? "知识检索、引用定位和资料治理"
         : shortTitle.includes("员工") || shortTitle.includes("新人") || shortTitle.includes("入职")
@@ -440,28 +440,28 @@ function demoDetailedDocumentContent(title: string, summary: string): string {
     `# ${title}`,
     cleanSummary,
     "## 适用场景",
-    `本资料适用于 ${domain} 相关问题的阅读、检索和解释。用户需要了解制度依据、页面行为、操作路径或风险边界时，应优先阅读本页正文，再通过 RAG 问答获取带 citation 的回答。`,
-    "适用对象包括 HR 运营、组织管理员、业务管理者、知识治理人员、Agent 审核人和需要理解 AI-HRMS 工作方式的普通员工。若用户只需要一句操作提示，可以查看目录卡片摘要；若涉及流程、权限、风险或审计，必须进入完整文档页。",
+    `本资料适用于 ${domain} 相关问题的阅读、检索和解释。用户需要了解制度依据、页面行为、操作路径或风险边界时，应优先阅读本页正文，再通过资料问答获取带来源的回答。`,
+    "适用对象包括 HR 运营、组织管理员、业务管理者、知识治理人员、智能任务审核人和需要理解 AI-HRMS 工作方式的普通员工。若用户只需要一句操作提示，可以查看目录卡片摘要；若涉及流程、权限、风险或审计，必须进入完整文档页。",
     "## 关键原则",
     `1. 先确认当前任务是否落在“${shortTitle}”覆盖范围内，再判断是否需要检索其他资料。`,
-    "2. 涉及员工、组织、权限、考勤、学习、消息或审计数据时，只能使用当前用户 scope 内可见的信息。",
+    "2. 涉及员工、组织、权限、考勤、学习、消息或审计数据时，只能使用当前用户可见范围内的信息。",
     "3. AI 输出应区分事实、推断和建议。事实来自业务数据或已发布资料；推断需要标注置信度；建议需要保留人工复核边界。",
     "4. 高风险人事场景只允许生成预览、清单、解释或草稿，不允许直接给出录用、淘汰、调薪、处分、解雇等自动裁决。",
     "## 操作流程",
     "1. 在文档库目录中按来源、可信等级或标题筛选资料，确认资料状态为 published，敏感级别和可见范围符合当前任务。",
-    "2. 进入文档详情页阅读概览、适用场景、关键原则和操作流程；需要引用时使用页面顶部或文档库首页的 RAG 精准问答。",
-    "3. 系统检索资料时会执行 scope 校验，只返回当前用户可访问的 chunk；未命中可信资料时，应拒绝编造依据。",
-    "4. 如果回答需要调用工具或生成业务变更，Agent 必须先展示 toolPreview、riskLevel、requiredCapability、writes、reversible 和 humanReviewRequired。",
+    "2. 进入文档详情页阅读概览、适用场景、关键原则和操作流程；需要引用时使用页面顶部或文档库首页的资料问答。",
+    "3. 系统检索资料时会执行可见范围校验，只返回当前用户可访问的片段；未命中可信资料时，应拒绝编造依据。",
+    "4. 如果回答需要生成业务变更，系统必须先展示动作草稿、风险等级、所需权限、是否写入、是否可撤回和是否需要人工确认。",
     "5. 人工确认后才能执行写入；仅阅读、检索和摘要不应产生任何业务处理结果。",
-    "## RAG 引用要求",
-    "正式回答必须展示 citation 或证据摘要，至少包含资料标题、引用片段、可信等级、敏感级别、scope 校验结果和检索审计状态。读者在详情页看到的是完整资料视图，正式回答仍以 RAG 检索命中的片段为准。",
+    "## 资料引用要求",
+    "正式回答必须展示引用或证据摘要，至少包含资料标题、引用片段、可信等级、敏感级别、可见范围校验结果和检索审计状态。读者在详情页看到的是完整资料视图，正式回答仍以知识检索命中的片段为准。",
     "当资料为 restricted 或涉及高影响 HR 事项时，回答需要明确提示人工复核；当资料为 draft、过期或不可见时，不得作为正式依据引用。",
     "## 审计与留痕",
-    "阅读详情页本身不写业务数据；RAG 问答、工具预览、人工确认、资料发布、embedding 重建和高风险阻断都应写入审计事件。审计摘要应包含请求、操作者、scope、引用资料、风险级别、置信度和最终状态。",
+    "阅读详情页本身不写业务数据；资料问答、动作草稿、人工确认、资料发布、索引刷新和高风险阻断都应写入审计事件。审计摘要应包含请求、操作者、可见范围、引用资料、风险级别、置信度和最终状态。",
     "## 常见问题",
     "问：为什么目录页只显示摘要？答：目录页用于快速筛选资料，完整正文、治理元数据和引用边界在详情页集中阅读。",
-    "问：能否直接复制详情页内容作为正式回答？答：不建议。正式回答应通过 RAG 检索、scope 校验和 citation 记录生成，详情页用于人工阅读和理解上下文。",
-    "问：资料内容看起来不足怎么办？答：在知识治理页补充正文、设置 scope 并重建 chunk 与 embedding；文档库会读取最新发布版本。",
+    "问：能否直接复制详情页内容作为正式回答？答：不建议。正式回答应通过知识检索、可见范围校验和引用记录生成，详情页用于人工阅读和理解上下文。",
+    "问：资料内容看起来不足怎么办？答：在知识治理页补充正文、设置可见范围并刷新检索索引；文档库会读取最新发布版本。",
   ].join("\n\n");
 }
 
@@ -564,7 +564,7 @@ let demoRAGDocuments: RAGDocument[] = [
     status: "published",
     trustLevel: "official",
     sensitivity: "normal",
-    content: "涉及具体依据、引用位置、制度条款、知识资料或业务对象详情的问题，必须优先通过 RAG 检索和 Go Context Resolver 函数解析。回答需要展示 citations、trustLevel、sensitivity、scope、confidence 和 auditStatus。确定性模板只能用于无引用兜底、风险边界提示和工具预览，不应替代可检索资料。",
+    content: "涉及具体依据、引用位置、制度条款、知识资料或业务对象详情的问题，必须优先通过知识检索和上下文解析。回答需要展示引用资料、可信等级、敏感级别、可见范围、置信度和审计状态。确定性模板只能用于无引用兜底、风险边界提示和动作草稿，不应替代可检索资料。",
     publishedAt: "2026-06-04T09:20:00+08:00",
     createdAt: "2026-06-04",
     scopes: [{ documentId: "rag-doc-008", scopeType: "global", includeDescendants: true }],
@@ -577,7 +577,7 @@ let demoRAGDocuments: RAGDocument[] = [
     status: "published",
     trustLevel: "reviewed",
     sensitivity: "normal",
-    content: "文档库是面向阅读和引用定位的受治理资料页面。知识治理页负责发布、敏感级别、scope、chunk 和 embedding 重建；文档库负责阅读资料、筛选来源、查看治理元数据，并通过 RAG 问答生成带引用的回答。",
+    content: "文档库是面向阅读和引用定位的受治理资料页面。知识治理页负责发布、敏感级别、可见范围和检索索引刷新；文档库负责阅读资料、筛选来源、查看治理元数据，并通过资料问答生成带引用的回答。",
     publishedAt: "2026-06-04T09:30:00+08:00",
     createdAt: "2026-06-04",
     scopes: [{ documentId: "rag-doc-009", scopeType: "global", includeDescendants: true }],
@@ -603,7 +603,7 @@ let demoRAGDocuments: RAGDocument[] = [
     status: "published",
     trustLevel: "official",
     sensitivity: "normal",
-    content: "帮助页中的管理员指南只对 group_admin 角色可见。该区域包含账号维护、角色绑定、法人 scope、组织 scope、RAG 资料发布和高风险审计检查入口。用户看不到该区域时，应先检查账号角色、scope 和登录状态，并在角色调整后重新登录或刷新。",
+    content: "帮助页中的管理员指南只对管理员角色可见。该区域包含账号维护、角色绑定、法人边界、组织边界、知识资料发布和高风险审计检查入口。用户看不到该区域时，应先检查账号角色、可见范围和登录状态，并在角色调整后重新登录或刷新。",
     publishedAt: "2026-06-04T09:50:00+08:00",
     createdAt: "2026-06-04",
     scopes: [{ documentId: "rag-doc-011", scopeType: "global", includeDescendants: true }],
@@ -615,14 +615,14 @@ demoRAGDocuments = demoRAGDocuments.concat([
     "rag-doc-012",
     "AI-HRMS 产品身份与使用边界",
     "official",
-    "AI-HRMS 是面向人力资源、组织数据、学习成长、RAG 知识治理、Agent 运行和审计的企业应用。普通问答可以解释产品能力、页面用途和操作路径；涉及制度依据、员工数据、组织数据或高风险人事建议时，需要基于权限、scope、已发布 RAG 文档、只读业务上下文或经过确认的工具预览。",
+    "AI-HRMS 是面向人力资源、组织数据、学习成长、知识治理、智能任务运行和审计的企业应用。普通问答可以解释产品能力、页面用途和操作路径；涉及制度依据、员工数据、组织数据或高风险人事建议时，需要基于权限、可见范围、已发布知识资料、只读业务上下文或经过确认的动作草稿。",
     "2026-06-05T09:00:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-013",
     "AI-HRMS 页面导航地图",
     "reviewed",
-    "AI-HRMS 登录后默认进入 /app/dashboard 指挥看板。常用入口包括 /app/ai-command AI 指挥中心、/app/agents Agent 运行中心、/app/knowledge Knowledge Hub、/app/docs 文档库、/app/audit 信任与审计、/app/settings 设置和 /app/help 帮助。",
+    "AI-HRMS 登录后默认进入 /app/dashboard 指挥看板。常用入口包括 /app/ai-command AI 指挥中心、/app/agents 智能任务运行中心、/app/knowledge 知识治理、/app/docs 文档库、/app/audit 信任与审计、/app/settings 设置和 /app/help 帮助。",
     "2026-06-05T09:05:00+08:00",
   ),
   demoProductRAGDocument(
@@ -643,21 +643,21 @@ demoRAGDocuments = demoRAGDocuments.concat([
     "rag-doc-016",
     "RAG 文档发布检索与引用链",
     "official",
-    "RAG 文档只有 status=published 且通过当前 scope 校验后才能进入正式检索。知识治理页负责创建来源、发布资料、设置 trust_level、sensitivity 和 scope，并重建 chunk 与 embedding；文档库负责阅读资料和触发带引用的 RAG 问答。没有命中可引用资料时应拒绝编造依据。",
+    "知识资料只有已发布且通过当前可见范围校验后才能进入正式检索。知识治理页负责创建来源、发布资料、设置可信等级、敏感级别和可见范围，并刷新检索索引；文档库负责阅读资料和触发带引用的资料问答。没有命中可引用资料时应拒绝编造依据。",
     "2026-06-05T09:20:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-017",
-    "Agent 工具预览协议",
+    "智能任务动作草稿协议",
     "official",
-    "Agent 在执行工具前必须生成 toolPreview，展示工具名、用途、参数摘要、读取或写入范围、目标 scope、风险级别、可逆性、所需 capability、预计审计事件和是否需要人工确认。写入员工、角色、组织、法人、考勤、消息或学习记录的工具必须先等待确认。",
+    "智能任务在执行前必须生成动作草稿，展示动作名称、用途、参数摘要、读取或写入范围、目标可见范围、风险级别、可逆性、所需权限、预计审计事件和是否需要人工确认。写入员工、角色、组织、法人、考勤、消息或学习记录的动作必须先等待确认。",
     "2026-06-05T09:25:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-018",
     "人工确认与审计留痕规范",
     "official",
-    "涉及写入、权限变更、员工资料修改、组织或法人调整、RAG 发布、Agent 执行和高风险建议时，系统需要保留人工确认与审计记录。审计记录应包含操作者、时间、请求摘要、旧值摘要、新值摘要、风险等级、引用或证据、toolPreview、确认结果和阻断原因。",
+    "涉及写入、权限变更、员工资料修改、组织或法人调整、资料发布、智能任务执行和高风险建议时，系统需要保留人工确认与审计记录。审计记录应包含操作者、时间、请求摘要、旧值摘要、新值摘要、风险等级、引用或证据、动作草稿、确认结果和阻断原因。",
     "2026-06-05T09:30:00+08:00",
   ),
   demoProductRAGDocument(
@@ -671,14 +671,14 @@ demoRAGDocuments = demoRAGDocuments.concat([
     "rag-doc-020",
     "管理员权限与可见性模型",
     "reviewed",
-    "group_admin 可以看到管理员指南、账号维护、角色绑定、法人 scope、组织 scope、RAG 发布和高风险审计入口。用户看不到某块功能时，优先检查当前账号角色、capability、scope、登录状态和前端菜单可见性；角色刚调整后需要刷新或重新登录。",
+    "管理员可以看到管理员指南、账号维护、角色绑定、法人边界、组织边界、资料发布和高风险审计入口。用户看不到某块功能时，优先检查当前账号角色、权限、可见范围、登录状态和前端菜单可见性；角色刚调整后需要刷新或重新登录。",
     "2026-06-05T09:40:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-021",
     "组织与法人 Scope 使用说明",
     "reviewed",
-    "AI-HRMS 使用 global、legal_entity、org_unit、role 和 employee scope 控制 RAG 文档、业务数据、角色授权和审计范围。scope 校验应 fail-closed：没有明确授权时不返回数据，不用全局资料替代受限资料。",
+    "AI-HRMS 使用全局、法人、组织、角色和员工可见范围控制知识资料、业务数据、角色授权和审计范围。可见范围校验应默认收紧：没有明确授权时不返回数据，不用全局资料替代受限资料。",
     "2026-06-05T09:45:00+08:00",
   ),
   demoProductRAGDocument(
@@ -695,56 +695,56 @@ demoRAGDocuments = demoRAGDocuments.concat([
     "rag-doc-023",
     "AI-HRMS 页面级操作指南合集",
     "reviewed",
-    "指挥看板用于查看风险、证据和建议概览；AI 指挥中心用于生成受控 HR 工作草稿；Knowledge Hub 用于创建来源、发布资料、设置 scope 并重建 embedding；文档库用于阅读资料、筛选来源和带引用问答；Agent 运行中心用于查看 run 状态、toolPreview 和人工确认；信任与审计用于检索 audit event；设置页用于语言、界面密度、侧边栏宽度和 Copilot 默认项。",
+    "指挥看板用于查看风险、证据和建议概览；AI 指挥中心用于生成受控 HR 工作草稿；知识治理用于创建来源、发布资料、设置可见范围并刷新检索索引；文档库用于阅读资料、筛选来源和带引用问答；智能任务运行中心用于查看任务状态、动作草稿和人工确认；信任与审计用于检索审计事件；设置页用于语言、界面密度、侧边栏宽度和助手默认项。",
     "2026-06-05T10:00:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-024",
     "RAG 发布 SOP 与失败排查",
     "official",
-    "发布 RAG 资料的标准步骤是：创建或选择 source，录入标题、版本、正文和有效期，设置 trust_level、sensitivity、scope，保存为 draft，复核后切换为 published，触发 chunk 与 embedding 重建，并在文档库用一个真实问题验证 citation。资料问不到时依次检查 published、scope、sensitivity、effective 时间、ingest job、embedding 维度和查询质量。",
+    "发布知识资料的标准步骤是：创建或选择来源，录入标题、版本、正文和有效期，设置可信等级、敏感级别、可见范围，保存为草稿，复核后切换为已发布，刷新检索索引，并在文档库用一个真实问题验证引用。资料问不到时依次检查发布状态、可见范围、敏感级别、生效时间、导入任务、索引状态和查询质量。",
     "2026-06-05T10:05:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-025",
     "Citation 字段与引用定位说明",
     "reviewed",
-    "citation 是 RAG 回答的证据定位。documentId 指向资料，chunkId 指向切片，title 是资料标题，snippet 是引用片段，trustLevel 表示资料可信等级，sensitivity 表示敏感级别，score 表示检索相关性，pageRef 和 locationRef 可用于页码、章节、段落或表格位置。",
+    "引用是资料回答的证据定位。资料 ID 指向资料，片段 ID 指向切片，标题是资料标题，摘录是引用片段，可信等级表示资料可信度，敏感级别表示访问边界，匹配分表示检索相关性，页码和位置可用于章节、段落或表格定位。",
     "2026-06-05T10:10:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-026",
     "Visual Copilot 页面字段字典",
     "reviewed",
-    "Visual Copilot 解释页面字段时优先使用 DOM label、data-vc-kind、data-vc-field、businessRef、route 和 layout snapshot。按钮通常表示可执行命令；卡片通常表示业务对象摘要；表格行通常对应员工、组织、法人、资料、Agent run 或审计事件；Tag 常用于 riskLevel、confidence、sensitivity、trustLevel、auditStatus、toolPreview 和 humanReviewRequired。",
+    "圈选助手解释页面字段时优先使用页面标签、业务对象标记、路由和页面线索。按钮通常表示可执行命令；卡片通常表示业务对象摘要；表格行通常对应员工、组织、法人、资料、智能任务或审计事件；标签常用于风险、置信度、敏感级别、可信等级、审计状态、动作草稿和人工确认。",
     "2026-06-05T10:15:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-027",
     "角色 Capability 对照与权限申请",
     "reviewed",
-    "group_admin 拥有账号、角色、scope、RAG 发布、审计和高风险治理入口；group_hr 可处理集团 HR 数据和制度资料；entity_hr 面向法人边界内的人事数据；org_manager 只看授权组织及其下级；employee 只看个人相关记录和公开资料。申请权限时应说明业务目的、需要的 scope、持续时间和审批人。",
+    "管理员拥有账号、角色、可见范围、资料发布、审计和高风险治理入口；集团 HR 可处理集团 HR 数据和制度资料；法人 HR 面向法人边界内的人事数据；组织管理者只看授权组织及其下级；员工只看个人相关记录和公开资料。申请权限时应说明业务目的、需要的可见范围、持续时间和审批人。",
     "2026-06-05T10:20:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-028",
-    "Agent Run 状态与工具调用字段字典",
+    "智能任务状态与动作字段字典",
     "official",
-    "Agent run 常见状态包括 previewed、waiting_human_review、running、completed、failed、blocked 和 cancelled。用户问某个 run 时，应先解释当前状态和是否等待人工确认，再说明证据、工具预览和下一步，不应把预览当成已执行结果。",
+    "智能任务常见状态包括已预览、等待人工确认、运行中、已完成、失败、已阻断和已取消。用户问某个任务时，应先解释当前状态和是否等待人工确认，再说明证据、动作草稿和下一步，不应把预览当成已执行结果。",
     "2026-06-05T10:25:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-029",
     "审计事件类型与筛选导出说明",
     "official",
-    "审计事件用于追踪 AI 回答、RAG 引用、工具预览、人工确认和业务写入。常见 eventType 包括 ai.chat.answer、rag.citation.used、visual_copilot.preview、agent.tool.preview、human.review.requested、human.review.approved_preview、high_risk.action.blocked、employee.update、role.binding.changed 和 rag.document.published。",
+    "审计事件用于追踪 AI 回答、知识引用、动作草稿、人工确认和业务写入。常见事件包括 AI 回答、资料引用、圈选预览、智能任务预览、人工确认请求、人工确认通过、高风险阻断、员工更新、角色变更和资料发布。",
     "2026-06-05T10:30:00+08:00",
   ),
   demoProductRAGDocument(
     "rag-doc-030",
     "Embedding 与 Provider 状态排查",
     "reviewed",
-    "RAG 检索质量依赖 embedding provider、维度、chunk 策略和检索融合。排查顺序是 provider status、API key 或本地 fake provider、RAG_EMBEDDING_DIMENSIONS、ingest job、chunk 数、文档长度、查询质量和 hybrid 低分命中。维度变更后需要重建所有受影响 embedding。",
+    "知识检索质量依赖服务状态、索引策略和检索融合。排查顺序是服务状态、接口密钥或本地演示适配器、索引维度、导入任务、片段数量、文档长度、查询质量和低分命中。索引维度变更后需要刷新所有受影响索引。",
     "2026-06-05T10:35:00+08:00",
   ),
   demoProductRAGDocument(
@@ -778,7 +778,7 @@ const demoAgentRuns: AgentRun[] = [
   { id: "agent-run-002", runType: "ai_literacy_path", status: "completed", provider: "fake", model: "deterministic-v1", riskLevel: "low", summary: "根据学习画像推荐 AI 原理卡和 30 分钟 mission。", createdAt: "2026-05-28T09:08:00+08:00" },
   { id: "agent-run-003", runType: "work_learning_balance", status: "previewed", provider: "fake", model: "deterministic-v1", riskLevel: "medium", summary: "检查工作负荷，建议把深度实验降级为微学习。", createdAt: "2026-05-28T09:16:00+08:00" },
   { id: "agent-run-004", runType: "agent_workflow_lab", status: "previewed", provider: "fake", model: "deterministic-v1", riskLevel: "medium", summary: "预览个性化学习任务推荐 Agent 节点链路。", createdAt: "2026-05-28T09:24:00+08:00" },
-  { id: "agent-run-005", runType: "knowledge_governance", status: "completed", provider: "fake", model: "deterministic-v1", riskLevel: "medium", summary: "扫描 RAG 资料可信等级和敏感范围。", createdAt: "2026-05-28T09:32:00+08:00" },
+  { id: "agent-run-005", runType: "knowledge_governance", status: "completed", provider: "fake", model: "deterministic-v1", riskLevel: "medium", summary: "扫描知识资料可信等级和敏感范围。", createdAt: "2026-05-28T09:32:00+08:00" },
   { id: "agent-run-006", runType: "onboarding_planner", status: "completed", provider: "fake", model: "deterministic-v1", riskLevel: "low", summary: "生成新人 30 天成长计划，引用入职指南。", createdAt: "2026-05-28T09:40:00+08:00" },
   { id: "agent-run-007", runType: "audit_risk_scanner", status: "waiting_human_review", provider: "fake", model: "deterministic-v1", riskLevel: "high", summary: "发现面试公平性场景，等待 HR 人工确认。", createdAt: "2026-05-28T09:48:00+08:00" },
   { id: "agent-run-008", runType: "visual_copilot", status: "previewed", provider: "fake", model: "deterministic-v1", riskLevel: "medium", summary: "基于页面选区解释知识资料与审计事件关系。", createdAt: "2026-05-28T09:56:00+08:00" },
@@ -1307,7 +1307,7 @@ function demoVisualResponse(values: VisualContextRequest, intent: string): Visua
     useMultiAgent: false,
     humanReviewRequired: riskLevel !== "low",
     reason: intent === "action_execute_blocked"
-      ? "写操作和高风险请求先进入工具预览与人工确认。"
+      ? "写操作和高风险请求先进入动作草稿与人工确认。"
       : "主回答采用大模型式自然语言解释；证据、风险和审计块由固定规则清洗和结构化呈现。",
     routedBy: intent === "action_execute_blocked"
       ? ["visual.context.resolver", "tool.preview.required", "audit.required"]
@@ -1399,8 +1399,8 @@ function demoVisualResponse(values: VisualContextRequest, intent: string): Visua
 function visualRouteLabel(route: string): string {
   if (route.includes("dashboard")) return "AI-HRMS Command Dashboard";
   if (route.includes("ai-command")) return "AI 指挥中心";
-  if (route.includes("knowledge")) return "Knowledge Hub";
-  if (route.includes("agents")) return "Agent Run Center";
+  if (route.includes("knowledge")) return "知识治理";
+  if (route.includes("agents")) return "智能任务运行中心";
   if (route.includes("audit")) return "Audit & Evidence";
   if (route.includes("learning")) return "Learning Layer";
   if (route.includes("co-growth")) return "Co-Growth OS";
@@ -1431,7 +1431,7 @@ function demoVisualNaturalAnswer(
       return `这块选中的是知识资料：${labels.join("、")}。\n\n它的重点不只是“文档标题”，还包括可信等级、敏感级别、可见范围和能否作为 RAG 引用。你可以继续问“这份资料能支持哪个回答”“它为什么不可见”“需要怎么发布或重建引用”。`;
     }
     if (agentCount) {
-      return `这块选中的是 Agent 运行记录：${labels.join("、")}。\n\n它适合用来追踪一次智能体任务的状态、工具预览、人工确认和审计结果。你可以继续追问某次 run 为什么停在预览、用了哪些证据，或者下一步应该由谁确认。`;
+      return `这块选中的是智能任务运行记录：${labels.join("、")}。\n\n它适合用来追踪一次智能任务的状态、动作草稿、人工确认和审计结果。你可以继续追问某次任务为什么停在预览、用了哪些证据，或者下一步应该由谁确认。`;
     }
     return `这块区域关联到 ${refs.length} 个业务对象：${labels.join("、")}。\n\n在 AI-HRMS 里，它们不是孤立的页面元素，而是可以被权限、知识引用、Agent 预览和审计链串起来的工作对象。你可以继续问它们的业务含义、依据来源、风险等级，或下一步该进入哪个处理页面。`;
   }
@@ -1443,16 +1443,16 @@ function demoVisualNaturalAnswer(
     return "这块是招聘生命周期的流程导航，用来把一次招聘从“要不要招”串到“如何发岗、怎么看候选人、怎么组织面试、Offer 如何复核”。\n\n前两个节点偏业务确认：HC、预算、岗位范围和渠道；后面三个节点会直接影响候选人，所以系统会更强调公平性、证据留痕和人工确认。你可以按下面的标签页继续查看招聘需求、职位、候选人和面试记录。";
   }
   if (route.includes("dashboard")) {
-    return "这块属于 AI-HRMS 的指挥看板，用来把组织数据、AI 建议、待复核事项和审计证据放在同一个入口里。\n\n如果你是评审或 HR，建议先从这里进入 AI 指挥中心、文档库、考勤态势、Co-Growth、Agent Run 和 Audit，能最快看到这套系统如何把 HRMS 从台账升级成智能操作系统。";
+    return "这块属于 AI-HRMS 的指挥看板，用来把组织数据、AI 建议、待复核事项和审计证据放在同一个入口里。\n\n如果你是评审或 HR，建议先从这里进入 AI 指挥中心、文档库、考勤态势、共生成长、智能任务和审计，能最快看到这套系统如何把 HRMS 从台账升级成智能操作系统。";
   }
   if (route.includes("docs") || route.includes("knowledge")) {
     return "这块是知识治理和文档问答区域，重点是让 AI 回答有来源、有范围、有可信等级。\n\n你可以继续问某份资料能否作为引用、为什么某条制度没有命中、哪些内容需要发布、重建索引或调整可见范围。";
   }
   if (route.includes("agents")) {
-    return "这块是 Agent Run 的运行与复核区域，适合看一次智能体任务准备做什么、用了哪些输入、是否需要人工确认，以及最终有没有进入审计链。\n\n如果你担心 AI 自动执行，重点看工具预览和 human review 状态。";
+    return "这块是智能任务的运行与复核区域，适合看一次任务准备做什么、用了哪些输入、是否需要人工确认，以及最终有没有进入审计链。\n\n如果你担心 AI 自动执行，重点看动作草稿和人工确认状态。";
   }
   if (route.includes("audit")) {
-    return "这块是审计证据区域，用来回看 AI 回答、RAG 引用、工具预览、人工确认和业务写入之间的关系。\n\n它的价值在于复盘：出了问题可以知道谁发起、依据是什么、风险怎么判断、动作有没有被确认。";
+    return "这块是审计证据区域，用来回看 AI 回答、知识引用、动作草稿、人工确认和业务写入之间的关系。\n\n它的价值在于复盘：出了问题可以知道谁发起、依据是什么、风险怎么判断、动作有没有被确认。";
   }
   if (route.includes("co-growth") || route.includes("learning")) {
     return "这块是 Co-Growth 和学习证据相关区域，用来把 AI 学习、工作任务、导师复盘和成长记录连接起来。\n\n它不只是课程列表，更像把新人真实工作转化为可复盘的 AI 实战任务。";
@@ -1492,16 +1492,16 @@ function demoVisualRefSummary(ref: VisualContextRequest["regions"][number]["busi
   const label = ref.label || ref.id;
   switch (ref.type) {
     case "legal_entity":
-      return `法人实体「${compactDemoVisualText(label, 40)}」用于确定合同主体、地区责任、权限 scope 和审计归属；解释不会推断真实公司外部信息。`;
+      return `法人实体「${compactDemoVisualText(label, 40)}」用于确定合同主体、地区责任、权限边界和审计归属；解释不会推断真实公司外部信息。`;
     case "org_unit":
-      return `组织单元「${compactDemoVisualText(label, 40)}」用于限定员工、知识资料、Agent run 和审计事件的组织范围。`;
+      return `组织单元「${compactDemoVisualText(label, 40)}」用于限定员工、知识资料、智能任务和审计事件的组织范围。`;
     case "employee":
     case "user":
       return demoEmployeeVisualSummary(ref, label);
     case "rag_document":
-      return `知识资料「${compactDemoVisualText(label, 40)}」需要结合 trustLevel、sensitivity、scope 和 citation 才能用于 AI 回答。`;
+      return `知识资料「${compactDemoVisualText(label, 40)}」需要结合可信等级、敏感级别、可见范围和引用片段才能用于 AI 回答。`;
     case "agent_run":
-      return `Agent run「${compactDemoVisualText(label, 40)}」适合检查状态、工具预览、人工确认和审计记录，不代表动作已经执行。`;
+      return `智能任务「${compactDemoVisualText(label, 40)}」适合检查状态、动作草稿、人工确认和审计记录，不代表动作已经执行。`;
     case "audit_event":
       return `审计事件「${compactDemoVisualText(label, 40)}」用于回溯 AI 建议、工具调用、人审和证据链。`;
     case "learning":
@@ -1533,7 +1533,7 @@ function demoBusinessProfileForLegal(id?: string | null, name = "") {
   if (value.includes("risk") || value.includes("风控")) return "内容安全、风控策略、AI 治理和审计能力";
   if (value.includes("growth") || value.includes("增长")) return "增长算法、用户运营和数据驱动业务实验";
   if (value.includes("group") || value.includes("集团") || value.includes("互联网科技")) return "集团总部与 AI 平台底座，承载统一 HR、知识治理和 Agent 协作规范";
-  return "模拟互联网科技公司下的业务或职能法人，用于权限 scope、合同边界和审计归属";
+  return "模拟互联网科技公司下的业务或职能法人，用于权限边界、合同边界和审计归属";
 }
 
 function demoBusinessProfileForOrg(id?: string | null, name = "") {
@@ -1645,7 +1645,7 @@ function demoCitationSnippet(content?: string) {
     .map((item) => item.trim())
     .filter(Boolean)
     .find((item) => !item.startsWith("#"));
-  if (!line) return "Demo citation preview";
+  if (!line) return "资料引用预览";
   return line.length > 180 ? `${line.slice(0, 180)}...` : line;
 }
 
@@ -1675,11 +1675,11 @@ function buildDemoAIChatResponse(message: string): AIChatResponse {
 
   if (identityQuestion) {
     intent = "product_identity";
-    answer = "我是 AI-HRMS 里的 Visual Copilot，用来帮助你理解当前人力资源操作系统里的页面、制度资料、RAG 引用、Agent 运行和审计边界。\n\n你可以直接问我页面怎么用、某条制度依据在哪里；如果要解释某个卡片、表格行或按钮，请切换到“截图/圈选问”并圈选那块区域。";
+    answer = "我是 AI-HRMS 里的圈选助手，用来帮助你理解当前人力资源操作系统里的页面、制度资料、知识引用、智能任务运行和审计边界。\n\n你可以直接问我页面怎么用、某条制度依据在哪里；如果要解释某个卡片、表格行或按钮，请切换到“截图/圈选问”并圈选那块区域。";
     citations = [demoDocumentCitation("rag-doc-012", 0.94), demoDocumentCitation("rag-doc-015", 0.88)];
   } else if (demoQuestionIncludes(normalized, ["这个页面怎么用", "当前页面怎么用", "页面怎么用", "有哪些页面", "导航", "入口"])) {
     intent = "page_usage";
-    answer = "这个系统的常用入口是：指挥看板看整体风险和证据，AI 指挥中心发起受控任务，Knowledge Hub 发布和治理 RAG 资料，文档库做带引用的问答，Agent 运行中心查看工具预览与执行记录，信任与审计查看证据链，设置页调整语言、侧边栏和 Copilot 默认项。";
+    answer = "这个系统的常用入口是：指挥看板看整体风险和证据，AI 指挥中心发起受控任务，知识治理发布和治理资料，文档库做带引用的问答，智能任务运行中心查看动作草稿与执行记录，信任与审计查看证据链，设置页调整语言、侧边栏和助手默认项。";
     citations = [demoDocumentCitation("rag-doc-023", 0.93), demoDocumentCitation("rag-doc-013", 0.86)];
   } else if (demoQuestionIncludes(normalized, ["语言", "英文", "中文", "设置", "侧边栏", "sidebar", "copilot 默认"])) {
     intent = "settings_help";
@@ -1689,15 +1689,15 @@ function buildDemoAIChatResponse(message: string): AIChatResponse {
     intent = "visual_copilot_mode";
     answer = "普通问答适合问产品功能、制度解释、资料依据和一般操作路径，只发送文字问题。截图/圈选问会额外带上选区、DOM 摘要、可见文本、相对坐标和 layout snapshot，更适合问“这块区域是什么”“为什么看不到这个按钮”“这列表格列是什么意思”。当前模式不做未脱敏原图识别。";
     citations = [demoDocumentCitation("rag-doc-015", 0.94), demoDocumentCitation("rag-doc-026", 0.88), demoDocumentCitation("rag-doc-007", 0.82)];
-  } else if (demoQuestionIncludes(normalized, ["rag", "引用", "依据", "发布资料", "文档库", "知识库", "资料在哪里", "重建 embedding"])) {
+  } else if (demoQuestionIncludes(normalized, ["rag", "引用", "依据", "发布资料", "文档库", "知识库", "资料在哪里", "刷新索引", "重建 embedding"])) {
     intent = "rag_help";
-    answer = "RAG 资料要先在 Knowledge Hub 创建来源、发布文档、设置可信等级、敏感级别和 scope，并重建 chunk 与 embedding。用户问制度依据或引用位置时，文档库和普通问答会只使用已发布且当前可见的资料；没有命中引用时应明确说未找到，而不是编造依据。";
+    answer = "知识资料要先在知识治理页创建来源、发布文档、设置可信等级、敏感级别和可见范围，并刷新检索索引。用户问制度依据或引用位置时，文档库和普通问答会只使用已发布且当前可见的资料；没有命中引用时应明确说未找到，而不是编造依据。";
     citations = [demoDocumentCitation("rag-doc-024", 0.94), demoDocumentCitation("rag-doc-025", 0.88), demoDocumentCitation("rag-doc-030", 0.8)];
   } else if (demoQuestionIncludes(normalized, ["人工确认", "humanreview", "toolpreview", "工具预览", "审计", "audit"])) {
     intent = "audit_and_preview";
     riskLevel = demoQuestionIncludes(normalized, ["写入", "执行", "修改", "删除"]) ? "medium" : "low";
     executionMode = riskLevel === "medium" ? "tool_preview" : "retrieval_only";
-    answer = "需要写入、权限变更、员工资料修改、组织或法人调整、RAG 发布、Agent 执行或高风险建议时，系统先生成 toolPreview，说明工具名、参数摘要、读写范围、风险、scope 和是否可逆，再由人确认并写入审计。只读解释可以直接返回，但仍会保留引用和 auditStatus。";
+    answer = "需要写入、权限变更、员工资料修改、组织或法人调整、资料发布、智能任务执行或高风险建议时，系统先生成动作草稿，说明动作名、参数摘要、读写范围、风险、可见范围和是否可逆，再由人确认并写入审计。只读解释可以直接返回，但仍会保留引用和审计状态。";
     citations = [demoDocumentCitation("rag-doc-017", 0.9), demoDocumentCitation("rag-doc-028", 0.88), demoDocumentCitation("rag-doc-029", 0.86)];
   } else if (highRiskMessage) {
     intent = "high_impact_hr_boundary";
@@ -1707,11 +1707,11 @@ function buildDemoAIChatResponse(message: string): AIChatResponse {
     citations = [demoDocumentCitation("rag-doc-019", 0.95), demoDocumentCitation("rag-doc-003", 0.72), demoDocumentCitation("rag-doc-004", 0.7)];
   } else if (demoQuestionIncludes(normalized, ["管理员指南", "看不到", "没有权限", "不可见", "group_admin", "管理员"])) {
     intent = "admin_visibility";
-    answer = "管理员指南只对 group_admin 可见。看不到时先检查当前账号角色、capability、scope、登录状态和菜单可见性；如果刚调整过角色，刷新或重新登录后再看。普通员工、导师、仅有 group_hr 或 org_manager 的账号不会看到完整管理员入口。";
+    answer = "管理员指南只对管理员可见。看不到时先检查当前账号角色、权限、可见范围、登录状态和菜单可见性；如果刚调整过角色，刷新或重新登录后再看。普通员工、导师、仅有 HR 或组织管理权限的账号不会看到完整管理员入口。";
     citations = [demoDocumentCitation("rag-doc-020", 0.92), demoDocumentCitation("rag-doc-027", 0.88), demoDocumentCitation("rag-doc-011", 0.82)];
   } else if (demoQuestionIncludes(normalized, ["scope", "法人", "组织", "数据范围", "权限范围"])) {
     intent = "scope_help";
-    answer = "AI-HRMS 用 global、legal_entity、org_unit、role 和 employee scope 控制资料、业务数据、角色授权和审计范围。法人 scope 更适合公司主体和合同边界，组织 scope 更适合部门、团队和下级组织。没有明确授权时系统应 fail-closed，不返回受限数据，也不用全局资料替代受限资料。";
+    answer = "AI-HRMS 用全局、法人、组织、角色和员工可见范围控制资料、业务数据、角色授权和审计范围。法人边界更适合公司主体和合同边界，组织边界更适合部门、团队和下级组织。没有明确授权时系统默认收紧，不返回受限数据，也不用全局资料替代受限资料。";
     citations = [demoDocumentCitation("rag-doc-021", 0.93), demoDocumentCitation("rag-doc-020", 0.78)];
   } else if (demoQuestionIncludes(normalized, ["隐私", "敏感", "个人信息", "员工数据", "脱敏", "外部模型"])) {
     intent = "privacy_minimization";
@@ -2294,7 +2294,7 @@ export const api = {
         provider: "fake",
         title: values.title,
         content: values.content,
-        summary: "Demo ingestion completed with deterministic fake embeddings.",
+        summary: "演示资料导入完成，已生成本地检索索引。",
         error: "",
         createdAt: now,
         completedAt: now,
@@ -2314,7 +2314,7 @@ export const api = {
         jobType: "rebuild_embeddings",
         status: "completed",
         provider: "demo-hybrid",
-        summary: `Demo 已按 heading_sentence_context_v2_qwen3_2048 重建 ${document?.title ?? "选中资料"} 的 chunk 与本地向量索引。`,
+        summary: `已刷新 ${document?.title ?? "选中资料"} 的本地检索索引。`,
         error: "",
         createdAt: now,
         completedAt: now,
@@ -2442,7 +2442,7 @@ export const api = {
         provider: "fake",
         model: "deterministic-v1",
         riskLevel: values.riskLevel,
-        summary: values.prompt || "Demo Agent run",
+        summary: values.prompt || "智能任务预览",
         createdAt: new Date().toISOString(),
       };
       demoAgentRunState = [run, ...demoAgentRunState];

@@ -574,7 +574,7 @@ export function VisualCopilotOverlay() {
                 mode === "screenshot" ? (
                   <Alert className="visual-copilot-hint" type="info" showIcon title="先点击“开始圈选”，面板会收缩成窄侧栏，然后拖拽选择卡片、行、字段或按钮；侧栏准星可随时退出圈选并恢复页面输入。当前只使用 DOM 与业务对象上下文，不启用图像识别。" />
                 ) : (
-                  <Alert className="visual-copilot-hint" type="info" showIcon title="普通问答不会采集坐标或截图；需要解释页面区域时切换到“截图/圈选问”。涉及引用位置和制度依据的问题会走 RAG 检索并展示 citations。" />
+                  <Alert className="visual-copilot-hint" type="info" showIcon title="普通问答不会采集坐标或截图；需要解释页面区域时切换到“截图/圈选问”。涉及制度依据的问题会检索知识库并展示资料来源。" />
                 )
               ) : null}
             </div>
@@ -613,6 +613,45 @@ function VisualMetaGrid({ items }: { items: Array<{ label: string; value: ReactN
   );
 }
 
+function visualRiskLabel(value?: string | null) {
+  if (value === "high") return "高风险";
+  if (value === "medium") return "中风险";
+  if (value === "low") return "低风险";
+  return value || "未返回";
+}
+
+function visualBooleanLabel(value: boolean) {
+  return value ? "需要" : "不需要";
+}
+
+function visualStatusLabel(value?: string | null) {
+  const labels: Record<string, string> = {
+    logged: "已记录",
+    active: "记录中",
+    preview_ready: "预览就绪",
+    waiting_human_review: "等待人工确认",
+    blocked_pending_human_review: "已阻断，等待人工确认",
+  };
+  return value ? labels[value] ?? value : "未返回";
+}
+
+function visualModelLabel(provider?: string | null, model?: string | null) {
+  if (!provider || provider === "program") return "系统规则";
+  const providerLabels: Record<string, string> = {
+    fake: "演示适配器",
+    deepseek: "DeepSeek",
+    qwen3: "Qwen3",
+    local_preview: "本地预览",
+    "local-preview": "本地预览",
+  };
+  return model && model !== "routing" ? `${providerLabels[provider] ?? provider} / ${model}` : providerLabels[provider] ?? provider;
+}
+
+function imageModeLabel(value?: string | null) {
+  if (!value || value === "no-image-analysis") return "未启用图像识别";
+  return value;
+}
+
 function ActionList({ actions }: { actions: VisualCopilotResponse["result"]["actions"] }) {
   if (!actions.length) {
     return null;
@@ -622,7 +661,7 @@ function ActionList({ actions }: { actions: VisualCopilotResponse["result"]["act
       {actions.map((action, index) => (
         <div className={action.blocked ? "visual-action-item is-blocked" : "visual-action-item"} key={`${String(action.type ?? "action")}-${index}`}>
           <span>{String(action.label ?? action.type)}</span>
-          <small>risk={String(action.riskLevel ?? action.risk ?? "low")}{action.blocked ? " · blocked" : ""}</small>
+          <small>风险：{visualRiskLabel(String(action.riskLevel ?? action.risk ?? "low"))}{action.blocked ? " · 已阻断" : ""}</small>
         </div>
       ))}
     </div>
@@ -683,13 +722,13 @@ function SelectionTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kin
                 </Typography.Paragraph>
               ) : null}
               <VisualMetaGrid items={[
-                { label: "风险", value: response.result.riskLevel || trust?.riskLevel || "low" },
+                { label: "风险", value: visualRiskLabel(response.result.riskLevel || trust?.riskLevel || "low") },
                 { label: "置信度", value: `${confidence}%` },
                 { label: "证据数", value: trust?.evidenceCount ?? packet?.items.length ?? 0 },
-                { label: "人工确认", value: String(Boolean(trust?.humanReviewRequired || decision?.humanReviewRequired)) },
-                { label: "审计状态", value: trust?.auditStatus || response.event.status },
-                { label: "图像模式", value: response.result.imageMode || "no-image-analysis" },
-                { label: "模型", value: response.result.provider ? `${response.result.provider}/${response.result.model || "unknown"}` : "program/routing" },
+                { label: "人工确认", value: visualBooleanLabel(Boolean(trust?.humanReviewRequired || decision?.humanReviewRequired)) },
+                { label: "审计状态", value: visualStatusLabel(trust?.auditStatus || response.event.status) },
+                { label: "图像模式", value: imageModeLabel(response.result.imageMode) },
+                { label: "生成方式", value: visualModelLabel(response.result.provider, response.result.model) },
               ]} />
               <ActionList actions={response.result.actions} />
               <Alert
@@ -737,16 +776,16 @@ function ChatTurnCard({ turn, current }: { turn: Extract<CopilotTurn, { kind: "c
                 <CheckCircleOutlined />
                 <div>
                   <Typography.Text strong>回答已生成</Typography.Text>
-                  <Typography.Text type="secondary">{response.provider || "program"}/{response.model || "routing"}</Typography.Text>
+                  <Typography.Text type="secondary">{visualModelLabel(response.provider, response.model)}</Typography.Text>
                 </div>
               </div>
               <VisualMetaGrid items={[
-                { label: "风险", value: response.riskLevel || trust?.riskLevel || "low" },
+                { label: "风险", value: visualRiskLabel(response.riskLevel || trust?.riskLevel || "low") },
                 { label: "置信度", value: `${Math.round((response.confidence ?? 0.72) * 100)}%` },
                 { label: "证据数", value: trust?.evidenceCount ?? response.citations?.length ?? 0 },
-                { label: "人工确认", value: String(Boolean(trust?.humanReviewRequired || decision?.humanReviewRequired)) },
-                { label: "审计状态", value: trust?.auditStatus || response.auditStatus || "logged" },
-                { label: "模型", value: `${response.provider || "program"}/${response.model || "routing"}` },
+                { label: "人工确认", value: visualBooleanLabel(Boolean(trust?.humanReviewRequired || decision?.humanReviewRequired)) },
+                { label: "审计状态", value: visualStatusLabel(trust?.auditStatus || response.auditStatus || "logged") },
+                { label: "生成方式", value: visualModelLabel(response.provider, response.model) },
               ]} />
               <CitationChips citations={response.citations} />
               {packet?.boundary ? (
@@ -1506,7 +1545,7 @@ function pageContextSummary(route: string) {
     `当前页面：${route}`,
     `页面类型：${pageMarkers[0] || routePageLabel(route)}`,
     `可见业务对象统计：${objectLine}`,
-    "可见对象示例：未随页面问答发送；需要解释具体员工、资料、事件或组织时，请先圈选对象，让后端按 scope 解析。",
+    "可见对象示例：未随页面问答发送；需要解释具体员工、资料、事件或组织时，请先圈选对象，系统会按可见范围解析。",
     modules.length ? `页面模块：${dedupe(modules).slice(0, 8).join("、")}` : "页面模块：未标记",
     actions.length ? `可用操作：${dedupe(actions).slice(0, 8).join("、")}` : "可用操作：未标记",
     overlays.length ? `当前打开浮层：${dedupe(overlays).slice(0, 3).join("、")}` : "当前打开浮层：无",
@@ -1515,8 +1554,8 @@ function pageContextSummary(route: string) {
 
 function routePageLabel(route: string) {
   if (route.includes("employees")) return "员工数据层";
-  if (route.includes("legal-entities")) return "法人 scope 底座";
-  if (route.includes("org-units")) return "组织 scope 图谱";
+  if (route.includes("legal-entities")) return "法人边界底座";
+  if (route.includes("org-units")) return "组织边界图谱";
   if (route.includes("users")) return "账号与角色";
   if (route.includes("attendance")) return "考勤态势";
   if (route.includes("messages")) return "消息证据";
@@ -1524,7 +1563,7 @@ function routePageLabel(route: string) {
   if (route.includes("docs")) return "文档库";
   if (route.includes("audit")) return "信任与审计";
   if (route.includes("settings")) return "设置";
-  if (route.includes("agents")) return "Agent 运行控制";
+  if (route.includes("agents")) return "智能任务运行控制";
   if (route.includes("learning")) return "学习层";
   if (route.includes("co-growth")) return "Co-Growth Engine";
   if (route.includes("ai-command")) return "AI 指挥中心";

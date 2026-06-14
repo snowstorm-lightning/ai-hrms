@@ -23,18 +23,18 @@ const pageChecks = [
   ["/app/trust-audit", ["信任与审计", "人工复核队列"]],
   ["/app/ai-command", ["AI 指挥中心", "人机协作边界"]],
   ["/app/knowledge", ["治理型知识库", "引用回答"]],
-  ["/app/docs", ["文档库", "RAG 精准问答"]],
+  ["/app/docs", ["文档库", "按资料回答"]],
   ["/co-growth", ["AI-HRMS 共生成长引擎", "AI 能力画像"]],
   ["/app/learning", ["学习层", "进入共生成长"]],
   ["/app/agents", ["人机协作运行中心", "智能体运行"]],
   ["/app/audit", ["信任、审计与证据层", "审计链路"]],
   ["/app/help", ["新手使用指南", "Visual Copilot 怎么用"]],
   ["/app/profile", ["个人简历", "履历摘要"]],
-  ["/app/legal-entities", ["法人 scope 底座", "新增法人实体"]],
-  ["/app/org-units", ["组织 scope 图谱", "新增组织单元"]],
+  ["/app/legal-entities", ["法人边界底座", "新增法人实体"]],
+  ["/app/org-units", ["组织边界图谱", "新增组织单元"]],
   ["/app/users", ["账号与角色治理", "新增用户"]],
   ["/app/employees", ["员工数据层", "新增员工"]],
-  ["/app/attendance", ["考勤实时态势台", "Agent 实时分析"]],
+  ["/app/attendance", ["考勤实时态势台", "智能实时分析"]],
   ["/app/messages", ["消息与协作证据", "查看评论"]],
   ["/app/settings", ["设置", "侧边栏宽度"]],
 ];
@@ -470,7 +470,7 @@ async function checkVisualCopilot(page, suite, path, options = {}) {
   if (role !== "dialog") {
     throw new Error(`[${suite.name}] ${path} Visual Copilot panel should expose dialog semantics`);
   }
-  await panel.getByText("普通问答走 RAG；截图/圈选问携带 layout snapshot", { exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
+  await panel.getByText("普通问答走知识库；截图/圈选问携带页面线索", { exact: true }).waitFor({ state: "visible", timeout: timeoutMs });
   if (await panel.getByText("换边").count()) {
     throw new Error(`[${suite.name}] ${path} Visual Copilot should not expose a confusing side-switch button`);
   }

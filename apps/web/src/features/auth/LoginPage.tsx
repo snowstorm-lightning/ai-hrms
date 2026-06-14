@@ -34,11 +34,11 @@ export function LoginPage() {
         <Tag color="blue">{demoMode ? "Assignment Demo" : "Local seeded environment"}</Tag>
         <Typography.Title level={1}>AI-HRMS｜人机共生的人力资源智能操作系统</Typography.Title>
         <Typography.Paragraph>
-          连接组织数据、知识库、学习成长、智能体运行和审计治理，让 HR 与 AI Agent 在可追溯边界内共同完成工作。
+          连接组织数据、知识库、学习成长、智能任务运行和审计治理，让 HR 与智能助手在可追溯边界内共同完成工作。
         </Typography.Paragraph>
         <div className="login-feature-grid">
           <div><DatabaseOutlined /><span>组织数据层</span></div>
-          <div><RobotOutlined /><span>Agent 协作层</span></div>
+          <div><RobotOutlined /><span>智能协作层</span></div>
           <div><ThunderboltOutlined /><span>Co-Growth 成长引擎</span></div>
           <div><AuditOutlined /><span>审计证据层</span></div>
         </div>
@@ -46,14 +46,14 @@ export function LoginPage() {
           showIcon
           icon={<SafetyCertificateOutlined />}
           type="info"
-          title={demoMode ? "可信 AI-HR 协作体验" : "企业部署模式：模型、RAG 与 Agent 编排可配置"}
-          description={demoMode ? "统一展示知识引用、权限范围、Agent 预览、人工复核和审计证据链。" : "当前登录进入本机种子环境，可验证模型编排、知识治理、权限范围和审计闭环。"}
+          title={demoMode ? "可信 AI-HR 协作体验" : "企业部署模式：模型、知识库与智能任务编排可配置"}
+          description={demoMode ? "统一展示知识引用、权限范围、智能任务预览、人工复核和审计证据链。" : "当前登录进入本机种子环境，可验证模型编排、知识治理、权限范围和审计闭环。"}
         />
       </section>
       <section className="login-panel">
         <Typography.Title level={2}>{demoMode ? "进入 AI-HRMS Demo" : "进入 AI-HRMS 本地环境"}</Typography.Title>
         <Typography.Paragraph type="secondary">
-          推荐从 Command Dashboard 开始，依次浏览 AI 指挥、知识治理、Co-Growth、Agent Run 和审计证据链。
+          推荐从指挥看板开始，依次浏览 AI 指挥、知识治理、共生成长、智能任务和审计证据链。
         </Typography.Paragraph>
         {error ? <Alert type="error" title={error} showIcon /> : null}
         <Form

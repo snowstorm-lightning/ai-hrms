@@ -62,7 +62,7 @@ function humanizeDocumentText(value: string) {
   return value
     .replaceAll("Agent Run", "智能体运行")
     .replaceAll("Agent run", "智能体运行")
-    .replaceAll("toolPreview", "工具调用预览")
+    .replaceAll("toolPreview", "动作草稿")
     .replaceAll("riskLevel", "风险等级")
     .replaceAll("requiredCapability", "所需权限")
     .replaceAll("humanReviewRequired", "需要人工复核")
@@ -72,7 +72,7 @@ function humanizeDocumentText(value: string) {
     .replaceAll("sensitivity", "敏感级别")
     .replaceAll("scope", "可见范围")
     .replaceAll("chunk", "分块")
-    .replaceAll("embedding", "向量索引")
+    .replaceAll("embedding", "检索索引")
     .replaceAll("retrieval log", "检索日志")
     .replaceAll("audit", "审计");
 }
@@ -162,10 +162,10 @@ export function KnowledgePage() {
     try {
       const job = await api.rebuildRAGDocument(document.id);
       setRebuildJob(job);
-      message.success(job.summary || "已重建 chunk 与 embedding。");
+      message.success(job.summary || "已刷新检索索引。");
       await reload();
     } catch (err) {
-      setError(getErrorMessage(err, "重建向量失败"));
+      setError(getErrorMessage(err, "刷新检索索引失败"));
     } finally {
       setRebuildingId("");
     }
@@ -263,14 +263,14 @@ export function KnowledgePage() {
 
       <section className="section-card knowledge-pipeline" data-vc-kind="rag-pipeline">
         <Space wrap size="middle">
-          <Tag color="blue">分块策略：标题 + 句子上下文</Tag>
-          <Tag color="cyan">正文窗口：760 字符</Tag>
-          <Tag color="geekblue">重叠窗口：120 字符</Tag>
-          <Tag color="purple">检索方式：关键词 + 向量融合</Tag>
+          <Tag color="blue">切分方式：标题 + 句子上下文</Tag>
+          <Tag color="cyan">单段长度：760 字符</Tag>
+          <Tag color="geekblue">上下文重叠：120 字符</Tag>
+          <Tag color="purple">检索方式：关键词 + 语义匹配</Tag>
           <Tag color="default">重排模型：暂不启用</Tag>
         </Space>
         <Typography.Paragraph type="secondary">
-          分块会保存正文、章节路径、上下文前缀和策略版本；模型或策略变化时使用“重建向量”刷新检索索引。受限资料只做治理展示，不进入正式回答引用。
+          系统会保存正文、章节路径、上下文前缀和策略版本；模型或策略变化时使用“刷新检索索引”重新整理检索入口。受限资料只做治理展示，不进入正式回答引用。
         </Typography.Paragraph>
       </section>
 
@@ -322,7 +322,7 @@ export function KnowledgePage() {
                   }
                   setResult({
                     answer: `治理预览：${document.title} 可以作为候选引用。正式回答仍必须通过受控检索，按可见范围、敏感级别和检索分数确认。`,
-                    citations: [{ documentId: document.id, chunkId: `${document.id}-preview`, title: document.title, snippet: document.content ?? "Demo citation preview", trustLevel: document.trustLevel, sensitivity: document.sensitivity, score: 0.72 }],
+                    citations: [{ documentId: document.id, chunkId: `${document.id}-preview`, title: document.title, snippet: document.content ?? "资料预览片段", trustLevel: document.trustLevel, sensitivity: document.sensitivity, score: 0.72 }],
                     provider: "local-preview",
                     model: "metadata-only",
                     confidence: 0.72,
@@ -334,7 +334,7 @@ export function KnowledgePage() {
               >
                 检查能否引用
               </Button>
-              <Button size="small" icon={<SafetyCertificateOutlined />} onClick={() => message.info(demoMode ? "Demo：已生成资料治理提示，真实发布需 Go 授权和审计。" : "已生成资料治理提示；发布动作需 Go 授权和审计。")}>
+              <Button size="small" icon={<SafetyCertificateOutlined />} onClick={() => message.info(demoMode ? "已生成资料治理提示，正式发布前仍需权限校验和审计。" : "已生成资料治理提示；发布动作需权限校验和审计。")}>
                 生成治理建议
               </Button>
               <Button
@@ -343,15 +343,15 @@ export function KnowledgePage() {
                 loading={rebuildingId === document.id}
                 onClick={() => {
                   modal.confirm({
-                    title: "重建该资料的 chunk 与 embedding？",
-                    content: "该操作会替换旧分块和向量索引，并写入导入任务与审计事件。不会修改原文、可见范围或发布时间。",
-                    okText: "重建",
+                    title: "刷新该资料的检索索引？",
+                    content: "该操作会替换旧索引，并写入导入任务与审计事件。不会修改原文、可见范围或发布时间。",
+                    okText: "刷新",
                     cancelText: "取消",
                     onOk: () => rebuildDocument(document),
                   });
                 }}
               >
-                重建向量
+                刷新索引
               </Button>
             </Space>
           </article>
@@ -425,8 +425,8 @@ export function KnowledgePage() {
           <Alert
             showIcon
             type="info"
-            title="真实模式会先经过 Go 授权，再调用受控向量生成流程"
-            description="系统负责生成向量并写入 PostgreSQL/pgvector；检索仍按可见范围、敏感级别和发布状态过滤。"
+            title="真实模式会先经过权限校验，再刷新受控检索索引"
+            description="系统负责生成检索索引；检索仍按可见范围、敏感级别和发布状态过滤。"
           />
           {ingestJob ? (
             <Alert

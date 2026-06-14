@@ -191,9 +191,9 @@ export function AttendancePage() {
       const result = await api.attendanceAgentAnalysis({ day: overview.day, focus: "overview" });
       setAnalysis(result);
       if (result.overview) setOverview(result.overview);
-      message.success("Agent 分析预览已生成");
+      message.success("智能分析预览已生成");
     } catch (err) {
-      setError(getErrorMessage(err, "Agent 考勤分析失败"));
+      setError(getErrorMessage(err, "智能考勤分析失败"));
     } finally {
       setAnalysisLoading(false);
     }
@@ -357,14 +357,14 @@ export function AttendancePage() {
               <Space align="start">
                 <span className="status-icon tone-purple"><RobotOutlined /></span>
                 <div>
-                  <Typography.Title level={4}>Agent 实时分析</Typography.Title>
+                  <Typography.Title level={4}>智能实时分析</Typography.Title>
                   <Typography.Paragraph type="secondary">
-                    基于 scoped 考勤快照生成预览式洞察，工具只读，所有处置建议都需要 HR 人工复核。
+                    基于当前可见范围的考勤快照生成预览式洞察，工具只读，所有处置建议都需要 HR 人工复核。
                   </Typography.Paragraph>
                 </div>
               </Space>
               <Button type="primary" block icon={<RobotOutlined />} loading={analysisLoading} onClick={runAnalysis}>
-                生成 Agent 分析预览
+                生成智能分析预览
               </Button>
               {analysis ? (
                 <div className="attendance-agent-result">
@@ -391,7 +391,7 @@ export function AttendancePage() {
                   </Space>
                 </div>
               ) : (
-                <Alert showIcon type="warning" title="尚未生成分析" description="点击按钮后会创建智能体运行预览和只读工具预览，不会执行写操作。" />
+                <Alert showIcon type="warning" title="尚未生成分析" description="点击按钮后会创建智能任务预览和只读动作草稿，不会执行写操作。" />
               )}
             </Space>
           </aside>

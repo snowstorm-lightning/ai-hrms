@@ -65,7 +65,7 @@ function humanizeDocumentText(value: string) {
     .replaceAll("Visual Copilot", "圈选助手")
     .replaceAll("Agent Run", "智能体运行")
     .replaceAll("Agent run", "智能体运行")
-    .replaceAll("toolPreview", "工具调用预览")
+    .replaceAll("toolPreview", "动作草稿")
     .replaceAll("riskLevel", "风险等级")
     .replaceAll("requiredCapability", "所需权限")
     .replaceAll("humanReviewRequired", "需要人工复核")
@@ -86,7 +86,7 @@ function humanizeDocumentText(value: string) {
     .replaceAll("sensitivity", "敏感级别")
     .replaceAll("scope", "可见范围")
     .replaceAll("chunk", "分块")
-    .replaceAll("embedding", "向量索引")
+    .replaceAll("embedding", "检索索引")
     .replaceAll("layout snapshot", "页面线索")
     .replaceAll("prompt", "提问")
     .replaceAll("citation", "引用")
@@ -131,7 +131,7 @@ function parseDocumentContent(document: RAGDocument) {
   const content = (document.content ?? "").trim();
   if (!content) {
     return {
-      intro: ["该资料没有返回正文。请在知识治理页补充正文、发布后重建 chunk 与 embedding。"],
+      intro: ["该资料没有返回正文。请在知识治理页补充正文、发布后刷新检索索引。"],
       sections: [{ id: "content", title: "完整正文", blocks: ["该资料没有返回正文。"] }],
     };
   }
@@ -242,7 +242,7 @@ export function DocsLibraryPage() {
     try {
       setResult(await api.ragSearch(trimmed, 6));
     } catch (err) {
-      setError(getErrorMessage(err, "RAG 问答失败"));
+      setError(getErrorMessage(err, "资料问答失败"));
     } finally {
       setSearching(false);
     }
@@ -259,8 +259,8 @@ export function DocsLibraryPage() {
             <Alert
               type="info"
               showIcon
-              title="精准回答必须走 RAG 引用链"
-              description="涉及“依据在哪里、引用哪份资料、谁可以看”时，系统会使用 RAG 检索和审计记录；目录页只显示资料简介，完整正文在文档详情页阅读。"
+              title="回答会标明资料来源"
+              description="涉及“依据在哪里、引用哪份资料、谁可以看”时，系统会先校验可见范围，再记录引用和审计；目录页只显示资料简介，完整正文在文档详情页阅读。"
             />
             <Input.Search
               value={query}
@@ -435,8 +435,8 @@ export function DocsDocumentPage() {
               <Alert
                 showIcon
                 type={document.sensitivity === "restricted" ? "warning" : "success"}
-                title={document.sensitivity === "restricted" ? "该资料需要人工复核后查看或引用" : "该资料可作为 RAG 候选引用"}
-                description="正式回答不会直接使用当前阅读视图，而是通过 RAG 检索、可见范围校验和引用记录生成。"
+                title={document.sensitivity === "restricted" ? "该资料需要人工复核后查看或引用" : "该资料可作为候选引用"}
+                description="正式回答不会直接使用当前阅读视图，而是通过知识库检索、可见范围校验和引用记录生成。"
               />
               <Descriptions column={1} size="small" bordered>
                 <Descriptions.Item label="文档 ID">{document.id}</Descriptions.Item>
