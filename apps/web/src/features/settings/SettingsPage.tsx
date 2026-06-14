@@ -89,7 +89,12 @@ export function SettingsPage() {
             </div>
             <div className="settings-row">
               <Typography.Text strong>{t("settings.copilotEvidence")}</Typography.Text>
-              <Switch checked={settings.copilotEvidenceDefaultOpen} onChange={(checked) => updateSettings({ copilotEvidenceDefaultOpen: checked })} />
+              <Switch
+                checked={settings.copilotEvidenceDefaultOpen}
+                onChange={(checked) => updateSettings({ copilotEvidenceDefaultOpen: checked })}
+                aria-label={t("settings.copilotEvidence")}
+                title={t("settings.copilotEvidence")}
+              />
             </div>
           </Space>
         </Card>

@@ -104,6 +104,23 @@ export function AppShell() {
     return () => { mounted = false; };
   }, [location.pathname]);
 
+  useEffect(() => {
+    const labelPaginationButtons = () => {
+      document.querySelectorAll<HTMLButtonElement>(".ant-pagination-prev .ant-pagination-item-link").forEach((button) => {
+        button.setAttribute("aria-label", t("shell.previousPage"));
+        button.setAttribute("title", t("shell.previousPage"));
+      });
+      document.querySelectorAll<HTMLButtonElement>(".ant-pagination-next .ant-pagination-item-link").forEach((button) => {
+        button.setAttribute("aria-label", t("shell.nextPage"));
+        button.setAttribute("title", t("shell.nextPage"));
+      });
+    };
+    labelPaginationButtons();
+    const observer = new MutationObserver(labelPaginationButtons);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [t, location.pathname]);
+
   const handleMenuClick = (key: string) => {
     navigate(key);
     setMobileMenuOpen(false);
@@ -236,7 +253,7 @@ export function AppShell() {
             </Space>
           </div>
           <Typography.Text className="mobile-route-title" strong>{selectedLabel}</Typography.Text>
-          <Input.Search className="global-search" placeholder={t("shell.searchPlaceholder")} allowClear onSearch={handleSearch} />
+          <Input.Search className="global-search" placeholder={t("shell.searchPlaceholder")} allowClear enterButton={t("shell.searchButton")} onSearch={handleSearch} />
           <Popover
             trigger="click"
             placement="bottomRight"
@@ -302,6 +319,7 @@ export function AppShell() {
           <Input.Search
             placeholder={t("shell.searchPlaceholder")}
             allowClear
+            enterButton={t("shell.searchButton")}
             onSearch={(value) => {
               handleSearch(value);
               setMobileMenuOpen(false);
