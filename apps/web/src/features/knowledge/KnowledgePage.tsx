@@ -1,6 +1,6 @@
 import { DatabaseOutlined, FileSearchOutlined, SafetyCertificateOutlined, SyncOutlined, WarningOutlined } from "@ant-design/icons";
 import { Alert, Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from "antd";
-import { useEffect, useMemo, useState, type HTMLAttributes } from "react";
+import { useEffect, useMemo, useRef, useState, type HTMLAttributes } from "react";
 import { api, getErrorMessage } from "../../api/client";
 import type { RAGDocument, RAGIngestJob, RAGSearchResult, RAGSource } from "../../api/types";
 import { CitationList, TrustMetaBar } from "../../components/AiTrust";
@@ -107,6 +107,7 @@ export function KnowledgePage() {
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("新人 30 天成长计划需要引用哪些资料？");
   const [result, setResult] = useState<RAGSearchResult | null>(null);
+  const [resultTitle, setResultTitle] = useState("");
   const [editing, setEditing] = useState(false);
   const [savingDocument, setSavingDocument] = useState(false);
   const [ingesting, setIngesting] = useState(false);
@@ -121,6 +122,15 @@ export function KnowledgePage() {
   const demoMode = import.meta.env.VITE_DEMO_MODE === "true";
   const [ingestForm] = Form.useForm();
   const [modal, modalContextHolder] = Modal.useModal();
+  const resultRef = useRef<HTMLDivElement | null>(null);
+
+  const showResult = (title: string, nextResult: RAGSearchResult) => {
+    setResultTitle(title);
+    setResult(nextResult);
+    window.requestAnimationFrame(() => {
+      resultRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -148,7 +158,7 @@ export function KnowledgePage() {
     setSearching(true);
     setError("");
     try {
-      setResult(await api.ragSearch(trimmed));
+      showResult(`检索结果：${trimmed}`, await api.ragSearch(trimmed));
     } catch (err) {
       setError(getErrorMessage(err, "知识检索失败"));
     } finally {
@@ -233,7 +243,8 @@ export function KnowledgePage() {
               <Button data-vc-action="rag.ingest" onClick={openIngestEditor}>导入/重建资料</Button>
             </div>
             {result ? (
-              <div className="result-panel">
+              <div className="result-panel result-panel-highlight" ref={resultRef}>
+                <Typography.Text strong>{resultTitle || "检索结果"}</Typography.Text>
                 <TrustMetaBar riskLevel={result.riskLevel ?? "unknown"} confidence={result.confidence === undefined ? 0 : Math.round(result.confidence * 100)} evidenceCount={result.citations.length} humanReviewRequired={result.humanReviewRequired ?? true} auditStatus={result.auditStatus ?? "metadata_missing"} />
                 <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 3 }} className="knowledge-retrieval-meta">
                   <Descriptions.Item label="检索来源">{providerLabel(result.provider)}</Descriptions.Item>
@@ -307,7 +318,7 @@ export function KnowledgePage() {
                 icon={<FileSearchOutlined />}
                 onClick={() => {
                   if (!canUseForAI(document)) {
-                    setResult({
+                    showResult(`资料检查：${document.title}`, {
                       answer: `${document.title} 当前只能做治理预览，不能作为正式 AI 回答引用。请先处理发布状态、敏感级别和可见范围，并由人工复核。`,
                       citations: [],
                       refusalReason: "governance_preview_only",
@@ -320,7 +331,7 @@ export function KnowledgePage() {
                     });
                     return;
                   }
-                  setResult({
+                  showResult(`资料检查：${document.title}`, {
                     answer: `治理预览：${document.title} 可以作为候选引用。正式回答仍必须通过受控检索，按可见范围、敏感级别和检索分数确认。`,
                     citations: [{ documentId: document.id, chunkId: `${document.id}-preview`, title: document.title, snippet: document.content ?? "资料预览片段", trustLevel: document.trustLevel, sensitivity: document.sensitivity, score: 0.72 }],
                     provider: "local-preview",
