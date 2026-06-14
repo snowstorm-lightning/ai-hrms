@@ -53,12 +53,22 @@ export function MessagesPage() {
 
   useEffect(() => { void reload(1); }, []);
 
+  const openPostEditor = () => {
+    form.resetFields();
+    setPosting(true);
+  };
+
+  const closePostEditor = () => {
+    setPosting(false);
+    form.resetFields();
+  };
+
   return (
     <main data-vc-page="message-evidence" data-vc-kind="messages-page">
       <PageTitle title="消息与协作证据" description="发布公告、内部交流和评论；可作为组织沟通上下文进入审计和知识治理，而不是无边界训练数据。" />
       <InlineError message={error} onRetry={() => reload()} />
       <Space className="toolbar">
-        <Button type="primary" data-vc-action="message.create" onClick={() => setPosting(true)}>发帖</Button>
+        <Button type="primary" data-vc-action="message.create" onClick={openPostEditor}>发帖</Button>
       </Space>
       <div className="hr-mobile-record-list" data-vc-kind="message-mobile-list">
         {loading ? <div className="hr-mobile-record-card">加载中...</div> : null}
@@ -108,7 +118,7 @@ export function MessagesPage() {
           { title: "操作", render: (_, row) => <Button type="link" data-vc-action="message.comments.open" onClick={() => openComments(row)}>查看评论</Button> },
         ]}
       />
-      <Modal title="发帖" open={posting} onCancel={() => setPosting(false)} onOk={() => form.submit()} confirmLoading={saving} data-vc-kind="message-editor">
+      <Modal title="发帖" open={posting} onCancel={closePostEditor} onOk={() => form.submit()} confirmLoading={saving} data-vc-kind="message-editor">
         <Form
           form={form}
           layout="vertical"
@@ -117,8 +127,7 @@ export function MessagesPage() {
             setError("");
             try {
               await api.createMessage(values);
-              setPosting(false);
-              form.resetFields();
+              closePostEditor();
               await reload();
             } catch (err) {
               setError(getErrorMessage(err, "消息保存失败"));

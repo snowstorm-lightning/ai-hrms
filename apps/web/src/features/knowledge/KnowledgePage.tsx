@@ -177,6 +177,28 @@ export function KnowledgePage() {
     usable: documents.filter(canUseForAI).length,
   }), [documents]);
 
+  const openDocumentEditor = () => {
+    form.resetFields();
+    setEditing(true);
+  };
+
+  const closeDocumentEditor = () => {
+    setEditing(false);
+    form.resetFields();
+  };
+
+  const openIngestEditor = () => {
+    ingestForm.resetFields();
+    setIngestJob(null);
+    setIngestOpen(true);
+  };
+
+  const closeIngestEditor = () => {
+    setIngestOpen(false);
+    ingestForm.resetFields();
+    setIngestJob(null);
+  };
+
   return (
     <div className="knowledge-page" data-vc-page="knowledge">
       {modalContextHolder}
@@ -207,8 +229,8 @@ export function KnowledgePage() {
             <div className="knowledge-search-row">
               <Input data-vc-field="rag.query" aria-label="RAG search query" placeholder="输入要回答的问题或需要核验的政策点" value={query} onChange={(event) => setQuery(event.target.value)} onPressEnter={search} />
               <Button data-vc-action="rag.search" type="primary" loading={searching} onClick={search}>检索引用</Button>
-              <Button data-vc-action="rag.document.create" onClick={() => setEditing(true)}>新增资料</Button>
-              <Button data-vc-action="rag.ingest" onClick={() => setIngestOpen(true)}>导入/重建资料</Button>
+              <Button data-vc-action="rag.document.create" onClick={openDocumentEditor}>新增资料</Button>
+              <Button data-vc-action="rag.ingest" onClick={openIngestEditor}>导入/重建资料</Button>
             </div>
             {result ? (
               <div className="result-panel">
@@ -360,7 +382,7 @@ export function KnowledgePage() {
         ]}
       />
 
-      <Modal title="新增治理型知识资料" open={editing} onCancel={() => setEditing(false)} onOk={() => form.submit()} confirmLoading={savingDocument} width={760}>
+      <Modal title="新增治理型知识资料" open={editing} onCancel={closeDocumentEditor} onOk={() => form.submit()} confirmLoading={savingDocument} width={760}>
         <Form
           form={form}
           layout="vertical"
@@ -372,8 +394,7 @@ export function KnowledgePage() {
                 ...values,
                 scopes: [{ scopeType: "global", includeDescendants: true }],
               });
-              setEditing(false);
-              form.resetFields();
+              closeDocumentEditor();
               await reload();
               message.success(demoMode ? "Demo 已保存资料，并生成可审计的治理元数据。" : "已保存资料，并生成可审计的治理元数据。");
             } catch (err) {
@@ -395,7 +416,7 @@ export function KnowledgePage() {
       <Modal
         title="资料导入与重建"
         open={ingestOpen}
-        onCancel={() => setIngestOpen(false)}
+        onCancel={closeIngestEditor}
         onOk={() => ingestForm.submit()}
         confirmLoading={ingesting}
         width={760}
